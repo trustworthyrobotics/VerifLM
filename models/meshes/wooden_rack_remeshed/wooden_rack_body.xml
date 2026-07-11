@@ -1,0 +1,76 @@
+<root>
+    <body name="wooden_rack" pos="0.0 0.2 0.74" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="0.2" diaginertia="0.01 0.01 0.01" />
+        <freejoint name="wooden_rack_free" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_0" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_1" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_2" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_3" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_4" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_5" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_6" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_7" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_8" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_9" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_10" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_11" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_12" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_13" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_14" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_15" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_16" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_17" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_18" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_19" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_20" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_21" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_22" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_23" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_24" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_25" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_26" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_27" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_28" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_29" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_30" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_31" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_32" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_33" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_34" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_35" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_36" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_37" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_38" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_39" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_40" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_41" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_42" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_43" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_44" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_45" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_46" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_47" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_48" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_49" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_50" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_51" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_52" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_53" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_54" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_55" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_56" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_57" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_58" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_59" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_60" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_61" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_62" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_63" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_64" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_65" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_66" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_67" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_68" />
+        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_69" />
+    </body>
+</root>

@@ -1,0 +1,15 @@
+You are selecting the best physically valid goal pose candidate for a robot manipulation task.
+
+Instruction: {instruction}
+Active object: {active_object}
+Passive object: {passive_object}
+
+Each image is labeled candidate_i. Choose the candidate that best satisfies the task and has the cleanest alignment and contact. For example, if a dish is to be placed on the rack, the ideal placement would be in the middle of the rack, with its rim crossing a pair of opposing slots and its z (blue) axis parallel to the rails.
+If a mug is to be hang on the rack, its ideal placement would have the handle hanging over the branch.
+
+Return only valid JSON:
+
+{
+  "best_index": 0,
+  "reasoning": "brief reason"
+}

@@ -1,0 +1,20 @@
+Choose the ordered manipulation stage(s) needed for the instruction.
+
+For each stage, pick exactly one active object and one passive object from the available object IDs.
+
+Return JSON only:
+{"stages":[{"active_object":"object_id","passive_object":"object_id","reason":"short reason"}]}
+
+Rules:
+- Use only the listed object IDs, exactly as written.
+- The active object is moved or manipulated in that stage.
+- The passive object is the fixed target, support, fixture, or reference object.
+- Split into multiple stages only when the instruction requires a sequence of different active/passive pairs.
+- Do not omit passive_object.
+- active_object and passive_object must differ.
+
+Instruction:
+{instruction}
+
+Available objects:
+{available_objects}

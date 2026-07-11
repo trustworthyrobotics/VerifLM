@@ -1,0 +1,88 @@
+<mujoco model="stack_plate">
+  <default>
+    <default class="goal">
+      <geom rgba="0 1 0 0.3" conaffinity="0" contype="0" />
+    </default>
+    <default class="src">
+      <geom rgba="1 0 0 0.3" conaffinity="0" contype="0" />
+    </default>
+    <default class="wooden_rack">
+      <geom friction="0.05 0.001 0.0001" condim="4" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
+    </default>
+    <default class="wooden_stick_toy">
+      <geom friction="0.8 0.02 0.001" condim="6" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
+    </default>
+    <default class="red_mug_small">
+      <geom friction=" 0.01 0.001" condim="6" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
+    </default>
+    <default class="red_mug_big">
+      <geom friction="0.8 0.02 0.001" condim="6" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
+    </default>
+    <default class="blue_mug_big">
+      <geom friction=" 0.01 0.001" condim="6" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
+    </default>
+    <default class="teapot">
+      <geom friction="0.15 0.001 0.0005" condim="6" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
+    </default>
+    <default class="yellow_cap">
+      <geom friction="0.15 0.001 0.0005" condim="6" solref="0.002 1" solimp="0.9 0.95 0.001 0.5 2" />
+    </default>
+  </default>
+  <size nconmax="1000" njmax="2000" />
+  <statistic center="0 0 0.9" extent="2.5" />
+  <option gravity="0 0 -9.81" timestep="0.002" integrator="implicitfast" />
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+    <rgba haze="0.15 0.25 0.35 1" />
+    <global azimuth="-120" elevation="-20" />
+  </visual>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300" />
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
+    <model name="kuka_iiwa_model" file="../kuka_iiwa_14/iiwa14.xml" />
+  </asset>
+  <worldbody>
+    <light name="main_light" pos="0 0 2.5" dir="0 0 -1" />
+    <geom name="ground" type="plane" size="3 3 0.1" material="groundplane" />
+    <geom name="table" type="box" pos="0 0 0.39465" size="0.50 0.75 0.39465" rgba="0.75 0.75 0.75 1" friction="0.05 0.001 0.0001" condim="4" />
+    <geom name="arm1_plate" type="box" pos="0.40 0.65 0.75645" size="0.10 0.10 0.00645" rgba="0.3 0.3 0.3 1" />
+    <body name="arm1_mount" pos="0.40 0.65 0.7629" euler="0 0 180">
+      <attach model="kuka_iiwa_model" body="base" prefix="arm1_" />
+    </body>
+    <geom name="arm2_plate" type="box" pos="0.40 -0.65 0.75645" size="0.10 0.10 0.00645" rgba="0.3 0.3 0.3 1" />
+    <body name="arm2_mount" pos="0.40 -0.65 0.7629" euler="0 0 180">
+      <attach model="kuka_iiwa_model" body="base" prefix="arm2_" />
+    </body>
+    <camera name="ceiling_cam" mode="fixed" pos="0 0 3.0" xyaxes="1 0 0  0 1 0" />
+    <body name="yellow_plate_small" pos="-0.19448493 0.1164986 0.84546823" quat="0.63049004 0.060407492 -0.057554394 -0.7716999">
+      <geom type="cylinder" name="yellow_plate_small_geom" pos="0 0 0.008" size="0.039 0.008" condim="4" friction="0.05 0.001 0.0001" mass="2" />
+      <geom type="box" name="yellow_plate_small_rim_geom_n" pos="0 0.0465 0.0185" size="0.054 0.0075 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="box" name="yellow_plate_small_rim_geom_s" pos="0 -0.0465 0.0185" size="0.054 0.0075 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="box" name="yellow_plate_small_rim_geom_e" pos="0.0465 0 0.0185" size="0.0075 0.054 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="box" name="yellow_plate_small_rim_geom_w" pos="-0.0465 0 0.0185" size="0.0075 0.054 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="cylinder" name="yellow_plate_small_legacy_geom" pos="0 0 0.008" size="0.039 0.008" condim="4" friction="0.05 0.001 0.0001" mass="2" contype="0" conaffinity="0" rgba="0 0 0 0" />
+      <geom type="cylinder" name="yellow_plate_small_legacy_rim_geom" pos="0 0 0.0185" size="0.054 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.5" contype="0" conaffinity="0" rgba="0 0 0 0" />
+    </body>
+    <body name="green_plate_small" pos="0.1567 0.3621 1.0202" quat="0.70710678 0 0.70710678 0">
+      <freejoint name="green_plate_small_free" />
+      <geom type="cylinder" name="green_plate_small_geom" pos="0 0 0.008" size="0.039 0.008" condim="4" friction="0.05 0.001 0.0001" mass="2" />
+      <geom type="box" name="green_plate_small_rim_geom_n" pos="0 0.0465 0.0185" size="0.054 0.0075 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="box" name="green_plate_small_rim_geom_s" pos="0 -0.0465 0.0185" size="0.054 0.0075 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="box" name="green_plate_small_rim_geom_e" pos="0.0465 0 0.0185" size="0.0075 0.054 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="box" name="green_plate_small_rim_geom_w" pos="-0.0465 0 0.0185" size="0.0075 0.054 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.125" />
+      <geom type="cylinder" name="green_plate_small_legacy_geom" pos="0 0 0.008" size="0.039 0.008" condim="4" friction="0.05 0.001 0.0001" mass="2" contype="0" conaffinity="0" rgba="0 0 0 0" />
+      <geom type="cylinder" name="green_plate_small_legacy_rim_geom" pos="0 0 0.0185" size="0.054 0.0025" condim="4" friction="0.05 0.001 0.0001" mass="0.5" contype="0" conaffinity="0" rgba="0 0 0 0" />
+    </body>
+    <body name="green_plate_small_goal" pos="-0.1 0.65 0.8683" quat="1 0 0 0">
+      <freejoint name="green_plate_small_goal_free" />
+      <geom type="cylinder" name="green_plate_small_goal_geom" pos="0 0 0.008" size="0.039 0.008" class="goal" contype="0" conaffinity="0" />
+      <geom type="box" name="green_plate_small_goal_rim_geom_n" pos="0 0.0465 0.0185" size="0.054 0.0075 0.0025" class="goal" contype="0" conaffinity="0" />
+      <geom type="box" name="green_plate_small_goal_rim_geom_s" pos="0 -0.0465 0.0185" size="0.054 0.0075 0.0025" class="goal" contype="0" conaffinity="0" />
+      <geom type="box" name="green_plate_small_goal_rim_geom_e" pos="0.0465 0 0.0185" size="0.0075 0.054 0.0025" class="goal" contype="0" conaffinity="0" />
+      <geom type="box" name="green_plate_small_goal_rim_geom_w" pos="-0.0465 0 0.0185" size="0.0075 0.054 0.0025" class="goal" contype="0" conaffinity="0" />
+      <geom type="cylinder" name="green_plate_small_goal_legacy_geom" pos="0 0 0.008" size="0.039 0.008" class="goal" contype="0" conaffinity="0" rgba="0 0 0 0" />
+      <geom type="cylinder" name="green_plate_small_goal_legacy_rim_geom" pos="0 0 0.0185" size="0.054 0.0025" class="goal" contype="0" conaffinity="0" rgba="0 0 0 0" />
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,41 @@
+Analyze how {active_object} must rotate to satisfy this manipulation goal.
+
+CONTEXT
+Instruction: {instruction}
+Active object: {active_object}
+Passive object: {passive_object}
+
+IMAGES AND FRAME
+The images show the same scene from two different viewpoints. Use both to judge 3D contact, support, and orientation.
+
+The only displayed frame is attached to {active_object}:
+* red: +X and roll about X
+* green: +Y and pitch about Y
+* blue: +Z and yaw about Z
+
+REASONING TASK
+This is a separate prompt for rotation only. Do not reason about translation here. Reason about if each rotation axis needs to be corrected at all. For example, if a plate needs to be inserted into a pair of opposing slots, think about which axes need to be rotated so that the dish can be correctly inserted.
+If a cup needs to be hang on the rack, think about how it needs to be rotated so the handle crosses the rack branch.
+
+ASSESSMENTS
+* correct: the orientation is correct around this axis and should be preserved.
+* normal_search: ordinary local adjustment or uncertainty.
+* major_revision: the orientation is substantially wrong and needs broad exploration.
+
+TRANSLATION NOTE
+Translation should be handled separately in the translation prompt.
+
+CONTACT TARGET
+* passive: {active_object} should touch, rest on, lean against, hang from, enter, or be supported by {passive_object}.
+* table: {active_object} should instead be directly supported by the table.
+
+Return only JSON:
+{
+  "rotation": {
+    "roll": {"assessment": "correct|normal_search|major_revision"},
+    "pitch": {"assessment": "correct|normal_search|major_revision"},
+    "yaw": {"assessment": "correct|normal_search|major_revision"}
+  },
+  "contact_target": "passive|table",
+  "summary": "At most two concise sentences stating the required rotation."
+}

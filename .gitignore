@@ -1,0 +1,14 @@
+.claude/
+artifacts/
+extrinsics/
+
+# Runtime logs
+Log/
+MUJOCO_LOG.TXT
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+.env

@@ -1,0 +1,19 @@
+Compare the source image with the edited goal image for this robot manipulation task.
+
+Instruction: {instruction}
+Active object: {active_object}
+Passive object: {passive_object}
+
+Classify the edited image as:
+- "invalid" if object appearance, geometry, background, camera viewpoint, unrelated objects, or scene layout changed substantially, or if the requested edit is clearly wrong.
+- "usable" if the source scene is preserved and the active object is edited into a plausible goal state. Minor visual artifacts are acceptable.
+
+When invalid, provide concise revision feedback that can be inserted directly into the next image-edit prompt. Focus on what must remain unchanged and what specific edit must be corrected.
+
+Return only valid JSON:
+
+{
+  "classification": "usable",
+  "reasoning": "brief explanation",
+  "revision_feedback": ""
+}

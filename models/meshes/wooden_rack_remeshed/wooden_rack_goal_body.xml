@@ -1,0 +1,76 @@
+<root>
+    <body name="wooden_rack_goal" pos="0.05 0 0.74">
+        <inertial pos="0 0 0" mass="0.2" diaginertia="0.0004 0.0004 0.0002" />
+        <freejoint name="wooden_rack_goal_free" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_0" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_1" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_2" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_3" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_4" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_5" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_6" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_7" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_8" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_9" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_10" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_11" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_12" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_13" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_14" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_15" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_16" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_17" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_18" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_19" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_20" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_21" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_22" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_23" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_24" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_25" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_26" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_27" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_28" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_29" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_30" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_31" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_32" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_33" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_34" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_35" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_36" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_37" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_38" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_39" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_40" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_41" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_42" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_43" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_44" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_45" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_46" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_47" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_48" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_49" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_50" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_51" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_52" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_53" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_54" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_55" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_56" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_57" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_58" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_59" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_60" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_61" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_62" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_63" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_64" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_65" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_66" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_67" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_68" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_rack_69" contype="0" conaffinity="0" />
+    </body>
+</root>

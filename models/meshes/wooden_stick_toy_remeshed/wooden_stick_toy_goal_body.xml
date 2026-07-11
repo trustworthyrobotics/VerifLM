@@ -1,0 +1,23 @@
+<root>
+    <body name="wooden_stick_toy_goal" pos="0.05 0 0.74">
+        <inertial pos="0 0 0" mass="0.2" diaginertia="0.0004 0.0004 0.0002" />
+        <freejoint name="wooden_stick_toy_goal_free" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_0" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_1" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_2" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_3" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_4" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_5" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_6" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_7" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_8" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_9" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_10" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_11" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_12" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_13" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_14" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_15" contype="0" conaffinity="0" />
+        <geom class="goal" type="mesh" mesh="wooden_stick_toy_16" contype="0" conaffinity="0" />
+    </body>
+</root>

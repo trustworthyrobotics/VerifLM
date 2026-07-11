@@ -1,0 +1,41 @@
+Analyze how {active_object} must translate to satisfy this manipulation goal.
+
+CONTEXT
+Instruction: {instruction}
+Active object: {active_object}
+Passive object: {passive_object}
+
+IMAGES AND FRAME
+The images show the same scene from two different viewpoins.. Use both to judge 3D position, overlap, and contact.
+
+The displayed frame is the world frame at the passive object origin:
+* red: +X
+* green: +Y
+* blue: +Z
+
+REASONING TASK
+This is a separate prompt for translation only. Do not reason about rotation here. Reason about how the object needs to be moved, if at all, in the world frame so that it'll be placed in a secure location, rather than near the edge.
+For plate stacking, pay close attention to if the plate that's supposed to go on top is occluded by the plate that's supposed to be stacked on. If so, the plate probably needs to be adjusted in the z direction.
+
+* normal_search: ordinary local adjustment or uncertainty.
+* major_revision: the translation is substantially wrong and needs broad exploration.
+
+TRANSLATION DIRECTIONS
+* positive: move along the displayed positive axis.
+* negative: move opposite the displayed positive axis.
+* none: no clear directional correction, or the axis is correct.
+
+CONTACT TARGET
+* passive: {active_object} should touch, rest on, lean against, hang from, enter, or be supported by {passive_object}.
+* table: {active_object} should instead be directly supported by the table.
+
+Return only JSON:
+{
+  "translation": {
+    "x": {"assessment": "correct|normal_search|major_revision", "direction": "positive|negative|none"},
+    "y": {"assessment": "correct|normal_search|major_revision", "direction": "positive|negative|none"},
+    "z": {"assessment": "correct|normal_search|major_revision", "direction": "positive|negative|none"}
+  },
+  "contact_target": "passive|table",
+  "summary": "At most two concise sentences stating the required translation."
+}
