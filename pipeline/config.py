@@ -285,8 +285,8 @@ CAMERA_TYPE = "gemini"
 # Goal-image generation remains Gemini-only in vlm.py.
 VLM_PROVIDERS = {
     "step_1": "openai",   # optional task-stage decomposition
-    "step_8": "openai",   # sampling-axis reasoning
-    "step_10": "gemini",  # candidate selection
+    "step_6": "openai",   # sampling-axis reasoning
+    "step_9": "gemini",   # candidate selection
 }
 
 
@@ -330,7 +330,6 @@ BENCHMARKS = {
             'sim_steps': 500,
             'max_z_change': 0.05,
             'max_ori_change': 0.06981317007977318,
-            'use_axis_reasoning': True,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
@@ -382,7 +381,6 @@ BENCHMARKS = {
             'sim_steps': 500,
             'max_z_change': 0.05,
             'max_ori_change': 0.06981317007977318,
-            'use_axis_reasoning': True,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
@@ -528,7 +526,6 @@ BENCHMARKS = {
             'sim_steps': 500,
             'max_z_change': 0.08,
             'max_ori_change': 0.13962634015954636,
-            'use_axis_reasoning': True,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 1.5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -776,7 +773,6 @@ SAMPLING_DEFAULTS = {
     "max_candidate_images": 5,
     "position_variance_multipliers": {"low": 0.25, "medium": 1.0, "high": 2.0},
     "orientation_variance_multipliers": {"low": 0.25, "medium": 1.0, "high": 2.0},
-    "use_axis_reasoning": False,
     "pos_bias": {"x": None, "y": None, "z": None},
     "required_contacts": [("active", "passive")],
     "forbidden_contacts": [("active", "table")],
@@ -1109,7 +1105,7 @@ def _runtime_config_from_normalized(
         post_release_hover_m=float(motion["post_release_hover_m"]),
         camera_type=camera_type,
         camera_serial=camera_serial,
-        axis_reasoning=bool(axis_reasoning or sampling["use_axis_reasoning"]),
+        axis_reasoning=bool(axis_reasoning),
         debug=bool(debug),
         skip_sampling=task["skip_sampling"],
         skip_settlement=bool(motion.get("skip_settlement", False)),
@@ -1129,7 +1125,7 @@ def build_pipeline_config(
     *,
     camera_type: str = CAMERA_TYPE,
     camera_serial: str | None = None,
-    axis_reasoning: bool = False,
+    axis_reasoning: bool = True,
     debug: bool = False,
     board_x_mj: float = -0.12,
     board_y_mj: float = 0.0,

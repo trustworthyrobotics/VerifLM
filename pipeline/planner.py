@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Iterator
+from typing import Callable, Iterator
 
 import mujoco
 import numpy as np
@@ -21,8 +21,8 @@ from pipeline.config import (
     PipelineConfig,
 )
 from pipeline.core import (
-    ObjectPose, make_T, make_T_from_xyz_rpy, mat_to_quat_wxyz,
-    quat_wxyz_to_mat, rotx, roty, rotz, rpy_to_R,
+    ObjectPose, make_T, mat_to_quat_wxyz, quat_wxyz_to_mat,
+    rotx, roty, rotz, rpy_to_R,
 )
 
 
@@ -72,6 +72,11 @@ def get_gripper_control_info(m, actuator_suffix: str = "gripper"):
         "open_ctrl": float(ctrl_low),
         "close_ctrl": float(ctrl_high),
     }
+
+
+def set_gripper_command(m, d, actuator_id, command: float) -> None:
+    if actuator_id is not None:
+        d.ctrl[int(actuator_id)] = float(command)
 
 
 
@@ -908,7 +913,10 @@ def _make_context(args: PipelineConfig, xml_path: Path) -> PlanningContext:
 
 def _write_trajectory(path: Path, trajectory: dict) -> None:
     path.write_text(json.dumps(trajectory, indent=2), encoding="utf-8")
-    print(f"[trajectory] {trajectory.get('status')} | {trajectory.get('reason', 'ok')}")
+    reason = trajectory.get("reason") or "ok"
+    print(
+        f"[trajectory] {trajectory.get('status')} | {reason} | dir={path.parent}"
+    )
 
 
 def _log_if(condition: bool, message: str) -> None:
@@ -1103,6 +1111,167 @@ def _validate_controller_trajectory(trajectory: dict) -> None:
             raise ValueError(f"Trajectory {key} must be a finite 4x4 transform.")
 
 
+def apply_trajectory_waypoint(
+    m,
+    d,
+    waypoint,
+    *,
+    qpos_ids,
+    gripper_actuator_id=None,
+    gripper_open_ctrl=0.0,
+    gripper_close_ctrl=0.0,
+) -> None:
+    """Apply arm joint positions and gripper command from a phase waypoint."""
+    q = np.asarray(waypoint["arm_joint_positions"], dtype=float)
+    if "gripper_command" in waypoint:
+        gripper_command = float(waypoint["gripper_command"])
+    else:
+        gripper_state = waypoint.get("gripper_state", "open")
+        gripper_command = gripper_close_ctrl if gripper_state == "closed" else gripper_open_ctrl
+    set_arm_q(d, qpos_ids, q)
+    set_gripper_command(m, d, gripper_actuator_id, gripper_command)
+    set_gripper_qpos_by_command(m, d, gripper_command)
+    mujoco.mj_forward(m, d)
+
+
+def _phase_move_waypoints(trajectory: dict) -> list[dict]:
+    """Flatten phase moves for MuJoCo replay while preserving gripper events."""
+    flat = []
+    gripper_state = "open"
+    for phase in trajectory.get("phases", []):
+        if phase.get("type") == "move":
+            flat.extend(
+                {"arm_joint_positions": q, "gripper_state": gripper_state}
+                for q in phase.get("waypoints", [])
+            )
+        elif phase.get("type") == "gripper":
+            command = phase.get("command")
+            event_by_command = {
+                "close": ("closed", "attach_object"),
+                "open": ("open", "release_object"),
+            }
+            if command not in event_by_command:
+                raise ValueError(f"Unknown gripper command: {command!r}")
+            gripper_state, event = event_by_command[command]
+            if flat:
+                flat.append({**flat[-1], "gripper_state": gripper_state, "event": event})
+        else:
+            raise ValueError(f"Unknown phase type: {phase.get('type')!r}")
+    return flat
+
+
+def _place_replay_marker(m, d, body_name: str, T_world_body: np.ndarray) -> None:
+    bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, body_name)
+    if bid < 0:
+        return
+    T_world_body = np.asarray(T_world_body, dtype=float)
+    mocap_id = int(m.body_mocapid[bid])
+    if mocap_id >= 0:
+        d.mocap_pos[mocap_id] = T_world_body[:3, 3]
+        d.mocap_quat[mocap_id] = mat_to_quat_wxyz(T_world_body[:3, :3])
+        return
+    for joint_id in range(m.njnt):
+        if m.jnt_bodyid[joint_id] != bid or m.jnt_type[joint_id] != 0:
+            continue
+        qpos_adr = int(m.jnt_qposadr[joint_id])
+        d.qpos[qpos_adr:qpos_adr + 3] = T_world_body[:3, 3]
+        d.qpos[qpos_adr + 3:qpos_adr + 7] = mat_to_quat_wxyz(T_world_body[:3, :3])
+        break
+
+
+def replay_pick_place_trajectory(
+    *,
+    xml_path: Path,
+    trajectory: dict,
+    object_freejoint_name: str,
+    goal_marker_body: str = "",
+    goal_T_world_object: np.ndarray | None = None,
+    seconds_per_waypoint: float = 0.03,
+) -> None:
+    """Loop an iiwa_phase_waypoint_plan_v1 trajectory in a MuJoCo passive viewer."""
+    import mujoco.viewer
+
+    _validate_controller_trajectory(trajectory)
+    if trajectory.get("status") != "success":
+        return
+
+    model = mujoco.MjModel.from_xml_path(str(xml_path))
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    arm_joint_names = tuple(trajectory.get("arm_joint_names") or ARM_JOINT_NAMES.split(","))
+    qpos_ids, _, _ = get_joint_info(model, arm_joint_names)
+    gripper_info = get_gripper_control_info(model, GRIPPER_ACTUATOR_SUFFIX)
+    mujoco_meta = trajectory.get("metadata", {}).get("mujoco", {})
+    gripper = mujoco_meta.get("gripper", {})
+    eef_body_name = str(mujoco_meta.get("eef_body_name", EEF_BODY_NAME))
+    T_eef_object = np.asarray(mujoco_meta["T_eef_object"], dtype=float)
+    source_T_world_object = np.asarray(mujoco_meta["source_T_world_object"], dtype=float)
+    waypoints = _phase_move_waypoints(trajectory)
+    if not waypoints:
+        raise ValueError("Trajectory has no waypoints.")
+
+    set_freejoint_pose_by_name(model, data, object_freejoint_name, source_T_world_object)
+    if goal_marker_body and goal_T_world_object is not None:
+        _place_replay_marker(model, data, goal_marker_body, goal_T_world_object)
+    mujoco.mj_forward(model, data)
+
+    print("[replay] looping planned motion in MuJoCo viewer; close the viewer to continue")
+    with mujoco.viewer.launch_passive(model, data) as viewer:
+        index = 0
+        last = 0.0
+        attached_to_eef = False
+        current_object_T = source_T_world_object.copy()
+        open_ctrl = float(gripper.get("open_ctrl", gripper_info["open_ctrl"]))
+        close_ctrl = float(gripper.get("close_ctrl", gripper_info["close_ctrl"]))
+
+        while viewer.is_running():
+            now = time.time()
+            if now - last >= seconds_per_waypoint:
+                waypoint = waypoints[index]
+                event = waypoint.get("event")
+                if event == "attach_object":
+                    attached_to_eef = True
+                elif event == "release_object":
+                    T_world_eef = get_body_transform(model, data, eef_body_name)
+                    current_object_T = T_world_eef @ T_eef_object
+                    attached_to_eef = False
+
+                apply_trajectory_waypoint(
+                    model,
+                    data,
+                    waypoint,
+                    qpos_ids=qpos_ids,
+                    gripper_actuator_id=gripper_info["actuator_id"],
+                    gripper_open_ctrl=open_ctrl,
+                    gripper_close_ctrl=close_ctrl,
+                )
+                if attached_to_eef:
+                    T_world_eef = get_body_transform(model, data, eef_body_name)
+                    set_freejoint_pose_by_name(
+                        model, data, object_freejoint_name, T_world_eef @ T_eef_object
+                    )
+                else:
+                    set_freejoint_pose_by_name(
+                        model, data, object_freejoint_name, current_object_T
+                    )
+                mujoco.mj_forward(model, data)
+
+                index += 1
+                if index >= len(waypoints):
+                    index = 0
+                    attached_to_eef = False
+                    current_object_T = source_T_world_object.copy()
+                    set_freejoint_pose_by_name(
+                        model, data, object_freejoint_name, current_object_T
+                    )
+                    mujoco.mj_forward(model, data)
+                last = now
+
+            viewer.sync()
+            time.sleep(0.001)
+
+
 def _plan_fixed_object_path(
     ctx: PlanningContext,
     q_start: np.ndarray,
@@ -1177,7 +1346,6 @@ def _iter_grasp_plans(ctx: PlanningContext, source_pose: ObjectPose):
                 candidate_grasp["T_object_eef"],
                 hover_offset,
             )
-            sample_label = f"grasp {grasp_index}, Z {z_index}"
             if candidate_move["status"] != "success":
                 _n_ik_fail += 1
                 continue
@@ -1399,7 +1567,7 @@ def _sample_preinsertion_path(
 
         _log_if(
             sample_count > 1,
-            f"[11e/12] goal Z sample {candidate.index}: pre-insertion found at sample {sample_index}/{sample_count - 1}"
+            f"[10e/10] goal Z sample {candidate.index}: pre-insertion found at sample {sample_index}/{sample_count - 1}"
             f" (IK={_n_ik_fail} OMPL={_n_ompl_fail} linear={_n_linear_fail} failures)",
         )
         linear_q_path = linear_result["q_path"]

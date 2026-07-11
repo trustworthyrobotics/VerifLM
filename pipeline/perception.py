@@ -383,7 +383,7 @@ class PerceptionPipeline:
                 load_sam2_predictor=_load_sam2,
             )
         if progress is not None:
-            progress.step(5, "correcting goal depth with passive-object registration")
+            progress.step(5, "correcting goal depth and running FoundationPose")
         corrected_depth, scale, shift = correct_goal_depth(
             source.depth_m,
             goal_depth,
@@ -396,8 +396,6 @@ class PerceptionPipeline:
             json.dumps({"scale": scale, "shift_m": shift}, indent=2), encoding="utf-8"
         )
 
-        if progress is not None:
-            progress.step(6, "running FoundationPose on source and goal objects")
         T_camera_to_world = camera_to_world_transform(
             source.T_camera_to_board, source.T_board_to_world
         )
@@ -427,6 +425,10 @@ class PerceptionPipeline:
             json.dumps({key: _serialize_pose(value) for key, value in poses.items()}, indent=2),
             encoding="utf-8",
         )
+        corrected_goal_passive = poses["goal_passive"].T_world_object.copy()
+        corrected_goal_passive[:3, :3] = poses["source_passive"].T_world_object[:3, :3]
+        relative_goal = np.linalg.inv(corrected_goal_passive) @ poses["goal_active"].T_world_object
+
         if debug is not None:
             debug.preview_foundationpose_scenes(
                 active_mesh=active_mesh_path,
@@ -434,13 +436,9 @@ class PerceptionPipeline:
                 source_active_pose=poses["source_active"],
                 source_passive_pose=poses["source_passive"],
                 goal_active_pose=poses["goal_active"],
-                goal_passive_pose=poses["goal_passive"],
+                goal_passive_pose=corrected_goal_passive,
                 camera_views=camera_views,
             )
-
-        corrected_goal_passive = poses["goal_passive"].T_world_object.copy()
-        corrected_goal_passive[:3, :3] = poses["source_passive"].T_world_object[:3, :3]
-        relative_goal = np.linalg.inv(corrected_goal_passive) @ poses["goal_active"].T_world_object
         return PerceptionResult(
             source=source,
             goal_bgr=goal_for_pose,

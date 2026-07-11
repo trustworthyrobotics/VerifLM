@@ -46,7 +46,7 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
         stage_index=args.stage_index,
         stage_count=args.stage_count,
     )
-    progress = ProgressLogger(total=12, label=debug.label)
+    progress = ProgressLogger(total=10, label=debug.label)
 
     progress.step(1, "loading/capturing source RGB-D")
     source = capture_source(args)
@@ -87,7 +87,7 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
         debug=debug,
         progress=progress,
     )
-    progress.step(12, "planning pick/place trajectory and saving outputs")
+    progress.step(10, "planning pick/place trajectory and saving outputs")
     planning = planner.plan_pick_place(
         args=args,
         xml_path=refinement.twin.result.xml_path,
@@ -120,4 +120,15 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
         },
     )
     save_pipeline_result(paths, artifacts)
+    if debug.enabled and trajectory.get("status") == "success":
+        try:
+            planner.replay_pick_place_trajectory(
+                xml_path=refinement.twin.result.xml_path,
+                trajectory=trajectory,
+                object_freejoint_name=args.object_freejoint_name,
+                goal_marker_body=f"{args.mujoco_active_body}_goal",
+                goal_T_world_object=refined_goal.T_world_object,
+            )
+        except KeyboardInterrupt:
+            print("[replay] interrupted")
     return artifacts

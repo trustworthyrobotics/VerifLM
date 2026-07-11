@@ -17,8 +17,8 @@ from pipeline.config import OBJECT_CATALOG, VLM_PROVIDERS
 from pipeline.core import (
     DigitalTwinResult, GoalRefinementResult, ObjectPose, PerceptionResult,
     REPO_ROOT, MODELS_DIR, SamplingConstraints, StagePaths, T_from_pos_quat,
-    mat_to_quat_wxyz, matrix_to_rpy_deg, model_path, quat_to_rpy,
-    quat_wxyz_to_mat, rpy_to_quat,
+    mat_to_quat_wxyz, matrix_to_rpy_deg, model_path, quat_wxyz_to_mat,
+    rpy_to_quat,
 )
 from pipeline.vlm import (
     constraints_from_axis_reasoning, reason_sampling_axes_vlm,
@@ -1495,22 +1495,22 @@ class GoalRefinementPipeline:
             progress=progress,
         )
         if progress is not None:
-            progress.step(9, "building MuJoCo digital twin")
+            progress.step(7, "building MuJoCo digital twin")
         twin = DigitalTwin(args, benchmark_config, perception, paths)
         if progress is not None:
-            progress.step(10, "sampling valid active-object goal candidates in MuJoCo")
+            progress.step(8, "sampling valid active-object goal candidates in MuJoCo")
         candidates = twin.sample(constraints, debug=debug)
         rendered = [candidate for candidate in candidates if candidate[2].get("image_path")]
 
         if rendered:
             if progress is not None:
-                progress.step(11, "selecting best physically valid candidate with VLM")
+                progress.step(9, "selecting best physically valid candidate with VLM")
             selection = select_best_candidate_vlm(
                 [candidate[2]["image_path"] for candidate in rendered],
                 instruction=args.instruction,
                 active_object=active_prompt,
                 passive_object=passive_prompt,
-                provider=VLM_PROVIDERS.get("step_10", "gemini"),
+                provider=VLM_PROVIDERS.get("step_9", "gemini"),
             )
             refined_goal = twin.pose_from_candidate(
                 rendered[selection["best_index"]],
@@ -1518,7 +1518,7 @@ class GoalRefinementPipeline:
             )
         else:
             if progress is not None:
-                progress.step(11, "using transferred goal pose; no valid sampled candidates")
+                progress.step(9, "using transferred goal pose; no valid sampled candidates")
             selection = {
                 "best_index": -1,
                 "reasoning": "No valid sampled candidate; using the transferred initial goal pose.",
@@ -1541,35 +1541,40 @@ class GoalRefinementPipeline:
         progress=None,
     ) -> SamplingConstraints:
         if progress is not None:
-            progress.step(7, "rendering 3D scenes for VLM constraint analysis")
+            progress.step(
+                6,
+                (
+                    "rendering 3D scenes and reasoning about sampling axes with VLM"
+                    if args.axis_reasoning
+                    else "rendering 3D scenes and using configured sampling constraints"
+                ),
+            )
+        corrected_goal_passive = perception.goal_passive.T_world_object.copy()
+        corrected_goal_passive[:3, :3] = perception.source_passive.T_world_object[:3, :3]
         rotation_views, translation_views = render_constraint_views(
             active_mesh=model_path(args.active_mesh),
             passive_mesh=model_path(args.passive_mesh),
             T_world_active=perception.goal_active.T_world_object,
-            T_world_passive=perception.goal_passive.T_world_object,
+            T_world_passive=corrected_goal_passive,
             views=benchmark_config["views"],
             out_dir=paths.inputs,
         )
         if not args.axis_reasoning:
-            if progress is not None:
-                progress.step(8, "using configured sampling constraints")
             configured_bias = benchmark_config["sampling"].get("pos_bias", {})
             return SamplingConstraints(
                 sampling_variance={axis: "medium" for axis in ("x", "y", "z", "roll", "pitch", "yaw")},
                 pos_bias={axis: configured_bias.get(axis) for axis in ("x", "y", "z")},
                 contact_target="passive",
-                reasoning="VLM axis reasoning disabled by configuration.",
+                reasoning="VLM axis reasoning disabled by runtime configuration.",
             )
 
-        if progress is not None:
-            progress.step(8, "reasoning about sampling axes with VLM")
         reasoning = reason_sampling_axes_vlm(
             rotation_views,
             translation_views,
             args.instruction,
             active_prompt,
             passive_prompt,
-            provider=VLM_PROVIDERS.get("step_8", "openai"),
+            provider=VLM_PROVIDERS.get("step_6", "openai"),
         )
         (paths.outputs / "sampling_axis_reasoning.json").write_text(
             json.dumps(reasoning, indent=2), encoding="utf-8"

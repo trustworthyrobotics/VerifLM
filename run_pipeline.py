@@ -21,9 +21,9 @@ def parse_args():
     parser.add_argument("--camera-type", choices=["gemini", "realsense"], default=CAMERA_TYPE)
     parser.add_argument("--camera-serial")
     parser.add_argument(
-        "--axis-reasoning",
+        "--skip-axis-reasoning",
         action="store_true",
-        help="Enable VLM sampling-axis reasoning even when the benchmark disables it.",
+        help="Use configured sampling constraints instead of asking a VLM to reason about sampling axes.",
     )
     parser.add_argument("--board-x-mj", type=float, default=-0.12)
     parser.add_argument("--board-y-mj", type=float, default=0.0)
@@ -38,7 +38,7 @@ def parse_args():
         parsed.benchmark,
         camera_type=parsed.camera_type,
         camera_serial=parsed.camera_serial,
-        axis_reasoning=parsed.axis_reasoning,
+        axis_reasoning=not parsed.skip_axis_reasoning,
         debug=parsed.debug,
         board_x_mj=parsed.board_x_mj,
         board_y_mj=parsed.board_y_mj,

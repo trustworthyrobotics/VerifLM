@@ -416,8 +416,8 @@ class DebugController:
             print("[debug] non-interactive stdin; saving FP pose previews without interactive wait")
 
         scenes = (
-            ("source", source_active_pose, source_passive_pose, "[6] Source Scene - close to continue"),
-            ("goal", goal_active_pose, goal_passive_pose, "[6] Goal Scene - close to continue"),
+            ("source", source_active_pose, source_passive_pose, "[5] Source Scene - close to continue"),
+            ("goal", goal_active_pose, goal_passive_pose, "[5] Goal Scene - close to continue"),
         )
         for scene_name, active_pose, passive_pose, window_name in scenes:
             if active_pose is None or passive_pose is None:
