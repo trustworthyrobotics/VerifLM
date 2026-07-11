@@ -24,7 +24,7 @@ artifacts/               runtime outputs; ignored by git
 
 ## External Dependencies
 
-Install the normal Python stack for this repo (`numpy`, `opencv-python`, `torch`, `mujoco`, `open3d`, `Pillow`, `python-dotenv`, `openai`, `google-genai`, etc.) plus these external systems:
+Install the normal Python stack for this repo (`numpy`, `opencv-python`, `torch`, `mujoco`, `open3d`, `Pillow`, `python-dotenv`, `openai`, `google-genai`, etc.) plus these external systems, cloned as siblings of this repo (i.e. in the same parent directory as `VerifLM/`):
 
 - **FoundationPose**: expected to expose `run_frame.py`; executed through a Docker container named by `FP_CONTAINER`.
 - **VGGT**: uses VGGT (`facebook/VGGT-1B`) via `VGGT_REPO`.
@@ -45,10 +45,14 @@ GOOGLE_API_KEY=...
 OPENAI_VISION_MODEL=gpt-5.5
 GEMINI_MODEL=gemini-2.0-flash
 GEMINI_IMAGE_MODEL=gemini-2.0-flash-preview-image-generation
+```
 
 ## Running
 
 ```bash
 python run_pipeline.py --benchmark red_mug_on_plate --camera-type gemini
 python run_pipeline.py --benchmark red_mug_on_plate --debug
+python run_pipeline.py --benchmark red_mug_on_plate --skip-axis-reasoning
 ```
+
+Sampling-axis reasoning is enabled by default; use `--skip-axis-reasoning` to fall back to configured sampling constraints.
