@@ -324,7 +324,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([0.17453292519943295, 0.17453292519943295, 0.17453292519943295]),
+            'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
             'initial_max_pen': 0.01,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -375,7 +375,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([0.17453292519943295, 0.17453292519943295, 0.17453292519943295]),
+            'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
             'initial_max_pen': 0.01,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -391,7 +391,7 @@ BENCHMARKS = {
         'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/stacked_cups.xml'},
         'task': {
             'objects': {
-                'red_cup': {'source_pose': {'xyz': (-0.18, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'red_cup': {'source_pose': {'xyz': (0.18, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
                 'green_cup': {'source_pose': {'xyz': (0.0, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
                 'blue_cup': {'source_pose': {'xyz': (0.18, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
@@ -423,9 +423,9 @@ BENCHMARKS = {
             },
         },
         'sampling': {
-            'n_samples': 600,
+            'n_samples': 2000,
             'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([0.3490658503988659, 0.3490658503988659, 0.3490658503988659]),
+            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
             'initial_max_pen': 0.08,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -441,7 +441,7 @@ BENCHMARKS = {
         'scene': {'generated_xml_path': 'models/generated_xmls/plate_on_rack.xml', 'surface_height': 0.7893},
         'task': {
             'objects': {
-                'green_plate_small': {'source_pose': {'xyz': (-0.015, 0.285, 0.8893), 'rpy_deg': (-90.88, -9.96, 95.0)}},
+                'green_plate_small': {'source_pose': {'xyz': (-0.0150, 0.4750, 0.8693), 'rpy_deg': (-90.88, -9.96, 95.0)}},
                 'wooden_rack': {'source_pose': {'xyz': (-0.04, 0.49, 0.7893), 'rpy_deg': (0.0, 0.0, 90.0)}},
             },
             'default_stages': [
@@ -469,7 +469,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.03, 0.005, 0.02]),
-            'normal_orientation_range': np.array([1.5707963267948966, 0.5235987755982988, 0.17453292519943295]),
+            'normal_orientation_range': np.array([90.0, 90.0, 10.0]),
             'initial_max_pen': 0.2,
             'final_max_pen': 0.001,
             'sim_steps': 600,
@@ -478,8 +478,8 @@ BENCHMARKS = {
             'pos_bias': {'x': 'negative', 'y': None, 'z': 'negative'},
         },
         'views': (
-            {'lookat': (0.0, 0.0, 0.0), 'front': (0.4, 0.0, 0.8), 'up': (0.0, 0.0, 1.0), 'zoom': 1.0},
-            {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.4, 0.4), 'up': (0.0, 0.0, 1.0), 'zoom': 1.0},
+            {'lookat': (0.0, 0.0, 0.0), 'front': (0.4, 0.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 0.9},
+            {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.4, 0.4), 'up': (0.0, 0.0, 1.0), 'zoom': 0.8},
         ),
     },
     'plates_on_rack': {
@@ -520,7 +520,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([1.0471975511965976, 1.0471975511965976, 1.0471975511965976]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.1,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -565,7 +565,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.02, 0.02, 0.04]),
-            'normal_orientation_range': np.array([0.3490658503988659, 0.3490658503988659, 0.3490658503988659]),
+            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
             'initial_max_pen': 0.08,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -616,7 +616,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.03, 0.03, 0.02]),
-            'normal_orientation_range': np.array([0.3490658503988659, 0.3490658503988659, 0.3490658503988659]),
+            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
             'initial_max_pen': 0.08,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -636,7 +636,7 @@ BENCHMARKS = {
         },
         'task': {
             'objects': {
-                'yellow_cap': {'source_pose': {'xyz': (0.0, 0.34, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'yellow_cap': {'source_pose': {'xyz': (-0.1100, 0.2000, 0.8893), 'rpy_deg': (0.0, 0.0, 0.0)}},
                 'teapot': {'source_pose': {'xyz': (-0.12, 0.2, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
@@ -664,7 +664,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 500,
             'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([0.3490658503988659, 0.3490658503988659, 0.3490658503988659]),
+            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
             'initial_max_pen': 0.01,
             'final_max_pen': 0.001,
             'sim_steps': 500,
@@ -708,7 +708,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 500,
             'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([0.3490658503988659, 0.3490658503988659, 0.3490658503988659]),
+            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
             'initial_max_pen': 0.1,
             'final_max_pen': 0.003,
             'sim_steps': 2,
@@ -725,7 +725,7 @@ BENCHMARKS = {
         'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/red_mug_on_rack.xml'},
         'task': {
             'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (-0.12, 0.275, 0.7893), 'rpy_deg': (0.0, 0.0, 140.0)}},
+                'red_mug_big': {'source_pose': {'xyz': (0.0150, 0.4050, 0.8643), 'rpy_deg': (0.0, 77.0, 140.0)}},
                 'wooden_stick_toy': {'source_pose': {'xyz': (-0.05, 0.49, 0.7893), 'rpy_deg': (0.0, 0.0, -90.0)}},
             },
             'default_stages': [
@@ -752,7 +752,7 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 5000,
             'normal_position_range': np.array([0.04, 0.05, 0.04]),
-            'normal_orientation_range': np.array([2.0943951023931953, 1.0471975511965976, 2.0943951023931953]),
+            'normal_orientation_range': np.array([120.0, 60.0, 120.0]),
             'initial_max_pen': 0.015,
             'final_max_pen': 0.0001,
             'sim_steps': 500,
@@ -1082,7 +1082,7 @@ def _runtime_config_from_normalized(
         passive_mesh=scene["passive_mesh"],
         mujoco_active_body=scene["mujoco_active_body"],
         normal_position_range=np.asarray(sampling["normal_position_range"], dtype=float),
-        normal_orientation_range_deg=np.rad2deg(sampling["normal_orientation_range"]),
+        normal_orientation_range_deg=np.asarray(sampling["normal_orientation_range"], dtype=float),
         n_samples=int(sampling["n_samples"]),
         max_candidate_images=int(sampling["max_candidate_images"]),
         object_freejoint_name=scene["object_freejoint_name"],

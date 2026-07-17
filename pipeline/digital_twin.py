@@ -634,7 +634,9 @@ def configure(config: dict, *, benchmark: str | None = None) -> None:
     _state.n_samples = int(sampling["n_samples"])
     _state.max_candidate_images = int(sampling["max_candidate_images"])
     _state.normal_position_range = np.asarray(sampling["normal_position_range"], dtype=float).copy()
-    _state.normal_orientation_range = np.asarray(sampling["normal_orientation_range"], dtype=float).copy()
+    _state.normal_orientation_range = np.deg2rad(
+        np.asarray(sampling["normal_orientation_range"], dtype=float)
+    )
     _state.position_variance_multipliers = dict(sampling["position_variance_multipliers"])
     _state.orientation_variance_multipliers = dict(sampling["orientation_variance_multipliers"])
     _state.initial_max_pen = float(sampling["initial_max_pen"])
