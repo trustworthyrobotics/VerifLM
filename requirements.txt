@@ -1,0 +1,19 @@
+numpy
+opencv-python
+mujoco
+open3d
+trimesh
+python-dotenv
+openai
+google-genai
+Pillow
+torch
+pyrealsense2
+ompl
+
+# The code also imports these from external repos or vendor SDK installs.
+# Install/configure them separately, then point the environment variables at them:
+#   VGGT_REPO        -> provides vggt
+#   GROUNDING_DINO_REPO -> provides groundingdino
+#   SAM2_REPO        -> provides sam2
+#   Orbbec SDK       -> provides pyorbbecsdk2 or pyorbbecsdk
