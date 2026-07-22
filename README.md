@@ -1,6 +1,6 @@
 # VerifLM
 
-VerifLM is a refactored VLM-guided manipulation pipeline. It captures or loads an RGB-D source scene, edits a goal image with a VLM, segments active/passive objects, estimates object poses with FoundationPose, builds a MuJoCo digital twin, samples physically valid goal poses, asks a VLM to select the best candidate, and plans a pick/place trajectory.
+VerifLM captures or loads an RGB-D source scene, edits a goal image with a VLM, segments active/passive objects, estimates object poses with FoundationPose, builds a MuJoCo digital twin, samples physically valid goal poses, asks a VLM to select the best candidate, and plans a pick/place trajectory.
 
 ## File Structure
 
