@@ -1,5 +1,8 @@
 <mujoco model="plates_on_rack">
   <default>
+    <default class="goal">
+      <geom rgba="0 1 0 0.3" conaffinity="0" contype="0" />
+    </default>
     <default class="wooden_rack">
       <geom friction="0.05 0.001 0.0001" condim="4" solref="0.002 1" solimp="0.98 0.995 0.0001 0.5 2" />
     </default>
@@ -34,7 +37,7 @@
     <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
     <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300" />
     <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
-    <model name="kuka_iiwa_model" file="../kuka_iiwa_14/iiwa14.xml" />
+    <model name="kuka_iiwa_model" file="../kuka_iiwa_7/iiwa7.xml" />
     <include file="../meshes/wooden_rack_remeshed/wooden_rack_asset.xml" />
   </asset>
   <worldbody>
@@ -54,7 +57,7 @@
       <geom type="cylinder" name="yellow_plate_small_geom" pos="0 0 0.0034" size="0.035 0.0034" condim="4" friction="0.05 0.001 0.0001" mass="2" />
       <geom type="cylinder" name="yellow_plate_small_rim_geom" pos="0 0 0.0073" size="0.05 0.0005" condim="4" friction="0.05 0.001 0.0001" mass="0.5" />
     </body>
-    <body name="wooden_rack" pos="-0.11404223 0.381274 0.7893" quat="0.68290337 -0.001528635 0.0023802505 -0.73050324">
+    <body name="wooden_rack" pos="-0.12 0.6 0.7893" quat="1 0 0 0">
       <inertial pos="0 0 0" mass="0.2" diaginertia="0.01 0.01 0.01" />
       <geom class="wooden_rack" type="mesh" mesh="wooden_rack_0" />
       <geom class="wooden_rack" type="mesh" mesh="wooden_rack_1" />
@@ -131,6 +134,11 @@
       <freejoint name="green_plate_small_free" />
       <geom type="cylinder" name="green_plate_small_geom" pos="0 0 0.0034" size="0.035 0.0034" condim="4" friction="0.05 0.001 0.0001" mass="2" />
       <geom type="cylinder" name="green_plate_small_rim_geom" pos="0 0 0.0073" size="0.05 0.0005" condim="4" friction="0.05 0.001 0.0001" mass="0.5" />
+    </body>
+    <body name="green_plate_small_goal" pos="0 -2 0.5" quat="1 0 0 0">
+      <freejoint name="green_plate_small_goal_free" />
+      <geom type="cylinder" name="green_plate_small_goal_geom" pos="0 0 0.0034" size="0.035 0.0034" class="goal" contype="0" conaffinity="0" />
+      <geom type="cylinder" name="green_plate_small_goal_rim_geom" pos="0 0 0.0073" size="0.05 0.0005" class="goal" contype="0" conaffinity="0" />
     </body>
   </worldbody>
 </mujoco>

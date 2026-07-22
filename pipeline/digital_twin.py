@@ -200,7 +200,8 @@ def _add_assets(mujoco: ET.Element, objects: tuple[dict, ...], models_prefix: st
             "reflectance": "0.2",
         },
     )
-    ET.SubElement(asset, "model", {"name": "kuka_iiwa_model", "file": f"{models_prefix}kuka_iiwa_14/iiwa14.xml"})
+    # ET.SubElement(asset, "model", {"name": "kuka_iiwa_model", "file": f"{models_prefix}kuka_iiwa_14/iiwa14.xml"})
+    ET.SubElement(asset, "model", {"name": "kuka_iiwa_model", "file": f"{models_prefix}kuka_iiwa_7/iiwa7.xml"})
     seen = set()
     for obj in objects:
         asset_xml = obj.get("asset_xml")

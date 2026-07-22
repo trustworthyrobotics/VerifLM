@@ -1,0 +1,244 @@
+<mujoco model="iiwa7">
+  <compiler angle="radian" meshdir="meshes" autolimits="true"/>
+
+  <option integrator="implicitfast"/>
+
+  <default>
+    <default class="iiwa">
+      <joint axis="0 0 1" damping="0.5" armature="0.1"/>
+
+      <general
+          gaintype="fixed"
+          biastype="affine"
+          gainprm="2000"
+          biasprm="0 -2000 -200"/>
+
+      <default class="joint1">
+        <joint range="-2.96706 2.96706"/>
+        <general ctrlrange="-2.96706 2.96706"
+                forcerange="-176 176"/>
+      </default>
+
+      <default class="joint2">
+        <joint range="-2.09440 2.09440"/>
+        <general ctrlrange="-2.09440 2.09440"
+                forcerange="-176 176"/>
+      </default>
+
+      <default class="joint3_mid">
+        <joint range="-2.96706 2.96706"/>
+        <general ctrlrange="-2.96706 2.96706"
+                forcerange="-110 110"/>
+      </default>
+
+      <default class="joint4_mid">
+        <joint range="-2.09440 2.09440"/>
+        <general ctrlrange="-2.09440 2.09440"
+                forcerange="-110 110"/>
+      </default>
+
+      <default class="joint5_mid">
+        <joint range="-2.96706 2.96706"/>
+        <general ctrlrange="-2.96706 2.96706"
+                forcerange="-110 110"/>
+      </default>
+
+      <default class="joint6_distal">
+        <joint range="-2.09440 2.09440"/>
+        <general ctrlrange="-2.09440 2.09440"
+                forcerange="-40 40"/>
+      </default>
+
+      <default class="joint7_distal">
+        <joint range="-3.05433 3.05433"/>
+        <general ctrlrange="-3.05433 3.05433"
+                forcerange="-40 40"/>
+      </default>
+
+      <default class="visual">
+        <geom
+            type="mesh"
+            contype="0"
+            conaffinity="0"
+            group="2"
+            material="iiwa_grey"/>
+      </default>
+
+      <default class="collision">
+        <geom type="mesh" group="3"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <!-- Triangular finger (exported in mm, scaled to metres) -->
+    <mesh name="triangular_finger" file="triangular_gripper/Gripper_triangle_only.stl" scale="0.001 0.001 0.001"/>
+    <material
+      name="iiwa_grey"
+      rgba="0.4 0.4 0.4 1"
+      specular="0.5"
+      shininess="0.25"/>
+    <material
+        name="iiwa_orange"
+        rgba="1.0 0.423529 0.0392157 1"
+        specular="0.5"
+        shininess="0.25"/>
+
+    <mesh name="link_0_vis"        file="visual/link_0.obj"/>
+    <mesh name="link_1_vis"        file="visual/link_1.obj"/>
+    <mesh name="link_2_orange_vis" file="visual/link_2_orange.obj"/>
+    <mesh name="link_2_grey_vis"   file="visual/link_2_grey.obj"/>
+    <mesh name="link_3_vis"        file="visual/link_3.obj"/>
+    <mesh name="link_4_orange_vis" file="visual/link_4_orange.obj"/>
+    <mesh name="link_4_grey_vis"   file="visual/link_4_grey.obj"/>
+    <mesh name="link_5_vis"        file="visual/link_5.obj"/>
+    <mesh name="link_6_orange_vis" file="visual/link_6_orange.obj"/>
+    <mesh name="link_6_grey_vis"   file="visual/link_6_grey.obj"/>
+    <mesh name="link_7_vis"        file="visual/link_7.obj"/>
+
+    <mesh name="link_0_col" file="collision/link_0.stl"/>
+    <mesh name="link_1_col" file="collision/link_1.stl"/>
+    <mesh name="link_2_col" file="collision/link_2.stl"/>
+    <mesh name="link_3_col" file="collision/link_3.stl"/>
+    <mesh name="link_4_col" file="collision/link_4.stl"/>
+    <mesh name="link_5_col" file="collision/link_5.stl"/>
+    <mesh name="link_6_col" file="collision/link_6.stl"/>
+    <mesh name="link_7_col" file="collision/link_7.stl"/>
+  </asset>
+
+  <worldbody>
+    <light name="top" pos="0 0 2" mode="trackcom"/>
+    <body name="base" childclass="iiwa">
+      <geom class="visual" mesh="link_0_vis"/>
+      <geom class="collision" mesh="link_0_col"/>
+
+      <body name="link1" pos="0 0 0.15">
+        <inertial pos="0 -0.03 0.12" quat="0.428904 0.562175 -0.562175 0.428904"
+                  mass="3.4525" diaginertia="0.0218946 0.02183 0.00663837"/>
+        <joint name="joint1" class="joint1"/>
+        <geom class="visual" pos="0 0 0.0075" mesh="link_1_vis"/>
+        <geom class="collision" mesh="link_1_col"/>
+
+        <body name="link2" pos="0 0 0.19" quat="0 0 0.707107 0.707107">
+          <inertial pos="0.0003 0.059 0.042" quat="0.701371 0.0898824 0.0898824 0.701371"
+                    mass="3.4821" diaginertia="0.02179 0.0217049 0.00684512"/>
+          <joint name="joint2" class="joint2"/>
+          <geom class="visual" material="iiwa_orange" mesh="link_2_orange_vis"/>
+          <geom class="visual" mesh="link_2_grey_vis"/>
+          <geom class="collision" mesh="link_2_col"/>
+
+          <body name="link3" pos="0 0.21 0" quat="0 0 0.707107 0.707107">
+            <inertial pos="0 0.03 0.13" quat="0.56292 0.427927 -0.427927 0.56292"
+                      mass="4.05623" diaginertia="0.0321488 0.03204 0.00799117"/>
+            <joint name="joint3" class="joint3_mid"/>
+            <geom class="visual" pos="0 0 -0.026" mesh="link_3_vis"/>
+            <geom class="collision" mesh="link_3_col"/>
+
+            <body name="link4" pos="0 0 0.19" quat="0.707107 0.707107 0 0">
+              <inertial pos="0 0.067 0.034" quat="0.991887 -0.127124 0 0"
+                        mass="3.4822" diaginertia="0.02178 0.0216947 0.00684029"/>
+              <joint name="joint4" class="joint4_mid"/>
+              <geom class="visual" material="iiwa_orange" mesh="link_4_orange_vis"/>
+              <geom class="visual" mesh="link_4_grey_vis"/>
+              <geom class="collision" mesh="link_4_col"/>
+
+              <body name="link5" pos="0 0.21 0" quat="0 0 0.707107 0.707107">
+                <inertial pos="0.0001 0.021 0.076" quat="0.365352 0.605407 -0.605407 0.365352"
+                          mass="2.1633" diaginertia="0.0131987 0.01287 0.0036293"/>
+                <joint name="joint5" class="joint5_mid"/>
+                <geom class="visual" pos="0 0 -0.026" mesh="link_5_vis"/>
+                <geom class="collision" mesh="link_5_col"/>
+
+                <body name="link6" pos="0 0.0607 0.19" quat="0.707107 0.707107 0 0">
+                  <inertial pos="0 0.0006 0.0004" quat="0.996112 0.088097 0 0"
+                            mass="2.3466" diaginertia="0.006509 0.00631585 0.00447015"/>
+                  <joint name="joint6" class="joint6_distal"/>
+                  <geom class="visual" material="iiwa_orange" mesh="link_6_orange_vis"/>
+                  <geom class="visual" mesh="link_6_grey_vis"/>
+                  <geom class="collision" mesh="link_6_col"/>
+
+                  <body name="link7" pos="0 0.081 0.0607" quat="0 0 0.707107 0.707107">
+                    <inertial pos="0 0 0.02" quat="0.923068 0 0 0.384636"
+                              mass="3.129" diaginertia="0.0152362 0.0140538 0.002872"/>
+                    <joint name="joint7" class="joint7_distal"/>
+                    <geom class="visual" pos="0 0 -0.0005" mesh="link_7_vis"/>
+                    <geom class="collision" mesh="link_7_col"/>
+                    <site name="attachment_site" pos="0 0 0.05" size="0.005" rgba="1 0 0 1" group="4"/>
+                    <!-- Adapter cube attached above the iiwa7 flange at z=0.05 -->
+                    <body name="adapter_box" pos="0 0 0.0625">
+                      <geom type="box" size="0.015 0.015 0.015"
+                            rgba="0.3 0.3 0.3 1" contype="1" conaffinity="1"/>
+                      <!-- Box gripper: 11.5×6.5×9.2 cm, bottom face at top of adapter cube -->
+                      <body name="box_gripper" pos="0 0 0.0585" euler="0 0 -1.5708">
+                        <geom type="box" size="0.0575 0.0325 0.046"
+                              rgba="0.4 0.4 0.4 1" contype="1" conaffinity="1"/>
+                        <!-- Finger 1: +x side. axis="-1 0 0" so +ctrl moves toward center -->
+                        <body name="finger_1" pos="0.025 0.0075 0.046" euler="1.5708 0 0">
+                          <joint name="finger_1_slide" type="slide" axis="-1 0 0" range="0 0.025" damping="5"/>
+                          <geom type="mesh" mesh="triangular_finger"
+                                rgba="1.0 0.4 0.0 1" contype="1" conaffinity="1"
+                                friction="3 0.05 0.05" condim="6"
+                                solref="0.002 1" solimp="0.99 0.999 0.0001 0.5 2"/>
+                        </body>
+                        <!-- Finger 2: -x side. axis="1 0 0" so +ctrl moves toward center -->
+                        <body name="finger_2" pos="-0.025 -0.0075 0.046" euler="-1.5708 0 3.14159">
+                          <joint name="finger_2_slide" type="slide" axis="-1 0 0" range="0 0.025" damping="5"/>
+                          <geom type="mesh" mesh="triangular_finger"
+                                rgba="1.0 0.4 0.0 1" contype="1" conaffinity="1"
+                                friction="3 0.05 0.05" condim="6"
+                                solref="0.002 1" solimp="0.99 0.999 0.0001 0.5 2"/>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="base" body2="link1"/>
+    <exclude body1="base" body2="link2"/>
+    <exclude body1="base" body2="link3"/>
+    <exclude body1="link1" body2="link3"/>
+    <exclude body1="link3" body2="link5"/>
+    <exclude body1="link4" body2="link7"/>
+    <exclude body1="link5" body2="link7"/>
+  </contact>
+
+  <!-- Tendon length = q1 + q2: positive ctrl closes both fingers toward each other -->
+  <tendon>
+    <fixed name="gripper_tendon">
+      <joint joint="finger_1_slide" coef="1"/>
+      <joint joint="finger_2_slide" coef="1"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <general name="actuator1" joint="joint1" class="joint1"/>
+    <general name="actuator2" joint="joint2" class="joint2"/>
+    <general name="actuator3" joint="joint3" class="joint3_mid"/>
+    <general name="actuator4" joint="joint4" class="joint4_mid"/>
+    <general name="actuator5" joint="joint5" class="joint5_mid"/>
+    <general name="actuator6" joint="joint6" class="joint6_distal"/>
+    <general name="actuator7" joint="joint7" class="joint7_distal"/>
+
+    <general
+        name="gripper"
+        tendon="gripper_tendon"
+        gaintype="fixed"
+        biastype="affine"
+        gainprm="2000"
+        biasprm="0 -2000 -200"
+        forcerange="-200 200"
+        ctrlrange="0 0.05"/>
+  </actuator>
+
+  <keyframe>
+    <!-- <key name="home" qpos="0 0.785398 0 -1.5708 0 0 0 0.025 0.025" ctrl="0 0.785398 0 -1.5708 0 0 0 0.05"/> -->
+    <key name="home" qpos="0 0 0 0 0 0 0 0.025 0.025" ctrl="0 0 0 0 0 0 0 0.05" />
+  </keyframe>
+</mujoco>
