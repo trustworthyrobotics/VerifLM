@@ -966,6 +966,16 @@ def evaluate_candidate(pos, quat, reference_state):
                 f"mj_step crashed at step {i}",
                 initial_pen,
             )
+        step_number = i + 1
+        if step_number % 100 == 0 and _active_touches_table(_state.eval_data):
+            _restore_reference_state(
+                reference_state,
+                "candidate restore after forbidden contact",
+            )
+            return _candidate_failure(
+                f"forbidden contact (active touches table) at step {step_number}",
+                initial_pen,
+            )
 
     if not safe_forward(_state.eval_data, "candidate final mj_forward"):
         _restore_reference_state(
