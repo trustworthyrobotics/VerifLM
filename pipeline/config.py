@@ -296,7 +296,7 @@ BENCHMARKS = {
         'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/red_mug_on_plate.xml'},
         'task': {
             'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (-0.2, 0.4, 0.83), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'red_mug_big': {'source_pose': {'xyz': (-0.05, 0.0, 0.83), 'rpy_deg': (0.0, 0.0, 0.0)}},
                 'blue_plate_big': {'source_pose': {'xyz': (0, 0, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
@@ -324,63 +324,12 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.01,
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.05,
-            'max_ori_change': 0.06981317007977318,
-        },
-        'views': (
-            {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
-            {'lookat': (0.0, 0.0, 0.0), 'front': (1, 1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
-        ),
-    },
-    'mugs_on_plates': {
-        'scene': {'surface_height': 0.7893},
-        'task': {
-            'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (-0.2, 0.4, 0.83), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'red_plate_big': {'source_pose': {'xyz': (0.0, 0.0, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'blue_mug_big': {'source_pose': {'xyz': (0.2, 0.4, 0.83), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'blue_plate_big': {'source_pose': {'xyz': (0.4, 0.0, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-            },
-            'default_stages': [
-                {
-                    'active': 'red_mug_big',
-                    'passive': 'red_plate_big',
-                    'instruction': 'Place the red mug on the red plate.',
-                },
-                {
-                    'active': 'blue_mug_big',
-                    'passive': 'blue_plate_big',
-                    'instruction': 'Place the blue mug on the blue plate.',
-                },
-            ],
-        },
-        'motion': {
-            'allowed_penetration': 0.006,
-            'z_rotation_samples': 1,
-            'post_release_hover_m': 0.08,
-            'preinsertion': {
-                'use_preinsertion': True,
-                'axis': '+z',
-                'offset_m': 0.1,
-                'position_range': np.array([0.04, 0.04, 0.04]),
-                'position_samples': 25,
-                'waypoint_allowance': 3,
-                'allowed_penetration': 0.001,
-            },
-        },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
-            'initial_max_pen': 0.01,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.05,
-            'max_ori_change': 0.06981317007977318,
+            'max_ori_change': 20.0,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
@@ -425,12 +374,12 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 2000,
             'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.08,
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.1,
-            'max_ori_change': 0.5235987755982988,
+            'max_ori_change': 30.0,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -469,12 +418,12 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.03, 0.005, 0.02]),
-            'normal_orientation_range': np.array([90.0, 90.0, 10.0]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.2,
             'final_max_pen': 0.001,
             'sim_steps': 600,
             'max_z_change': 0.08,
-            'max_ori_change': 0.13962634015954636,
+            'max_ori_change': 22,
             'pos_bias': {'x': 'negative', 'y': None, 'z': 'negative'},
         },
         'views': (
@@ -525,7 +474,7 @@ BENCHMARKS = {
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.08,
-            'max_ori_change': 0.13962634015954636,
+            'max_ori_change': 8.0,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 1.5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -565,12 +514,12 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 1000,
             'normal_position_range': np.array([0.02, 0.02, 0.04]),
-            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.08,
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.05,
-            'max_ori_change': 0.13962634015954636,
+            'max_ori_change': 8.0,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -615,13 +564,13 @@ BENCHMARKS = {
         },
         'sampling': {
             'n_samples': 1000,
-            'normal_position_range': np.array([0.03, 0.03, 0.02]),
-            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
+            'normal_position_range': np.array([0.03, 0.03, 0.03]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.08,
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.05,
-            'max_ori_change': 0.13962634015954636,
+            'max_ori_change': 8.0,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -664,12 +613,12 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 500,
             'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.01,
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.03,
-            'max_ori_change': 0.2617993877991494,
+            'max_ori_change': 15.0,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (2.0, 2.0, 5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -708,12 +657,12 @@ BENCHMARKS = {
         'sampling': {
             'n_samples': 500,
             'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([20.0, 20.0, 20.0]),
+            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
             'initial_max_pen': 0.1,
             'final_max_pen': 0.003,
             'sim_steps': 2,
             'max_z_change': 0.04,
-            'max_ori_change': 0.6108652381980153,
+            'max_ori_change': 35.0,
             'required_contacts': [],
         },
         'views': (
@@ -751,15 +700,15 @@ BENCHMARKS = {
         },
         'sampling': {
             'n_samples': 5000,
-            'normal_position_range': np.array([0.04, 0.05, 0.04]),
-            'normal_orientation_range': np.array([120.0, 60.0, 120.0]),
+            'normal_position_range': np.array([0.12, 0.06, 0.06]),
+            'normal_orientation_range': np.array([120.0, 120.0, 120.0]),
             'initial_max_pen': 0.015,
             'final_max_pen': 0.0001,
             'sim_steps': 500,
             'max_z_change': 0.1,
-            'max_ori_change': 3.141592653589793,
+            'max_ori_change': 20.0,
             'min_active_z': 0.85,
-            'pos_bias': {'x': 'positive', 'y': None, 'z': 'positive'},
+            'pos_bias': {'x': 'negative', 'y': None, 'z': 'positive'},
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (6.0, -6.0, 6.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},

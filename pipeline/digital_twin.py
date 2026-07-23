@@ -69,6 +69,15 @@ def generate_benchmark_xml(benchmark: str, config: dict) -> str:
     _models_prefix = "" if _models_rel == "." else f"{_models_rel}/"
 
     mujoco = ET.Element("mujoco", {"model": benchmark})
+    repo_rel = Path(
+        os.path.relpath(ROOT, out_path.parent)
+    ).as_posix()
+
+    ET.SubElement(
+        mujoco,
+        "compiler",
+        {"meshdir": repo_rel},
+    )
     _add_defaults(mujoco)
     ET.SubElement(mujoco, "size", {"nconmax": "1000", "njmax": "2000"})
     ET.SubElement(mujoco, "statistic", {"center": "0 0 0.9", "extent": "2.5"})
@@ -644,7 +653,7 @@ def configure(config: dict, *, benchmark: str | None = None) -> None:
     _state.final_max_pen = float(sampling["final_max_pen"])
     _state.sim_steps = int(sampling["sim_steps"])
     _state.max_z_change = float(sampling["max_z_change"])
-    _state.max_ori_change = float(sampling["max_ori_change"])
+    _state.max_ori_change = math.radians(float(sampling["max_ori_change"]))
     _state.contact_entities = dict(config["scene"]["contact_entities"])
     _state.required_contacts = [tuple(pair) for pair in sampling.get("required_contacts", [("active", "passive")])]
     _state.forbidden_contacts = [tuple(pair) for pair in sampling.get("forbidden_contacts", [("active", "table")])]
