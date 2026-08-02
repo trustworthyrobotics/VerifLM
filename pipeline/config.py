@@ -442,7 +442,7 @@ BENCHMARKS = {
     'plate_on_rack': {
         'task': {
             'objects': {
-                'green_plate_small': {'source_pose': {'xyz': (-0.0150, 0.4750, SURFACE_HEIGHT_M + 0.08), 'rpy_deg': (-90.88, -9.96, 95.0)}},
+                'green_plate_small': {'source_pose': {'xyz': (-0.0150, 0.2750, SURFACE_HEIGHT_M + 0.08), 'rpy_deg': (-90.88, -9.96, 95.0)}},
                 'wooden_rack': {'source_pose': {'xyz': (-0.04, 0.49, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 90.0)}},
             },
             'default_stages': [
@@ -722,7 +722,8 @@ BENCHMARKS = {
     'mug_on_rack': {
         'task': {
             'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (0.0150, 0.4050, SURFACE_HEIGHT_M + 0.075), 'rpy_deg': (0.0, 77.0, 140.0)}},
+                # 'red_mug_big': {'source_pose': {'xyz': (0.0150, 0.4050, SURFACE_HEIGHT_M + 0.075), 'rpy_deg': (0.0, 77.0, 140.0)}},
+                'red_mug_big': {'source_pose': {'xyz': (0.030, 0.2050, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
                 'wooden_stick_toy': {'source_pose': {'xyz': (-0.05, 0.49, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, -90.0)}},
             },
             'default_stages': [
@@ -737,7 +738,7 @@ BENCHMARKS = {
             'allowed_penetration': 0.004,
             'z_rotation_samples': 1,
             'preinsertion': {
-                'use_preinsertion': True,
+                'use_preinsertion': False,
                 'axis': '+y',
                 'offset_m': 0.12,
                 'position_range': np.array([0.04, 0.04, 0.04]),
