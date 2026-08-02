@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Sequence
 
 import mujoco
 import numpy as np
@@ -21,8 +21,15 @@ from pipeline.config import (
     PipelineConfig,
 )
 from pipeline.core import (
-    ObjectPose, make_T, mat_to_quat_wxyz, quat_wxyz_to_mat,
-    rotx, roty, rotz, rpy_to_R,
+    ObjectPose, mat_to_quat_wxyz, quat_wxyz_to_mat,
+)
+from pipeline.grasp import (
+    AnyGraspConfig,
+    GraspCandidate,
+    GraspObservation,
+    GoalFilteredGrasp,
+    grasp_candidate_batches,
+    sample_equivalent_poses_about_z,
 )
 
 
@@ -116,21 +123,6 @@ def set_freejoint_pose_by_name(m, d, joint_name, T_world_body):
     qadr = m.jnt_qposadr[jid]
     d.qpos[qadr:qadr + 3] = T_world_body[:3, 3]
     d.qpos[qadr + 3:qadr + 7] = mat_to_quat_wxyz(T_world_body[:3, :3])
-
-
-def sample_equivalent_poses_about_z(T_world_object, sample_count):
-    """Return evenly spaced poses rotated about the object's local Z axis."""
-    T = np.asarray(T_world_object, dtype=float)
-    if T.shape != (4, 4):
-        raise ValueError("T_world_object must be a 4x4 transform")
-    count = int(sample_count)
-    if count < 1:
-        raise ValueError("sample_count must be at least 1")
-    poses = []
-    for angle in np.linspace(0.0, 2.0 * np.pi, count, endpoint=False):
-        poses.append(T.copy())
-        poses[-1][:3, :3] = T[:3, :3] @ rotz(float(angle))
-    return poses
 
 
 def get_joint_info(m, joint_names):
@@ -560,23 +552,6 @@ def plan_ompl_motion(
 
 
 
-def compute_grasp_pose(
-    source_T_world_object,
-    grasp_offset_object_xyz=(0.0, 0.0, 0.25),
-    grasp_offset_object_rpy=(np.pi, 0.0, 0.0),
-):
-    """
-    Compute grasp pose relative to object (AnyGrasp placeholder).
-    Currently returns hardcoded grasp offset; TODO implement AnyGrasp integration.
-    """
-    # TODO: implement AnyGrasp here; for now, return hardcoded grasp offset
-    T_object_eef = make_T(
-        R=rpy_to_R(np.asarray(grasp_offset_object_rpy, dtype=float)),
-        p=np.asarray(grasp_offset_object_xyz, dtype=float),
-    )
-    return _result("success", T_object_eef=T_object_eef)
-
-
 def move_to_grasp_pose(
     m,
     d,
@@ -797,6 +772,9 @@ def interpolate_attached_object_motion(
 # Planning data and implementation helpers
 PREINSERTION_INTERPOLATE_COUNT = 30
 GRASP_INTERPOLATE_COUNT = 15
+# Home plus two deterministic random starts balances alternate-branch coverage
+# against the cost of checking multiple goal rotations for every grasp.
+GOAL_IK_RANDOM_STARTS = 2
 AXIS_VECTORS = {
     f"{'+' if sign > 0 else '-'}{axis}": sign * basis
     for axis, basis in zip("xyz", np.eye(3))
@@ -814,6 +792,8 @@ class PlanningContext:
     limits: np.ndarray
     arm_joint_names: tuple[str, ...]
     q_home: np.ndarray
+    initial_qpos: np.ndarray
+    initial_ctrl: np.ndarray
     gripper_info: dict
     gripper_open_ctrl: float
     allowed_contacts: tuple[tuple[str, str], ...]
@@ -822,12 +802,21 @@ class PlanningContext:
 
 @dataclass
 class GraspPlan:
-    index: int
+    candidate: GraspCandidate
     source_pose: ObjectPose
+    goal_z_indices: tuple[int, ...]
+    goal_q_by_index: tuple[tuple[int, np.ndarray], ...]
     move: dict
     home_to_pregrasp_q_path: list[np.ndarray]
     pregrasp_to_grasp_q_path: list[np.ndarray]
-    gripper_close_ctrl: float
+
+    @property
+    def index(self) -> int:
+        return self.candidate.index
+
+    @property
+    def gripper_close_ctrl(self) -> float:
+        return self.candidate.close_ctrl_value
 
     @property
     def q_grasp(self) -> np.ndarray:
@@ -904,6 +893,8 @@ def _make_context(args: PipelineConfig, xml_path: Path) -> PlanningContext:
         limits=limits,
         arm_joint_names=arm_joint_names,
         q_home=get_arm_q(eval_data, qpos_ids),
+        initial_qpos=eval_data.qpos.copy(),
+        initial_ctrl=eval_data.ctrl.copy(),
         gripper_info=gripper_info,
         gripper_open_ctrl=gripper_open_ctrl,
         allowed_contacts=tuple(tuple(x.split(":")) for x in args.allowed_contact_pair),
@@ -1015,6 +1006,10 @@ def _build_phase_waypoint_plan(
         "benchmark": ctx.args.benchmark,
         "source_xml": str(source_xml),
         "selected_grasp_candidate": grasp_plan.index,
+        "selected_grasp_key": grasp_plan.candidate.key,
+        "selected_grasp_source": grasp_plan.candidate.source,
+        "selected_grasp_score": grasp_plan.candidate.score,
+        "selected_grasp_width_m": grasp_plan.candidate.detected_width_m,
         "selected_goal_z_sample": selected_candidate.index,
         "selected_preinsertion_position_sample": selected_plan["preinsertion_sample"],
         "planner": {
@@ -1306,31 +1301,172 @@ def _plan_fixed_object_path(
     )
 
 
-def _iter_grasp_plans(ctx: PlanningContext, source_pose: ObjectPose):
-    args = ctx.args
-    source_candidates = sample_equivalent_poses_about_z(
-        source_pose.T_world_object, args.z_rotation_samples
+def _goal_allowed_contacts(ctx: PlanningContext) -> tuple[tuple[str, str], ...]:
+    """Allow only the intended gripper/object contacts at an exact goal."""
+    active_body = ctx.args.mujoco_active_body
+    broad_arm_pair = ("arm1_", active_body)
+    return tuple(
+        pair for pair in ctx.allowed_contacts if tuple(pair) != broad_arm_pair
+    ) + (
+        ("arm1_finger_1", active_body),
+        ("arm1_finger_2", active_body),
+        (EEF_BODY_NAME, active_body),
     )
-    grasp_candidates = tuple(args.grasp_candidates)
-    multiple_grasps = len(grasp_candidates) > 1 or len(source_candidates) > 1
-    _log_if(multiple_grasps, f"[planning:grasp] sampling {len(grasp_candidates)} grasp(s) × {len(source_candidates)} Z rotation(s)")
-    for grasp_index, grasp_cfg in enumerate(grasp_candidates):
-        hover_offset = tuple(
-            grasp_cfg.get(
-                "hover_offset_xyz",
-                (0.0, 0.0, float(grasp_cfg.get("hover_offset_z", 0.10))),
+
+
+def _goal_configuration_check(
+    ctx: PlanningContext,
+    candidate: GraspCandidate,
+    goal_T_world_object: np.ndarray,
+) -> tuple[np.ndarray | None, str | None]:
+    """Return the first collision-free goal IK branch and any rejection reason."""
+    args = ctx.args
+    target_T_world_eef = (
+        np.asarray(goal_T_world_object, dtype=float) @ candidate.T_object_eef
+    )
+    rng = np.random.default_rng(0)
+    seeds = [np.asarray(ctx.q_home, dtype=float).copy()]
+    seeds.extend(
+        rng.uniform(ctx.limits[:, 0], ctx.limits[:, 1])
+        for _ in range(GOAL_IK_RANDOM_STARTS)
+    )
+    first_collision = None
+    ik_successes = 0
+
+    for q_seed in seeds:
+        data = mujoco.MjData(ctx.model)
+        data.qpos[:] = ctx.initial_qpos
+        data.qvel[:] = 0.0
+        if ctx.model.nu:
+            data.ctrl[:] = ctx.initial_ctrl
+        set_gripper_qpos_by_command(
+            ctx.model, data, candidate.close_ctrl_value
+        )
+        mujoco.mj_forward(ctx.model, data)
+
+        q_goal, ok = solve_ik(
+            ctx.model,
+            data,
+            ctx.qpos_ids,
+            ctx.dof_ids,
+            ctx.limits,
+            EEF_BODY_NAME,
+            target_T_world_eef,
+            q_seed,
+        )
+        if not ok:
+            continue
+        ik_successes += 1
+
+        _apply_attached_state(
+            ctx.model,
+            data,
+            q_goal,
+            ctx.qpos_ids,
+            EEF_BODY_NAME,
+            args.object_freejoint_name,
+            np.linalg.inv(candidate.T_object_eef),
+        )
+        reason = _collision_failure_reason(
+            ctx.model,
+            data,
+            _goal_allowed_contacts(ctx),
+            allowed_penetration=args.allowed_penetration,
+            ignored_body_substrings=ctx.ignored_collision_bodies,
+            penetration_body_names=(args.mujoco_active_body,),
+        )
+        if reason is None:
+            return q_goal.copy(), None
+        if first_collision is None:
+            first_collision = reason
+
+    if first_collision is not None:
+        return None, (
+            f"{first_collision}; all {ik_successes} solved IK branch(es) collide"
+        )
+    return None, f"goal IK failed after {len(seeds)} deterministic starts"
+
+
+def _filter_grasps_for_goal(
+    ctx: PlanningContext,
+    candidates: Sequence[GraspCandidate],
+    refined_goal_pose: ObjectPose,
+    *,
+    max_results: int | None = None,
+) -> list[GoalFilteredGrasp]:
+    """Reject a grasp before source planning unless a goal-Z pose is valid."""
+    goal_poses = sample_equivalent_poses_about_z(
+        refined_goal_pose.T_world_object,
+        ctx.args.z_rotation_samples,
+    )
+    accepted: list[GoalFilteredGrasp] = []
+    for candidate in candidates:
+        valid_indices = []
+        goal_q_by_index = []
+        failures = []
+        for goal_index, goal_T in enumerate(goal_poses):
+            q_goal, reason = _goal_configuration_check(ctx, candidate, goal_T)
+            if reason is None and q_goal is not None:
+                valid_indices.append(goal_index)
+                goal_q_by_index.append((goal_index, q_goal.copy()))
+            else:
+                failures.append(reason or "goal IK did not return a configuration")
+        if not valid_indices:
+            summary = failures[0] if failures and len(set(failures)) == 1 else "all goal poses invalid"
+            print(
+                f"[planning:grasp] {candidate.key}: rejected at goal ({summary})"
             )
+            continue
+        if len(valid_indices) != len(goal_poses):
+            print(
+                f"[planning:grasp] {candidate.key}: "
+                f"{len(valid_indices)}/{len(goal_poses)} goal Z pose(s) collision-free"
+            )
+        accepted.append(
+            GoalFilteredGrasp(
+                candidate,
+                tuple(valid_indices),
+                tuple(goal_q_by_index),
+            )
+        )
+        if max_results is not None and len(accepted) >= int(max_results):
+            break
+    return accepted
+
+
+def _iter_grasp_plans(
+    ctx: PlanningContext,
+    source_pose: ObjectPose,
+    grasps: Sequence[GoalFilteredGrasp],
+):
+    args = ctx.args
+    multiple_grasps = len(grasps) > 1 or any(
+        grasp.candidate.expand_source_z and args.z_rotation_samples > 1
+        for grasp in grasps
+    )
+    _log_if(
+        multiple_grasps,
+        f"[planning:grasp] planning {len(grasps)} goal-feasible grasp(s)",
+    )
+    for prepared in grasps:
+        candidate = prepared.candidate
+        source_candidates = (
+            sample_equivalent_poses_about_z(
+                source_pose.T_world_object, args.z_rotation_samples
+            )
+            if candidate.expand_source_z
+            else [np.asarray(source_pose.T_world_object, dtype=float).copy()]
         )
         _n_ik_fail = _n_hover_fail = _n_path_fail = 0
         for z_index, source_T in enumerate(source_candidates):
-            candidate_grasp = compute_grasp_pose(
-                source_T_world_object=source_T,
-                grasp_offset_object_xyz=tuple(grasp_cfg["offset_xyz"]),
-                grasp_offset_object_rpy=tuple(np.deg2rad(grasp_cfg["offset_rpy_deg"])),
-            )
-            if candidate_grasp["status"] != "success":
-                _n_ik_fail += 1
-                continue
+            # Each candidate starts from the same open/home state. In
+            # particular, do not inherit a closed gripper from a failed
+            # AnyGrasp attempt before entering the authored fallback batch.
+            ctx.eval_data.qpos[:] = ctx.initial_qpos
+            ctx.eval_data.qvel[:] = 0.0
+            if ctx.model.nu:
+                ctx.eval_data.ctrl[:] = ctx.initial_ctrl
+            set_arm_q(ctx.eval_data, ctx.qpos_ids, ctx.q_home)
             set_freejoint_pose_by_name(
                 ctx.model, ctx.eval_data, args.object_freejoint_name, source_T
             )
@@ -1343,8 +1479,8 @@ def _iter_grasp_plans(ctx: PlanningContext, source_pose: ObjectPose):
                 ctx.limits,
                 EEF_BODY_NAME,
                 source_T,
-                candidate_grasp["T_object_eef"],
-                hover_offset,
+                candidate.T_object_eef,
+                candidate.hover_offset_object_xyz,
             )
             if candidate_move["status"] != "success":
                 _n_ik_fail += 1
@@ -1370,19 +1506,20 @@ def _iter_grasp_plans(ctx: PlanningContext, source_pose: ObjectPose):
                 source_T,
                 source_pose.confidence,
                 (
-                    f"{source_pose.note}; grasp candidate {grasp_index}; "
+                    f"{source_pose.note}; {candidate.key}; "
                     f"equivalent Z rotation sample {z_index}"
                 ),
             )
-            _log_if(multiple_grasps, f"[planning:grasp] grasp {grasp_index}, Z {z_index}: feasible"
+            _log_if(multiple_grasps, f"[planning:grasp] {candidate.key}, source Z {z_index}: feasible"
                     f" ({_n_ik_fail} IK, {_n_hover_fail} hover, {_n_path_fail} path failures before)")
             yield GraspPlan(
-                index=grasp_index,
+                candidate=candidate,
                 source_pose=selected_source_pose,
+                goal_z_indices=prepared.goal_z_indices,
+                goal_q_by_index=prepared.goal_q_by_index,
                 move=candidate_move,
                 home_to_pregrasp_q_path=path_to_hover,
                 pregrasp_to_grasp_q_path=path_to_grasp,
-                gripper_close_ctrl=float(grasp_cfg["close_ctrl_value"]),
             )
 
 
@@ -1418,6 +1555,8 @@ def _goal_plan_candidates(
     pre: PreinsertionPlan,
     T_object_eef: np.ndarray,
     q_start: np.ndarray,
+    allowed_goal_z_indices: Sequence[int] | None = None,
+    checked_goal_q_by_index: Sequence[tuple[int, np.ndarray]] = (),
 ) -> list[GoalPlanCandidate]:
     args = ctx.args
     preinsertion = pre.settings
@@ -1430,26 +1569,68 @@ def _goal_plan_candidates(
     goal_candidates = sample_equivalent_poses_about_z(
         refined_goal_pose.T_world_object, args.z_rotation_samples
     )
+    allowed_indices = (
+        set(range(len(goal_candidates)))
+        if allowed_goal_z_indices is None
+        else {int(index) for index in allowed_goal_z_indices}
+    )
+    checked_goal_q = {
+        int(index): np.asarray(q, dtype=float).copy()
+        for index, q in checked_goal_q_by_index
+    }
+    T_eef_object = np.linalg.inv(np.asarray(T_object_eef, dtype=float))
     multiple_goals = len(goal_candidates) > 1
-    _n_ik_ok = _n_ik_fail = 0
+    _n_ik_ok = _n_ik_fail = _n_collision_fail = 0
     for index, goal_T in enumerate(goal_candidates):
+        if index not in allowed_indices:
+            continue
         pre_T = goal_T.copy()
         pre_T[:3, 3] += offset_world
-        if preinsertion["use_preinsertion"]:
-            candidates.append(GoalPlanCandidate(index, goal_T, pre_T, None))
+        q_seed = checked_goal_q.get(index, q_start)
+        candidate_q, ok_goal = _solve_eef_ik(
+            ctx,
+            goal_T @ T_object_eef,
+            q_seed,
+        )
+        if not ok_goal:
+            _n_ik_fail += 1
             continue
 
-        candidate_q, ok_goal = _solve_eef_ik(ctx, goal_T @ T_object_eef, q_start)
-        if ok_goal:
-            _n_ik_ok += 1
-            candidates.append(GoalPlanCandidate(index, goal_T, pre_T, candidate_q))
-        else:
-            _n_ik_fail += 1
+        _apply_attached_state(
+            ctx.model,
+            ctx.eval_data,
+            candidate_q,
+            ctx.qpos_ids,
+            EEF_BODY_NAME,
+            args.object_freejoint_name,
+            T_eef_object,
+        )
+        collision_reason = _collision_failure_reason(
+            ctx.model,
+            ctx.eval_data,
+            _goal_allowed_contacts(ctx),
+            allowed_penetration=args.allowed_penetration,
+            ignored_body_substrings=ctx.ignored_collision_bodies,
+            penetration_body_names=(args.mujoco_active_body,),
+        )
+        if collision_reason is not None:
+            _n_collision_fail += 1
+            continue
+
+        _n_ik_ok += 1
+        candidates.append(GoalPlanCandidate(index, goal_T, pre_T, candidate_q))
     if multiple_goals:
         if preinsertion["use_preinsertion"]:
-            print(f"[planning:goal] {len(goal_candidates)} goal Z samples queued for pre-insertion")
+            print(
+                f"[planning:goal] {len(candidates)} goal Z samples queued "
+                "for pre-insertion after exact-goal collision filtering"
+            )
         else:
-            print(f"[planning:goal] {_n_ik_ok}/{_n_ik_ok + _n_ik_fail} goal Z samples have IK")
+            checked_count = _n_ik_ok + _n_ik_fail + _n_collision_fail
+            print(
+                f"[planning:goal] {_n_ik_ok}/{checked_count} goal Z samples "
+                "have collision-free IK"
+            )
     return candidates
 
 
@@ -1732,15 +1913,33 @@ class CollisionChecker:
         )
 
 
-class GraspGenerator:
-    """Generate grasp/hover configurations and collision-free approach paths."""
+class GraspApproachPlanner:
+    """Goal-filter candidates and plan collision-free source approaches."""
 
     def __init__(self, context: PlanningContext, collision: CollisionChecker):
         self.context = context
         self.collision = collision
 
-    def generate(self, source_pose: ObjectPose) -> Iterator[GraspPlan]:
-        yield from _iter_grasp_plans(self.context, source_pose)
+    def filter_for_goal(
+        self,
+        candidates: Sequence[GraspCandidate],
+        goal_pose: ObjectPose,
+        *,
+        max_results: int | None = None,
+    ) -> list[GoalFilteredGrasp]:
+        return _filter_grasps_for_goal(
+            self.context,
+            candidates,
+            goal_pose,
+            max_results=max_results,
+        )
+
+    def plan_approaches(
+        self,
+        source_pose: ObjectPose,
+        grasps: Sequence[GoalFilteredGrasp],
+    ) -> Iterator[GraspPlan]:
+        yield from _iter_grasp_plans(self.context, source_pose, grasps)
 
     def attach(self, grasp: GraspPlan) -> np.ndarray | None:
         return _measure_attachment(self.context, grasp)
@@ -1781,9 +1980,17 @@ class AttachedObjectPlanner:
         preinsertion: PreinsertionPlan,
         T_object_eef: np.ndarray,
         q_seed: np.ndarray,
+        allowed_goal_z_indices: Sequence[int] | None = None,
+        checked_goal_q_by_index: Sequence[tuple[int, np.ndarray]] = (),
     ) -> list[GoalPlanCandidate]:
         return _goal_plan_candidates(
-            self.context, goal_pose, preinsertion, T_object_eef, q_seed
+            self.context,
+            goal_pose,
+            preinsertion,
+            T_object_eef,
+            q_seed,
+            allowed_goal_z_indices,
+            checked_goal_q_by_index,
         )
 
     def plan_lift(
@@ -1892,17 +2099,45 @@ class Executor:
 class Planner:
     """Compose the seven planning interfaces into one pick-and-place planner."""
 
-    def __init__(self, args: PipelineConfig, xml_path: Path):
+    def __init__(
+        self,
+        args: PipelineConfig,
+        xml_path: Path,
+        *,
+        grasp_observation: GraspObservation | None = None,
+        anygrasp_config: AnyGraspConfig | None = None,
+        grasp_choice_reader: Callable[[str], str] | None = None,
+    ):
         self.args = args
         self.xml_path = Path(xml_path)
+        self.grasp_observation = grasp_observation
+        self.anygrasp_config = anygrasp_config
+        self.grasp_choice_reader = grasp_choice_reader
         self.context = _make_context(args, self.xml_path)
         self.ik = IKSolver(self.context)
         self.collision = CollisionChecker(self.context)
-        self.grasps = GraspGenerator(self.context, self.collision)
+        self.grasps = GraspApproachPlanner(self.context, self.collision)
         self.attached = AttachedObjectPlanner(self.context, self.ik, self.collision)
         self.insertion = InsertionPlanner(self.context, self.attached)
         self.trajectory_builder = TrajectoryBuilder(self.context)
         self.executor = Executor()
+
+    def _candidate_batches(
+        self,
+        goal_pose: ObjectPose,
+    ) -> Iterator[tuple[str, list[GoalFilteredGrasp]]]:
+        """Bridge grasp generation to this planner's MuJoCo goal filter."""
+        yield from grasp_candidate_batches(
+            observation=self.grasp_observation,
+            anygrasp_config=self.anygrasp_config,
+            authored_configs=self.args.grasp_candidates,
+            goal_filter=lambda candidates, max_results: self.grasps.filter_for_goal(
+                candidates,
+                goal_pose,
+                max_results=max_results,
+            ),
+            choice_reader=self.grasp_choice_reader,
+        )
 
     def plan(
         self,
@@ -1921,56 +2156,69 @@ class Planner:
         }
         selected: tuple[GraspPlan, GoalPlanCandidate, dict, np.ndarray, list] | None = None
         saw_grasp_approach = False
+        saw_goal_feasible_grasp = False
         printed_attached_planning = False
 
-        for grasp in self.grasps.generate(source_pose):
-            saw_grasp_approach = True
-            T_eef_object = self.grasps.attach(grasp)
-            if T_eef_object is None:
-                failed["reason"] = "grasp attachment failed"
-                continue
-            T_object_eef = np.linalg.inv(T_eef_object)
+        for _, candidate_batch in self._candidate_batches(refined_goal_pose):
+            saw_goal_feasible_grasp = True
+            for grasp in self.grasps.plan_approaches(source_pose, candidate_batch):
+                saw_grasp_approach = True
+                T_eef_object = self.grasps.attach(grasp)
+                if T_eef_object is None:
+                    failed["reason"] = "grasp attachment failed"
+                    continue
+                T_object_eef = np.linalg.inv(T_eef_object)
 
-            retreat = self.attached.plan_to_configuration(
-                grasp.q_grasp,
-                grasp.q_pregrasp,
-                T_eef_object,
-                interpolate_count=GRASP_INTERPOLATE_COUNT,
-            )
-            if retreat is None:
-                failed["reason"] = "retreat from grasp to pregrasp failed"
-                continue
-
-            candidates = self.attached.goal_candidates(
-                refined_goal_pose, pre, T_object_eef, grasp.q_pregrasp
-            )
-            if not candidates:
-                target = "pre-insertion" if pre.settings["use_preinsertion"] else "goal"
-                failed["reason"] = f"{target} IK failed for all equivalent Z rotations"
-                continue
-
-            if not printed_attached_planning:
-                print("[planning] planning attached motion")
-                printed_attached_planning = True
-
-            for candidate in candidates:
-                plan = self.insertion.plan_candidate(
-                    candidate,
-                    pre,
+                retreat = self.attached.plan_to_configuration(
+                    grasp.q_grasp,
                     grasp.q_pregrasp,
                     T_eef_object,
-                    T_object_eef,
-                    len(candidates),
+                    interpolate_count=GRASP_INTERPOLATE_COUNT,
                 )
-                if plan is None:
+                if retreat is None:
+                    failed["reason"] = "retreat from grasp to pregrasp failed"
                     continue
-                plan["grasp_to_pregrasp_path"] = retreat
-                selected = grasp, candidate, plan, T_eef_object, candidates
-                break
+
+                candidates = self.attached.goal_candidates(
+                    refined_goal_pose,
+                    pre,
+                    T_object_eef,
+                    grasp.q_pregrasp,
+                    grasp.goal_z_indices,
+                    grasp.goal_q_by_index,
+                )
+                if not candidates:
+                    target = "pre-insertion" if pre.settings["use_preinsertion"] else "goal"
+                    failed["reason"] = f"{target} IK failed for all equivalent Z rotations"
+                    continue
+
+                if not printed_attached_planning:
+                    print("[planning] planning attached motion")
+                    printed_attached_planning = True
+
+                for candidate in candidates:
+                    plan = self.insertion.plan_candidate(
+                        candidate,
+                        pre,
+                        grasp.q_pregrasp,
+                        T_eef_object,
+                        T_object_eef,
+                        len(candidates),
+                    )
+                    if plan is None:
+                        continue
+                    plan["grasp_to_pregrasp_path"] = retreat
+                    selected = grasp, candidate, plan, T_eef_object, candidates
+                    break
+                if selected is not None:
+                    break
             if selected is not None:
                 break
 
         trajectory_path = Path(traj_dir) / "trajectory_result.json"
+        if not saw_goal_feasible_grasp:
+            print("[planning:grasp] no grasp is collision-free at the goal")
+            return None
         if not saw_grasp_approach:
             print("[planning:grasp] no collision-free grasp approach")
             return None
@@ -2013,11 +2261,20 @@ def plan_pick_place(
     refined_goal_pose: ObjectPose,
     goal_passive_pose: ObjectPose | None,
     traj_dir: Path,
+    grasp_observation: GraspObservation | None = None,
+    anygrasp_config: AnyGraspConfig | None = None,
+    grasp_choice_reader: Callable[[str], str] | None = None,
     await_next_step=None,
 ) -> PlanningResult | None:
     """Compatibility facade used by the pipeline orchestrator."""
     del await_next_step
-    return Planner(args, xml_path).plan(
+    return Planner(
+        args,
+        xml_path,
+        grasp_observation=grasp_observation,
+        anygrasp_config=anygrasp_config,
+        grasp_choice_reader=grasp_choice_reader,
+    ).plan(
         source_pose=source_pose,
         refined_goal_pose=refined_goal_pose,
         goal_passive_pose=goal_passive_pose,
