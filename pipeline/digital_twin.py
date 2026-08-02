@@ -13,7 +13,7 @@ import cv2
 import mujoco
 import numpy as np
 
-from pipeline.config import OBJECT_CATALOG, VLM_PROVIDERS
+from pipeline.config import OBJECT_CATALOG, SURFACE_HEIGHT_M, VLM_PROVIDERS
 from pipeline.core import (
     DigitalTwinResult, GoalRefinementResult, ObjectPose, PerceptionResult,
     REPO_ROOT, MODELS_DIR, SamplingConstraints, StagePaths, T_from_pos_quat,
@@ -41,7 +41,27 @@ ROOT = REPO_ROOT
 MODELS = MODELS_DIR
 
 
-def generate_benchmark_xml(benchmark: str, config: dict) -> str:
+def benchmark_xml_output_path(
+    benchmark: str,
+    *,
+    stage_index: int = 0,
+    stage_count: int = 1,
+) -> str:
+    """Return the centrally derived output path for a generated scene XML."""
+    suffix = (
+        f"_stage_{stage_index + 1:02d}"
+        if stage_count > 1 or stage_index > 0
+        else ""
+    )
+    return f"models/generated_xmls/{benchmark}{suffix}.xml"
+
+
+def generate_benchmark_xml(
+    benchmark: str,
+    config: dict,
+    *,
+    output_path: str | Path | None = None,
+) -> str:
     scene = config["scene"]
     active_name = scene["active_object"]
     passive_name = scene["passive_object"]
@@ -50,6 +70,7 @@ def generate_benchmark_xml(benchmark: str, config: dict) -> str:
         candidate_names.append(active_name)
     if passive_name not in candidate_names:
         candidate_names.append(passive_name)
+
     def _override_for(name: str) -> dict | None:
         if name == active_name:
             return scene.get("active_asset") or scene.get(f"{name}_asset")
@@ -60,8 +81,8 @@ def generate_benchmark_xml(benchmark: str, config: dict) -> str:
     object_specs = {name: _object_spec(name, _override_for(name)) for name in candidate_names}
     active = object_specs[active_name]
 
-    out_rel = scene.get("generated_xml_path", f"models/generated_xmls/{benchmark}.xml")
-    out_path = ROOT / out_rel
+    output = Path(output_path or benchmark_xml_output_path(benchmark))
+    out_path = output if output.is_absolute() else ROOT / output
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Prefix for include/model file paths: relative from the output XML back to models/
@@ -90,7 +111,7 @@ def generate_benchmark_xml(benchmark: str, config: dict) -> str:
     _add_assets(mujoco, tuple(object_specs.values()), _models_prefix)
 
     worldbody = ET.SubElement(mujoco, "worldbody")
-    _add_shared_world(worldbody, surface_height=float(scene.get("surface_height", 0.7893)))
+    _add_shared_world(worldbody)
     object_poses = scene.get("object_poses") or {}
     default_object_poses = scene.get("default_object_poses") or {}
 
@@ -117,7 +138,7 @@ def generate_benchmark_xml(benchmark: str, config: dict) -> str:
     ET.indent(mujoco, space="  ")
     tree = ET.ElementTree(mujoco)
     tree.write(out_path, encoding="unicode", xml_declaration=False)
-    return out_rel
+    return output.as_posix()
 
 
 
@@ -219,8 +240,8 @@ def _add_assets(mujoco: ET.Element, objects: tuple[dict, ...], models_prefix: st
             seen.add(asset_xml)
 
 
-def _add_shared_world(worldbody: ET.Element, surface_height: float = 0.7893) -> None:
-    table_half_height = surface_height / 2.0
+def _add_shared_world(worldbody: ET.Element) -> None:
+    table_half_height = SURFACE_HEIGHT_M / 2.0
     ET.SubElement(worldbody, "light", {"name": "main_light", "pos": "0 0 2.5", "dir": "0 0 -1"})
     ET.SubElement(worldbody, "geom", {"name": "ground", "type": "plane", "size": "3 3 0.1", "material": "groundplane"})
     ET.SubElement(
@@ -1315,10 +1336,14 @@ class DigitalTwin:
     def _build(self) -> DigitalTwinResult:
         scene = self.config["scene"]
         passive_name = scene["contact_entities"]["passive"]
-        table_height = scene.get("surface_height")
-        tag_z_mj = float(os.getenv("TAG_Z_MJ", "0.7893"))
-        if table_height is not None:
-            tag_z_mj = float(table_height + self.perception.source_passive.T_world_object[2, 3])
+        anchor_passive_to_surface = bool(
+            scene.get("anchor_passive_to_surface", True)
+        )
+        tag_z_mj = SURFACE_HEIGHT_M
+        if anchor_passive_to_surface:
+            tag_z_mj += float(
+                self.perception.source_passive.T_world_object[2, 3]
+            )
 
         T_board_to_mj = np.array(
             [
@@ -1329,8 +1354,8 @@ class DigitalTwin:
             ]
         )
         T_passive = T_board_to_mj @ self.perception.source_passive.T_world_object
-        if table_height is not None:
-            T_passive[2, 3] = float(table_height)
+        if anchor_passive_to_surface:
+            T_passive[2, 3] = SURFACE_HEIGHT_M
         T_goal = T_passive @ self.perception.relative_goal
 
         generated = copy.deepcopy(self.config)
@@ -1340,7 +1365,15 @@ class DigitalTwin:
         }
         generated["scene"]["passive_source_pose"] = passive_pose
         generated["scene"]["default_object_poses"][self.args.stage["passive"]] = passive_pose
-        relative_xml = generate_benchmark_xml(self.args.benchmark, generated)
+        relative_xml = generate_benchmark_xml(
+            self.args.benchmark,
+            generated,
+            output_path=benchmark_xml_output_path(
+                self.args.benchmark,
+                stage_index=self.args.stage_index,
+                stage_count=self.args.stage_count,
+            ),
+        )
         xml_path = model_path(relative_xml)
 
         model = mujoco.MjModel.from_xml_path(str(xml_path))

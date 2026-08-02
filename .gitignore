@@ -1,6 +1,7 @@
 .claude/
 artifacts/
 extrinsics/
+tests/
 
 # Runtime logs
 Log/

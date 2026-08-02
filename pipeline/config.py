@@ -289,15 +289,19 @@ VLM_PROVIDERS = {
     "step_9": "gemini",   # candidate selection
 }
 
+# Shared MuJoCo tabletop Z coordinate. Object source poses below are expressed
+# relative to this value so changing the table does not leave static objects
+# floating above or embedded in it.
+SURFACE_HEIGHT_M = 0.779
+
 
 # Benchmark definitions contain only values that differ by task.
 BENCHMARKS = {
     'mug_on_plate': {
-        'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/red_mug_on_plate.xml'},
         'task': {
             'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (-0.05, 0.0, 0.83), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'blue_plate_big': {'source_pose': {'xyz': (0, 0, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'red_mug_big': {'source_pose': {'xyz': (-0.2, 0.4, SURFACE_HEIGHT_M + 0.0407), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'blue_plate_big': {'source_pose': {'xyz': (0, 0, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -329,7 +333,57 @@ BENCHMARKS = {
             'final_max_pen': 0.001,
             'sim_steps': 500,
             'max_z_change': 0.05,
-            'max_ori_change': 20.0,
+            'max_ori_change': 0.06981317007977318,
+        },
+        'views': (
+            {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
+            {'lookat': (0.0, 0.0, 0.0), 'front': (1, 1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
+        ),
+    },
+    'mugs_on_plates': {
+        'task': {
+            'objects': {
+                'red_mug_big': {'source_pose': {'xyz': (-0.2, 0.4, SURFACE_HEIGHT_M + 0.0407), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'red_plate_big': {'source_pose': {'xyz': (0.0, 0.0, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'blue_mug_big': {'source_pose': {'xyz': (0.2, 0.4, SURFACE_HEIGHT_M + 0.0407), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'blue_plate_big': {'source_pose': {'xyz': (0.4, 0.0, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+            },
+            'default_stages': [
+                {
+                    'active': 'red_mug_big',
+                    'passive': 'red_plate_big',
+                    'instruction': 'Place the red mug on the red plate.',
+                },
+                {
+                    'active': 'blue_mug_big',
+                    'passive': 'blue_plate_big',
+                    'instruction': 'Place the blue mug on the blue plate.',
+                },
+            ],
+        },
+        'motion': {
+            'allowed_penetration': 0.006,
+            'z_rotation_samples': 1,
+            'post_release_hover_m': 0.08,
+            'preinsertion': {
+                'use_preinsertion': True,
+                'axis': '+z',
+                'offset_m': 0.1,
+                'position_range': np.array([0.04, 0.04, 0.04]),
+                'position_samples': 25,
+                'waypoint_allowance': 3,
+                'allowed_penetration': 0.001,
+            },
+        },
+        'sampling': {
+            'n_samples': 1000,
+            'normal_position_range': np.array([0.03, 0.03, 0.03]),
+            'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
+            'initial_max_pen': 0.01,
+            'final_max_pen': 0.001,
+            'sim_steps': 500,
+            'max_z_change': 0.05,
+            'max_ori_change': 0.06981317007977318,
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
@@ -337,12 +391,11 @@ BENCHMARKS = {
         ),
     },
     'stack_cups': {
-        'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/stacked_cups.xml'},
         'task': {
             'objects': {
-                'red_cup': {'source_pose': {'xyz': (0.18, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'green_cup': {'source_pose': {'xyz': (0.0, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'blue_cup': {'source_pose': {'xyz': (0.18, 0.22, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'red_cup': {'source_pose': {'xyz': (0.18, 0.22, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'green_cup': {'source_pose': {'xyz': (0.0, 0.22, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'blue_cup': {'source_pose': {'xyz': (0.18, 0.22, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -387,11 +440,10 @@ BENCHMARKS = {
         ),
     },
     'plate_on_rack': {
-        'scene': {'generated_xml_path': 'models/generated_xmls/plate_on_rack.xml', 'surface_height': 0.7893},
         'task': {
             'objects': {
-                'green_plate_small': {'source_pose': {'xyz': (-0.0150, 0.4750, 0.8693), 'rpy_deg': (-90.88, -9.96, 95.0)}},
-                'wooden_rack': {'source_pose': {'xyz': (-0.04, 0.49, 0.7893), 'rpy_deg': (0.0, 0.0, 90.0)}},
+                'green_plate_small': {'source_pose': {'xyz': (-0.0150, 0.2750, SURFACE_HEIGHT_M + 0.08), 'rpy_deg': (-90.88, -9.96, 95.0)}},
+                'wooden_rack': {'source_pose': {'xyz': (-0.04, 0.49, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 90.0)}},
             },
             'default_stages': [
                 {
@@ -432,12 +484,11 @@ BENCHMARKS = {
         ),
     },
     'plates_on_rack': {
-        'scene': {'surface_height': 0.7893},
         'task': {
             'objects': {
-                'green_plate_small': {'source_pose': {'xyz': (-0.2, 0.75, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'yellow_plate_small': {'source_pose': {'xyz': (0.05, 0.75, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'wooden_rack': {'source_pose': {'xyz': (-0.12, 0.6, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'green_plate_small': {'source_pose': {'xyz': (-0.2, 0.75, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'yellow_plate_small': {'source_pose': {'xyz': (0.05, 0.75, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'wooden_rack': {'source_pose': {'xyz': (-0.12, 0.6, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -482,10 +533,13 @@ BENCHMARKS = {
         ),
     },
     'stack_plate': {
+        # This setup calibrates the passive plate from the perceived board
+        # frame instead of forcing its object origin onto the tabletop.
+        'scene': {'anchor_passive_to_surface': False},
         'task': {
             'objects': {
-                'yellow_plate_small': {'source_pose': {'xyz': (-0.1, 0.65, 0.8593), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'green_plate_small': {'source_pose': {'xyz': (0.1567, 0.3621, 1.0202), 'rpy_deg': (0.0, 90.0, 0.0)}},
+                'yellow_plate_small': {'source_pose': {'xyz': (-0.1, 0.65, SURFACE_HEIGHT_M + 0.07), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'green_plate_small': {'source_pose': {'xyz': (0.1567, 0.3621, SURFACE_HEIGHT_M + 0.2309), 'rpy_deg': (0.0, 90.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -525,15 +579,13 @@ BENCHMARKS = {
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
         ),
-        'scene': {},
     },
     'stack_plates': {
-        'scene': {'surface_height': 0.7893},
         'task': {
             'objects': {
-                'green_plate_small': {'source_pose': {'xyz': (-0.2, 0.65, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'yellow_plate_small': {'source_pose': {'xyz': (0.0, 0.65, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'pink_plate_small': {'source_pose': {'xyz': (0.2, 0.65, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'green_plate_small': {'source_pose': {'xyz': (-0.2, 0.65, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'yellow_plate_small': {'source_pose': {'xyz': (0.0, 0.65, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'pink_plate_small': {'source_pose': {'xyz': (0.2, 0.65, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -579,14 +631,12 @@ BENCHMARKS = {
     },
     'cap_on_teapot': {
         'scene': {
-            'surface_height': 0.7893,
             'extra_allowed_contact_pair': ('arm1_:teapot',),
-            'generated_xml_path': 'models/generated_xmls/cap_on_teapot.xml',
         },
         'task': {
             'objects': {
-                'yellow_cap': {'source_pose': {'xyz': (-0.1100, 0.2000, 0.8893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'teapot': {'source_pose': {'xyz': (-0.12, 0.2, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'yellow_cap': {'source_pose': {'xyz': (-0.1100, 0.2000, SURFACE_HEIGHT_M + 0.10), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'teapot': {'source_pose': {'xyz': (-0.12, 0.2, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -626,11 +676,10 @@ BENCHMARKS = {
         ),
     },
     'pour_water': {
-        'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/pour_water.xml'},
         'task': {
             'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (0.0, 0.0, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
-                'teapot': {'source_pose': {'xyz': (-0.1, 0.35, 0.7893), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'red_mug_big': {'source_pose': {'xyz': (0.0, 0.0, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'teapot': {'source_pose': {'xyz': (-0.1, 0.35, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
             },
             'default_stages': [
                 {
@@ -671,11 +720,11 @@ BENCHMARKS = {
         ),
     },
     'mug_on_rack': {
-        'scene': {'surface_height': 0.7893, 'generated_xml_path': 'models/generated_xmls/red_mug_on_rack.xml'},
         'task': {
             'objects': {
-                'red_mug_big': {'source_pose': {'xyz': (0.0150, 0.4050, 0.8643), 'rpy_deg': (0.0, 77.0, 140.0)}},
-                'wooden_stick_toy': {'source_pose': {'xyz': (-0.05, 0.49, 0.7893), 'rpy_deg': (0.0, 0.0, -90.0)}},
+                # 'red_mug_big': {'source_pose': {'xyz': (0.0150, 0.4050, SURFACE_HEIGHT_M + 0.075), 'rpy_deg': (0.0, 77.0, 140.0)}},
+                'red_mug_big': {'source_pose': {'xyz': (0.030, 0.2050, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
+                'wooden_stick_toy': {'source_pose': {'xyz': (-0.05, 0.49, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, -90.0)}},
             },
             'default_stages': [
                 {
@@ -689,7 +738,7 @@ BENCHMARKS = {
             'allowed_penetration': 0.004,
             'z_rotation_samples': 1,
             'preinsertion': {
-                'use_preinsertion': True,
+                'use_preinsertion': False,
                 'axis': '+y',
                 'offset_m': 0.12,
                 'position_range': np.array([0.04, 0.04, 0.04]),
@@ -743,7 +792,9 @@ PREINSERTION_DEFAULTS = {
 ARM_JOINT_NAMES = "arm1_joint1,arm1_joint2,arm1_joint3,arm1_joint4,arm1_joint5,arm1_joint6,arm1_joint7"
 EEF_BODY_NAME = "arm1_box_gripper"
 GRIPPER_ACTUATOR_SUFFIX = "gripper"
-OPEN_CTRL_VALUE = 0.05
+# The two finger slides start at q=0 with a 50 mm gap; increasing the tendon
+# command closes them toward the center. Keep approach/release at the open end.
+OPEN_CTRL_VALUE = 0.0
 STAGE_INTERPOLATE_COUNT = 45
 OMPL_SOLVE_TIME = 5.0
 OMPL_INTERPOLATE_COUNT = 120
@@ -906,18 +957,10 @@ def _normalize_benchmark_config(
     scene["active_object"] = active
     scene["passive_object"] = passive
     scene["candidate_objects"] = list(candidate_objects)
-    if "surface_height" in scene:
-        scene["surface_height"] = float(scene["surface_height"])
     scene["object_poses"] = copy.deepcopy(object_poses or {})
     scene["default_object_poses"] = default_object_poses
     scene["active_source_pose"] = _source_pose(active_config)
     scene["passive_source_pose"] = _source_pose(passive_config)
-    if len(default_stages) > 1 or stage_index > 0:
-        scene["generated_xml_path"] = (
-            f"models/generated_xmls/{benchmark}_stage_{stage_index + 1:02d}.xml"
-        )
-    else:
-        scene.setdefault("generated_xml_path", f"models/generated_xmls/{benchmark}.xml")
 
     motion["grasps"] = copy.deepcopy(OBJECT_CATALOG[active].get("grasps", []))
     task["candidate_objects"] = list(candidate_objects)

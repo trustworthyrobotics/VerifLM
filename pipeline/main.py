@@ -12,6 +12,7 @@ from pipeline.core import (
 )
 from pipeline.debug import DebugController, ProgressLogger, wait_for_enter
 from pipeline.digital_twin import GoalRefinementPipeline
+from pipeline.grasp import GraspObservation
 from pipeline.perception import PerceptionPipeline
 from pipeline.config import for_stage, pose_dict, stage_config
 from pipeline.vlm import prepare_goal_image_vlm, resolve_object_prompts, resolve_task_stages
@@ -95,11 +96,20 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
         refined_goal_pose=refinement.refined_goal,
         goal_passive_pose=refinement.twin.result.passive_pose_mj,
         traj_dir=paths.trajectories,
+        grasp_observation=GraspObservation(
+            frame=perception.source,
+            active_mask=perception.masks["source_active"],
+            perceived_source_pose=perception.source_active,
+            artifact_dir=paths.trajectories,
+        ),
     )
 
     refined_goal = refinement.refined_goal if planning is None else planning.refined_goal_pose
     trajectory = (
-        {"status": "failed", "reason": "No collision-free grasp approach."}
+        {
+            "status": "failed",
+            "reason": "No grasp was feasible at the goal and along the source approach.",
+        }
         if planning is None
         else planning.trajectory
     )

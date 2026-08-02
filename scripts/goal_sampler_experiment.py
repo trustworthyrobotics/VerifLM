@@ -24,6 +24,7 @@ from pipeline.digital_twin import (
     _body_transform,
     _goal_freejoint_qadr,
     _set_goal_pose,
+    benchmark_xml_output_path,
     configure,
     generate_benchmark_xml,
     render_relation,
@@ -126,7 +127,17 @@ def main() -> int:
         )
 
     config = stage_config(runtime_args)
-    xml_path = model_path(generate_benchmark_xml(runtime_args.benchmark, config))
+    xml_path = model_path(
+        generate_benchmark_xml(
+            runtime_args.benchmark,
+            config,
+            output_path=benchmark_xml_output_path(
+                runtime_args.benchmark,
+                stage_index=runtime_args.stage_index,
+                stage_count=runtime_args.stage_count,
+            ),
+        )
+    )
     model = mujoco.MjModel.from_xml_path(str(xml_path))
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
