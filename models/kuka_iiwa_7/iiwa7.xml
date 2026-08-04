@@ -164,7 +164,7 @@
                     <geom class="collision" mesh="link_7_col"/>
                     <site name="attachment_site" pos="0 0 0.05" size="0.005" rgba="1 0 0 1" group="4"/>
                     <!-- Adapter cube attached above the iiwa7 flange at z=0.05 -->
-                    <body name="adapter_box" pos="0 0 0.0625">
+                    <body name="adapter_box" pos="0 0 0.05">
                       <geom type="box" size="0.015 0.015 0.015"
                             rgba="0.3 0.3 0.3 1" contype="1" conaffinity="1"/>
                       <!-- Box gripper: 11.5×6.5×9.2 cm, bottom face at top of adapter cube -->
