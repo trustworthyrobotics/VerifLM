@@ -14,6 +14,7 @@ from pipeline.config import (
     EEF_BODY_NAME,
     GRIPPER_ACTUATOR_SUFFIX,
     LIFT_HEIGHT_M,
+    MAX_JOINT_VEL,
     OMPL_INTERPOLATE_COUNT,
     OMPL_SOLVE_TIME,
     OPEN_CTRL_VALUE,
@@ -904,10 +905,9 @@ def _make_context(args: PipelineConfig, xml_path: Path) -> PlanningContext:
 
 def _write_trajectory(path: Path, trajectory: dict) -> None:
     path.write_text(json.dumps(trajectory, indent=2), encoding="utf-8")
-    reason = trajectory.get("reason") or "ok"
-    print(
-        f"[trajectory] {trajectory.get('status')} | {reason} | dir={path.parent}"
-    )
+    reason = trajectory.get("reason")
+    suffix = f" | {reason}" if reason else ""
+    print(f"[trajectory] wrote {path}{suffix}")
 
 
 def _log_if(condition: bool, message: str) -> None:
@@ -919,12 +919,37 @@ def _as_waypoint_list(q_path) -> list[list[float]]:
     return [np.asarray(q, dtype=float).tolist() for q in q_path]
 
 
-def _move_phase(name: str, q_path, dt: float) -> dict:
+def _time_parameterize_path(
+    q_path,
+    max_joint_vel: float = MAX_JOINT_VEL,
+    min_segment_duration: float = 0.001,
+) -> list[float]:
+    if max_joint_vel <= 0.0:
+        raise ValueError("max_joint_vel must be positive.")
+    if min_segment_duration <= 0.0:
+        raise ValueError("min_segment_duration must be positive.")
+
+    waypoints = np.asarray(q_path, dtype=float)
+    times = [0.0]
+    elapsed = 0.0
+    for q0, q1 in zip(waypoints[:-1], waypoints[1:]):
+        delta_q = np.abs(q1 - q0)
+        segment_dt = float(np.max(delta_q)) / max_joint_vel
+        segment_dt = max(segment_dt, min_segment_duration)
+        elapsed += segment_dt
+        times.append(elapsed)
+    return times
+
+
+def _move_phase(name: str, q_path) -> dict:
+    waypoints = _as_waypoint_list(q_path)
+    time_from_start = _time_parameterize_path(waypoints)
+
     return {
         "type": "move",
         "name": name,
-        "dt": dt,
-        "waypoints": _as_waypoint_list(q_path),
+        "waypoints": waypoints,
+        "time_from_start": time_from_start,
     }
 
 
@@ -990,17 +1015,24 @@ def _build_phase_waypoint_plan(
             steps_per_segment=STAGE_INTERPOLATE_COUNT,
         )
 
-    default_dt = 0.08
     phases = [
-        _move_phase("home_to_pregrasp", grasp_plan.home_to_pregrasp_q_path, default_dt),
-        _move_phase("pregrasp_to_grasp", grasp_plan.pregrasp_to_grasp_q_path, default_dt),
+        _move_phase("home_to_pregrasp", grasp_plan.home_to_pregrasp_q_path),
+        _move_phase("pregrasp_to_grasp", grasp_plan.pregrasp_to_grasp_q_path),
         {"type": "gripper", "command": "close"},
-        _move_phase("grasp_to_pregrasp", selected_plan["grasp_to_pregrasp_path"], default_dt),
-        _move_phase("move_to_final_position", q_path, default_dt),
+        _move_phase("grasp_to_pregrasp", selected_plan["grasp_to_pregrasp_path"]),
+        _move_phase("move_to_final_position", q_path),
         {"type": "gripper", "command": "open"},
-        *([_move_phase("release_to_preinsertion", release_to_preinsertion_path, default_dt)] if release_to_preinsertion_path else []),
-        *([_move_phase("post_release_hover", post_hover_path, default_dt)] if post_hover_path else []),
-        _move_phase("return_home", return_home_q_path, default_dt),
+        *(
+            [_move_phase("release_to_preinsertion", release_to_preinsertion_path)]
+            if release_to_preinsertion_path
+            else []
+        ),
+        *(
+            [_move_phase("post_release_hover", post_hover_path)]
+            if post_hover_path
+            else []
+        ),
+        _move_phase("return_home", return_home_q_path),
     ]
     metadata = {
         "benchmark": ctx.args.benchmark,
@@ -1048,15 +1080,8 @@ def _build_phase_waypoint_plan(
         metadata["q_preinsertion"] = selected_plan["ompl_q_path"][-1].tolist()
 
     return {
-        "status": "success",
-        "format": "iiwa_phase_waypoint_plan_v1",
-        "description": (
-            "Phase-based plan exported from pipeline motion planning. Move phases "
-            "contain MuJoCo-planned iiwa joint waypoints; gripper phases hold the "
-            "current arm command while the gripper acts."
-        ),
-        "dt": default_dt,
         "units": "radians",
+        "time_units": "seconds",
         "arm_joint_names": list(ctx.arm_joint_names),
         "phases": phases,
         "metadata": metadata,
@@ -1065,17 +1090,12 @@ def _build_phase_waypoint_plan(
 
 def _validate_controller_trajectory(trajectory: dict) -> None:
     """Check the phase artifact before handing it to replay/controller code."""
-    if trajectory.get("status") != "success":
-        return
-    if trajectory.get("format") != "iiwa_phase_waypoint_plan_v1":
-        raise ValueError("Successful trajectory has unexpected format.")
-
     joint_count = len(trajectory.get("arm_joint_names", []))
     if joint_count <= 0:
         raise ValueError("Trajectory has no arm_joint_names.")
     phases = trajectory.get("phases", [])
     if not phases:
-        raise ValueError("Successful trajectory has no phases.")
+        raise ValueError("Trajectory has no phases.")
 
     gripper_commands = []
     for phase_index, phase in enumerate(phases):
@@ -1087,8 +1107,19 @@ def _validate_controller_trajectory(trajectory: dict) -> None:
                 raise ValueError(f"Move phase {name!r} must have shape (N, {joint_count}).")
             if not np.all(np.isfinite(waypoints)):
                 raise ValueError(f"Move phase {name!r} has non-finite waypoints.")
-            if float(phase.get("dt", trajectory.get("dt", 0.0))) <= 0:
-                raise ValueError(f"Move phase {name!r} has non-positive dt.")
+            timestamps = np.asarray(phase.get("time_from_start"), dtype=float)
+            if timestamps.shape != (len(waypoints),):
+                raise ValueError(
+                    f"Move phase {name!r} must have one timestamp per waypoint."
+                )
+            if not np.all(np.isfinite(timestamps)):
+                raise ValueError(f"Move phase {name!r} has non-finite timestamps.")
+            if timestamps[0] != 0.0:
+                raise ValueError(f"Move phase {name!r} must start at time zero.")
+            if np.any(np.diff(timestamps) <= 0.0):
+                raise ValueError(
+                    f"Move phase {name!r} timestamps must be strictly increasing."
+                )
         elif typ == "gripper":
             command = phase.get("command")
             if command not in {"open", "close"}:
@@ -1130,15 +1161,22 @@ def apply_trajectory_waypoint(
 
 
 def _phase_move_waypoints(trajectory: dict) -> list[dict]:
-    """Flatten phase moves for MuJoCo replay while preserving gripper events."""
+    """Flatten phase moves while preserving their timing and gripper events."""
     flat = []
     gripper_state = "open"
     for phase in trajectory.get("phases", []):
         if phase.get("type") == "move":
-            flat.extend(
-                {"arm_joint_positions": q, "gripper_state": gripper_state}
-                for q in phase.get("waypoints", [])
-            )
+            waypoints = phase.get("waypoints", [])
+            timestamps = phase.get("time_from_start", [])
+            for index, (q, timestamp) in enumerate(zip(waypoints, timestamps)):
+                previous_timestamp = timestamps[index - 1] if index else timestamp
+                flat.append(
+                    {
+                        "arm_joint_positions": q,
+                        "gripper_state": gripper_state,
+                        "time_from_previous": float(timestamp - previous_timestamp),
+                    }
+                )
         elif phase.get("type") == "gripper":
             command = phase.get("command")
             event_by_command = {
@@ -1149,7 +1187,14 @@ def _phase_move_waypoints(trajectory: dict) -> list[dict]:
                 raise ValueError(f"Unknown gripper command: {command!r}")
             gripper_state, event = event_by_command[command]
             if flat:
-                flat.append({**flat[-1], "gripper_state": gripper_state, "event": event})
+                flat.append(
+                    {
+                        **flat[-1],
+                        "gripper_state": gripper_state,
+                        "event": event,
+                        "time_from_previous": 0.0,
+                    }
+                )
         else:
             raise ValueError(f"Unknown phase type: {phase.get('type')!r}")
     return flat
@@ -1181,14 +1226,11 @@ def replay_pick_place_trajectory(
     object_freejoint_name: str,
     goal_marker_body: str = "",
     goal_T_world_object: np.ndarray | None = None,
-    seconds_per_waypoint: float = 0.03,
 ) -> None:
-    """Loop an iiwa_phase_waypoint_plan_v1 trajectory in a MuJoCo passive viewer."""
+    """Loop a phase-based trajectory in a MuJoCo passive viewer."""
     import mujoco.viewer
 
     _validate_controller_trajectory(trajectory)
-    if trajectory.get("status") != "success":
-        return
 
     model = mujoco.MjModel.from_xml_path(str(xml_path))
     data = mujoco.MjData(model)
@@ -1221,9 +1263,9 @@ def replay_pick_place_trajectory(
         close_ctrl = float(gripper.get("close_ctrl", gripper_info["close_ctrl"]))
 
         while viewer.is_running():
-            now = time.time()
-            if now - last >= seconds_per_waypoint:
-                waypoint = waypoints[index]
+            now = time.monotonic()
+            waypoint = waypoints[index]
+            if now - last >= waypoint["time_from_previous"]:
                 event = waypoint.get("event")
                 if event == "attach_object":
                     attached_to_eef = True
@@ -2072,7 +2114,7 @@ class TrajectoryBuilder:
 class Executor:
     """Execution boundary independent of OMPL, MuJoCo, and robot hardware.
 
-    ``move_arm`` receives an ``(N, 7)`` path and the requested waypoint period.
+    ``move_arm`` receives an ``(N, 7)`` path and its waypoint timestamps.
     ``command_gripper`` receives ``"open"`` or ``"close"``. A real robot,
     simulator, or logger can implement those two callbacks without changing the
     planner.
@@ -2082,7 +2124,7 @@ class Executor:
         self,
         trajectory: dict,
         *,
-        move_arm: Callable[[np.ndarray, float], None],
+        move_arm: Callable[[np.ndarray, np.ndarray], None],
         command_gripper: Callable[[str], None],
     ) -> None:
         _validate_controller_trajectory(trajectory)
@@ -2090,7 +2132,7 @@ class Executor:
             if phase["type"] == "move":
                 move_arm(
                     np.asarray(phase["waypoints"], dtype=float),
-                    float(phase.get("dt", trajectory.get("dt", 0.08))),
+                    np.asarray(phase["time_from_start"], dtype=float),
                 )
             else:
                 command_gripper(str(phase["command"]))
@@ -2150,7 +2192,6 @@ class Planner:
         print("[planning] planning pick-and-place trajectory")
         pre = self.insertion.configure(self.args)
         failed = {
-            "status": "failed",
             "reason": "OMPL planning failed for all equivalent goal Z rotations",
             "q_path": None,
         }

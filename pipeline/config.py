@@ -795,11 +795,12 @@ GRIPPER_ACTUATOR_SUFFIX = "gripper"
 # The two finger slides start at q=0 with a 50 mm gap; increasing the tendon
 # command closes them toward the center. Keep approach/release at the open end.
 OPEN_CTRL_VALUE = 0.0
-STAGE_INTERPOLATE_COUNT = 45
+STAGE_INTERPOLATE_COUNT = 100
 OMPL_SOLVE_TIME = 5.0
 OMPL_INTERPOLATE_COUNT = 120
 LIFT_HEIGHT_M = 0.10
 DEFAULT_REALSENSE_SERIAL = "243622060451"
+MAX_JOINT_VEL = 0.2
 
 
 def object_prompt(object_id: str) -> str:

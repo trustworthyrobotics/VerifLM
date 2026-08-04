@@ -107,7 +107,6 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
     refined_goal = refinement.refined_goal if planning is None else planning.refined_goal_pose
     trajectory = (
         {
-            "status": "failed",
             "reason": "No grasp was feasible at the goal and along the source approach.",
         }
         if planning is None
@@ -130,7 +129,7 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
         },
     )
     save_pipeline_result(paths, artifacts)
-    if debug.enabled and trajectory.get("status") == "success":
+    if debug.enabled and trajectory.get("phases"):
         try:
             planner.replay_pick_place_trajectory(
                 xml_path=refinement.twin.result.xml_path,
