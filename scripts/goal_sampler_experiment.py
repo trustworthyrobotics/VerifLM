@@ -12,15 +12,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from pipeline.config import build_pipeline_config, stage_config
+from pipeline.config import OBJECT_CATALOG, build_pipeline_config, stage_config
 from pipeline.core import (
     T_from_pos_quat,
+    ValidationProgram,
     mat_to_quat_wxyz,
     model_path,
     quat_wxyz_to_mat,
     rpy_to_quat,
 )
 from pipeline.digital_twin import (
+    CandidateValidator,
+    CandidateValidatorSettings,
     _body_transform,
     _goal_freejoint_qadr,
     _set_goal_pose,
@@ -147,6 +150,37 @@ def main() -> int:
     set_normal_sampling_ranges(
         position_xyz=runtime_args.normal_position_range,
         orientation_rpy_deg=runtime_args.normal_orientation_range_deg,
+    )
+    contact_entities = config["scene"]["contact_entities"]
+    validator = CandidateValidator(
+        model,
+        data,
+        active_body_id=mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_BODY,
+            runtime_args.mujoco_active_body,
+        ),
+        passive_body_id=mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_BODY,
+            contact_entities["passive"],
+        ),
+        table_geom_ids=(
+            mujoco.mj_name2id(
+                model,
+                mujoco.mjtObj.mjOBJ_GEOM,
+                contact_entities.get("table", "table"),
+            ),
+        ),
+        active_dimensions=OBJECT_CATALOG[
+            config["scene"]["active_object"]
+        ]["dimensions"],
+        validation_program=ValidationProgram.model_validate(
+            config["digital_twin"]["validation_program"]
+        ),
+        settings=CandidateValidatorSettings.from_sampling(
+            config["digital_twin"]["sampling"]
+        ),
     )
 
     goal_qadr = _goal_freejoint_qadr(model, config["scene"].get("goal_freejoint_name"))
@@ -302,6 +336,7 @@ def main() -> int:
         candidates = sample_and_validate_poses(
             mean_pos,
             mean_quat,
+            validator,
             n_samples=sample_count,
             max_valid_candidates=args.success_limit,
             verbose=True,

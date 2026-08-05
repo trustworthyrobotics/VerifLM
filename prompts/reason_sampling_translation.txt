@@ -25,10 +25,6 @@ TRANSLATION DIRECTIONS
 * negative: move opposite the displayed positive axis.
 * none: no clear directional correction, or the axis is correct.
 
-CONTACT TARGET
-* passive: {active_object} should touch, rest on, lean against, hang from, enter, or be supported by {passive_object}.
-* table: {active_object} should instead be directly supported by the table.
-
 Return only JSON:
 {
   "translation": {
@@ -36,6 +32,5 @@ Return only JSON:
     "y": {"assessment": "correct|normal_search|major_revision", "direction": "positive|negative|none"},
     "z": {"assessment": "correct|normal_search|major_revision", "direction": "positive|negative|none"}
   },
-  "contact_target": "passive|table",
   "summary": "At most two concise sentences stating the required translation."
 }

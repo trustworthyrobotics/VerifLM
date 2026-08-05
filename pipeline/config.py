@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
-from pipeline.core import mat_to_quat_wxyz
+from pipeline.core import ValidationProgram, mat_to_quat_wxyz
 
 
 # Object descriptions, assets, physics properties, and configured grasps.
@@ -300,6 +300,7 @@ CAMERA_TYPE = "gemini"
 VLM_PROVIDERS = {
     "step_1": "openai",   # optional task-stage decomposition
     "step_6": "openai",   # sampling-axis reasoning
+    "validation_program": "openai",  # candidate-validation semantics
     "step_9": "gemini",   # candidate selection
 }
 
@@ -310,6 +311,17 @@ SURFACE_HEIGHT_M = 0.779
 
 
 # Benchmark definitions contain only values that differ by task.
+# Position drift is checked in world coordinates. Express the same absolute cap
+# on every axis as a fraction of the active object's corresponding dimension.
+# Orientation fallback values below retain the legacy max_ori_change unit
+# interpretation. They are rounded for readability, without unit conversion.
+def _world_drift_fractions(cap_m: float, active_object_id: str) -> list[float]:
+    return [
+        cap_m / dimension
+        for dimension in OBJECT_CATALOG[active_object_id]["dimensions"]
+    ]
+
+
 BENCHMARKS = {
     'mug_on_plate': {
         'task': {
@@ -339,15 +351,32 @@ BENCHMARKS = {
                 'allowed_penetration': 0.001,
             },
         },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.01,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.05,
-            'max_ori_change': 0.06981317007977318,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 1000,
+                'normal_position_range': np.array([0.03, 0.03, 0.03]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.01,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.05, 'red_mug_big'
+                ),
+                # Preserve the legacy unit interpretation at readable precision.
+                'allowed_orientation_drift_deg': 0.07,
+                'reasoning': 'The mug must remain supported above the plate without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
@@ -372,6 +401,24 @@ BENCHMARKS = {
                     'active': 'blue_mug_big',
                     'passive': 'blue_plate_big',
                     'instruction': 'Place the blue mug on the blue plate.',
+                    'validation_program': {
+                        'validation_mode': 'settling',
+                        'initial_max_pen': 0.01,
+                        'final_max_pen': 0.001,
+                        'required_contacts': ['active_passive'],
+                        'forbidden_contacts': ['active_table'],
+                        'xyz_relations': [{
+                            'axis': 'z',
+                            'relation': 'greater_than',
+                            'subject': 'active',
+                            'reference': 'passive',
+                        }],
+                        'allowed_position_drift_fraction': _world_drift_fractions(
+                            0.05, 'blue_mug_big'
+                        ),
+                        'allowed_orientation_drift_deg': 0.07,
+                        'reasoning': 'The mug must remain supported above the plate without touching the table.',
+                    },
                 },
             ],
         },
@@ -389,15 +436,32 @@ BENCHMARKS = {
                 'allowed_penetration': 0.001,
             },
         },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
-            'initial_max_pen': 0.01,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.05,
-            'max_ori_change': 0.06981317007977318,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 1000,
+                'normal_position_range': np.array([0.03, 0.03, 0.03]),
+                'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.01,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.05, 'red_mug_big'
+                ),
+                # Preserve the legacy unit interpretation at readable precision.
+                'allowed_orientation_drift_deg': 0.07,
+                'reasoning': 'Each mug must remain supported above its plate without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
@@ -421,6 +485,19 @@ BENCHMARKS = {
                     'active': 'green_cup',
                     'passive': 'red_cup',
                     'instruction': 'Place the green cup inside the red cup.',
+                    'validation_program': {
+                        'validation_mode': 'settling',
+                        'initial_max_pen': 0.08,
+                        'final_max_pen': 0.001,
+                        'required_contacts': ['active_passive'],
+                        'forbidden_contacts': ['active_table'],
+                        'xyz_relations': [],
+                        'allowed_position_drift_fraction': _world_drift_fractions(
+                            0.1, 'green_cup'
+                        ),
+                        'allowed_orientation_drift_deg': 30.0,
+                        'reasoning': 'The nested cup must settle against the receiving cup without touching the table.',
+                    },
                 },
             ],
         },
@@ -438,15 +515,27 @@ BENCHMARKS = {
                 'allowed_penetration': 0.008,
             },
         },
-        'sampling': {
-            'n_samples': 2000,
-            'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.08,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.1,
-            'max_ori_change': 30.0,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 2000,
+                'normal_position_range': np.array([0.03, 0.03, 0.03]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.08,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                # Body-origin Z ordering is not reliable for a cup nested inside another cup.
+                'xyz_relations': [],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.1, 'red_cup'
+                ),
+                'allowed_orientation_drift_deg': 30.0,
+                'reasoning': 'The nested cup must settle against the receiving cup without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -481,16 +570,32 @@ BENCHMARKS = {
                 'allowed_penetration': 0.004,
             },
         },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.03, 0.005, 0.02]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.2,
-            'final_max_pen': 0.001,
-            'sim_steps': 600,
-            'max_z_change': 0.08,
-            'max_ori_change': 22,
-            'pos_bias': {'x': 'negative', 'y': None, 'z': 'negative'},
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 1000,
+                'normal_position_range': np.array([0.03, 0.005, 0.02]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 600,
+                'pos_bias': {'x': 'negative', 'y': None, 'z': 'negative'},
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.2,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.08, 'green_plate_small'
+                ),
+                'allowed_orientation_drift_deg': 22.0,
+                'reasoning': 'The plate must remain supported in the elevated rack slots without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.4, 0.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 0.9},
@@ -514,6 +619,24 @@ BENCHMARKS = {
                     'active': 'yellow_plate_small',
                     'passive': 'wooden_rack',
                     'instruction': 'Insert the yellow plate vertically into an adjacent pair of slots in the back of the wooden rack. The yellow plate should be placed in front of the green plate.',
+                    'validation_program': {
+                        'validation_mode': 'settling',
+                        'initial_max_pen': 0.1,
+                        'final_max_pen': 0.001,
+                        'required_contacts': ['active_passive'],
+                        'forbidden_contacts': ['active_table'],
+                        'xyz_relations': [{
+                            'axis': 'z',
+                            'relation': 'greater_than',
+                            'subject': 'active',
+                            'reference': 'passive',
+                        }],
+                        'allowed_position_drift_fraction': _world_drift_fractions(
+                            0.08, 'yellow_plate_small'
+                        ),
+                        'allowed_orientation_drift_deg': 8.0,
+                        'reasoning': 'The plate must remain supported in the elevated rack slots without touching the table.',
+                    },
                 },
             ],
         },
@@ -531,15 +654,31 @@ BENCHMARKS = {
                 'allowed_penetration': 0.004,
             },
         },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.1,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.08,
-            'max_ori_change': 8.0,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 1000,
+                'normal_position_range': np.array([0.02, 0.02, 0.02]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.1,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.08, 'green_plate_small'
+                ),
+                'allowed_orientation_drift_deg': 8.0,
+                'reasoning': 'Each plate must remain supported in the elevated rack slots without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 1.5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -579,15 +718,31 @@ BENCHMARKS = {
                 'stop_short_waypoints': 15,
             },
         },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.02, 0.02, 0.04]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.08,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.05,
-            'max_ori_change': 8.0,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 1000,
+                'normal_position_range': np.array([0.02, 0.02, 0.04]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.08,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.05, 'green_plate_small'
+                ),
+                'allowed_orientation_drift_deg': 8.0,
+                'reasoning': 'The upper plate must remain supported above the lower plate without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -611,6 +766,24 @@ BENCHMARKS = {
                     'active': 'pink_plate_small',
                     'passive': 'yellow_plate_small',
                     'instruction': 'Stack the pink plate on top of the yellow plate.',
+                    'validation_program': {
+                        'validation_mode': 'settling',
+                        'initial_max_pen': 0.08,
+                        'final_max_pen': 0.001,
+                        'required_contacts': ['active_passive'],
+                        'forbidden_contacts': ['active_table'],
+                        'xyz_relations': [{
+                            'axis': 'z',
+                            'relation': 'greater_than',
+                            'subject': 'active',
+                            'reference': 'passive',
+                        }],
+                        'allowed_position_drift_fraction': _world_drift_fractions(
+                            0.05, 'pink_plate_small'
+                        ),
+                        'allowed_orientation_drift_deg': 8.0,
+                        'reasoning': 'The upper plate must remain supported above the lower plate without touching the table.',
+                    },
                 },
             ],
         },
@@ -628,15 +801,31 @@ BENCHMARKS = {
                 'allowed_penetration': 0.004,
             },
         },
-        'sampling': {
-            'n_samples': 1000,
-            'normal_position_range': np.array([0.03, 0.03, 0.03]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.08,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.05,
-            'max_ori_change': 8.0,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 1000,
+                'normal_position_range': np.array([0.03, 0.03, 0.03]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.08,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.05, 'yellow_plate_small'
+                ),
+                'allowed_orientation_drift_deg': 8.0,
+                'reasoning': 'Each upper plate must remain supported above the lower plate without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -674,15 +863,31 @@ BENCHMARKS = {
                 'allowed_penetration': 0.015,
             },
         },
-        'sampling': {
-            'n_samples': 500,
-            'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.01,
-            'final_max_pen': 0.001,
-            'sim_steps': 500,
-            'max_z_change': 0.03,
-            'max_ori_change': 15.0,
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 500,
+                'normal_position_range': np.array([0.02, 0.02, 0.02]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 500,
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.01,
+                'final_max_pen': 0.001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.03, 'yellow_cap'
+                ),
+                'allowed_orientation_drift_deg': 15.0,
+                'reasoning': 'The cap must remain supported above the teapot without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (2.0, 2.0, 5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -717,16 +922,29 @@ BENCHMARKS = {
                 'allowed_penetration': 0.003,
             },
         },
-        'sampling': {
-            'n_samples': 500,
-            'normal_position_range': np.array([0.02, 0.02, 0.02]),
-            'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
-            'initial_max_pen': 0.1,
-            'final_max_pen': 0.003,
-            'sim_steps': 2,
-            'max_z_change': 0.04,
-            'max_ori_change': 35.0,
-            'required_contacts': [],
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 500,
+                'normal_position_range': np.array([0.02, 0.02, 0.02]),
+                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
+                'sim_steps': 2,
+            },
+            'validation_program': {
+                'validation_mode': 'geometric_only',
+                'initial_max_pen': 0.1,
+                'final_max_pen': 0.003,
+                'required_contacts': [],
+                'forbidden_contacts': ['active_table'],
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': None,
+                'allowed_orientation_drift_deg': None,
+                'reasoning': 'A pouring pose is intentionally unsupported, but the teapot origin should be above the mug and clear of the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.8, 1), 'up': (0.0, 0.0, 1.0), 'zoom': 1.4},
@@ -761,17 +979,34 @@ BENCHMARKS = {
                 'allowed_penetration': 0.01,
             },
         },
-        'sampling': {
-            'n_samples': 5000,
-            'normal_position_range': np.array([0.12, 0.06, 0.06]),
-            'normal_orientation_range': np.array([120.0, 120.0, 120.0]),
-            'initial_max_pen': 0.015,
-            'final_max_pen': 0.0001,
-            'sim_steps': 500,
-            'max_z_change': 0.1,
-            'max_ori_change': 20.0,
-            'min_active_z': 0.85,
-            'pos_bias': {'x': 'negative', 'y': None, 'z': 'positive'},
+        'digital_twin': {
+            'sampling': {
+                'n_samples': 5000,
+                'normal_position_range': np.array([0.12, 0.06, 0.06]),
+                'normal_orientation_range': np.array([120.0, 120.0, 120.0]),
+                'sim_steps': 500,
+                'pos_bias': {'x': 'negative', 'y': None, 'z': 'positive'},
+            },
+            'validation_program': {
+                'validation_mode': 'settling',
+                'initial_max_pen': 0.015,
+                'final_max_pen': 0.0001,
+                'required_contacts': ['active_passive'],
+                'forbidden_contacts': ['active_table'],
+                # Intentionally replace the legacy absolute min_active_z floor
+                # with the generic body-origin ordering relation.
+                'xyz_relations': [{
+                    'axis': 'z',
+                    'relation': 'greater_than',
+                    'subject': 'active',
+                    'reference': 'passive',
+                }],
+                'allowed_position_drift_fraction': _world_drift_fractions(
+                    0.1, 'red_mug_big'
+                ),
+                'allowed_orientation_drift_deg': 20.0,
+                'reasoning': 'The mug must remain supported above the rack origin without touching the table.',
+            },
         },
         'views': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (6.0, -6.0, 6.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
@@ -786,8 +1021,7 @@ SAMPLING_DEFAULTS = {
     "position_variance_multipliers": {"low": 0.25, "medium": 1.0, "high": 2.0},
     "orientation_variance_multipliers": {"low": 0.25, "medium": 1.0, "high": 2.0},
     "pos_bias": {"x": None, "y": None, "z": None},
-    "required_contacts": [("active", "passive")],
-    "forbidden_contacts": [("active", "table")],
+    "angular_kick_speed": 0.05,
 }
 
 PREINSERTION_DEFAULTS = {
@@ -827,10 +1061,12 @@ def _normalize_stage(stage: dict | tuple | list, *, candidate_objects: list[str]
         passive = stage.get("passive") or stage.get("passive_object")
         reason = stage.get("reason", "")
         instruction = stage.get("instruction", "")
+        raw_validation_program = stage.get("validation_program")
     else:
         active, passive = stage
         reason = ""
         instruction = ""
+        raw_validation_program = None
 
     if active not in candidate_objects:
         raise ValueError(f"Stage active object {active!r} is not in candidate objects.")
@@ -839,7 +1075,7 @@ def _normalize_stage(stage: dict | tuple | list, *, candidate_objects: list[str]
     if active == passive:
         raise ValueError(f"Stage active/passive objects must differ: {active!r}")
 
-    return {
+    normalized = {
         "active": active,
         "passive": passive,
         "active_object": active,
@@ -847,6 +1083,11 @@ def _normalize_stage(stage: dict | tuple | list, *, candidate_objects: list[str]
         "reason": str(reason),
         "instruction": str(instruction),
     }
+    if raw_validation_program is not None:
+        normalized["validation_program"] = ValidationProgram.model_validate(
+            raw_validation_program
+        ).model_dump(mode="json")
+    return normalized
 
 
 def _source_pose(object_config: dict) -> dict | None:
@@ -941,6 +1182,22 @@ def _normalize_benchmark_config(
     ]
     if stage is not None:
         selected_stage = _normalize_stage(stage, candidate_objects=candidate_objects)
+        # Runtime stage resolution passes a fresh stage dict. Recover a configured
+        # per-stage fallback when the resolved active/passive pair identifies one.
+        matching_defaults = [
+            item
+            for item in default_stages
+            if item["active"] == selected_stage["active"]
+            and item["passive"] == selected_stage["passive"]
+        ]
+        if (
+            "validation_program" not in selected_stage
+            and len(matching_defaults) == 1
+            and "validation_program" in matching_defaults[0]
+        ):
+            selected_stage["validation_program"] = copy.deepcopy(
+                matching_defaults[0]["validation_program"]
+            )
     elif default_stages:
         if not 0 <= stage_index < len(default_stages):
             raise IndexError(
@@ -955,9 +1212,20 @@ def _normalize_benchmark_config(
 
     scene = config.setdefault("scene", {})
     motion = _merged_motion(config.get("motion", {}))
-    sampling = _merged_sampling(config.get("sampling", {}))
+    digital_twin = copy.deepcopy(config.get("digital_twin", {}))
+    sampling = _merged_sampling(digital_twin.get("sampling", {}))
+    raw_validation_program = selected_stage.get(
+        "validation_program", digital_twin.get("validation_program")
+    )
+    if raw_validation_program is None:
+        raise ValueError(
+            f"Benchmark {benchmark!r} requires a complete validation program."
+        )
+    validation_program = ValidationProgram.model_validate(raw_validation_program)
+    digital_twin["sampling"] = sampling
+    digital_twin["validation_program"] = validation_program.model_dump(mode="json")
     config["motion"] = motion
-    config["sampling"] = sampling
+    config["digital_twin"] = digital_twin
 
     active = selected_stage["active"]
     passive = selected_stage["passive"]
@@ -1073,7 +1341,8 @@ def _runtime_config_from_normalized(
     board_y_mj: float,
 ) -> PipelineConfig:
     task, scene = config["task"], config["scene"]
-    motion, sampling = config["motion"], config["sampling"]
+    motion = config["motion"]
+    sampling = config["digital_twin"]["sampling"]
     grasps = tuple(motion["grasps"])
     if not grasps:
         raise ValueError(f"Benchmark {benchmark!r} active object has no grasp candidates.")

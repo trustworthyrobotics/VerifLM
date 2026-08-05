@@ -17,12 +17,12 @@ from pipeline.config import OBJECT_CATALOG, SURFACE_HEIGHT_M, VLM_PROVIDERS
 from pipeline.core import (
     DigitalTwinResult, GoalRefinementResult, ObjectPose, PerceptionResult,
     REPO_ROOT, MODELS_DIR, SamplingConstraints, StagePaths, T_from_pos_quat,
-    mat_to_quat_wxyz, matrix_to_rpy_deg, model_path, quat_wxyz_to_mat,
-    rpy_to_quat,
+    ValidationProgram, mat_to_quat_wxyz, matrix_to_rpy_deg, model_path,
+    quat_wxyz_to_mat, rpy_to_quat,
 )
 from pipeline.vlm import (
     constraints_from_axis_reasoning, reason_sampling_axes_vlm,
-    select_best_candidate_vlm,
+    resolve_validation_program_vlm, select_best_candidate_vlm,
 )
 
 
@@ -632,35 +632,23 @@ class _SamplerState:
     normal_orientation_range: np.ndarray = field(default_factory=lambda: np.zeros(3))
     position_variance_multipliers: dict = field(default_factory=dict)
     orientation_variance_multipliers: dict = field(default_factory=dict)
-    initial_max_pen: float = 0.0
-    final_max_pen: float = 0.0
-    sim_steps: int = 0
-    max_z_change: float = 0.0
-    max_ori_change: float = 0.0
-    contact_entities: dict = field(default_factory=dict)
     axis_variance_multipliers: dict = field(default_factory=lambda: {
         axis: 1.0 for axis in ("x", "y", "z", "roll", "pitch", "yaw")
     })
     pos_bias: dict = field(default_factory=lambda: {
         axis: None for axis in ("x", "y", "z")
     })
-    required_contacts: list = field(default_factory=list)
-    forbidden_contacts: list = field(default_factory=lambda: [("active", "table")])
-    min_active_z: float | None = None
-    max_xy_offset_from_passive: float | None = None
     model: mujoco.MjModel | None = None
     eval_data: mujoco.MjData | None = None
     active_body_id: int | None = None
     active_qadr: int | None = None
     active_dadr: int | None = None
-    passive_body_id: int = -1
-    table_geom_id: int = -1
 
 _state = _SamplerState()
 
 def configure(config: dict, *, benchmark: str | None = None) -> None:
-    """Load stage-specific sampling and contact settings."""
-    sampling = config["sampling"]
+    """Load stage-specific proposal-generation and simulator settings."""
+    sampling = config["digital_twin"]["sampling"]
     _state.benchmark = benchmark or config.get("benchmark", _state.benchmark)
     _state.n_samples = int(sampling["n_samples"])
     _state.max_candidate_images = int(sampling["max_candidate_images"])
@@ -670,16 +658,6 @@ def configure(config: dict, *, benchmark: str | None = None) -> None:
     )
     _state.position_variance_multipliers = dict(sampling["position_variance_multipliers"])
     _state.orientation_variance_multipliers = dict(sampling["orientation_variance_multipliers"])
-    _state.initial_max_pen = float(sampling["initial_max_pen"])
-    _state.final_max_pen = float(sampling["final_max_pen"])
-    _state.sim_steps = int(sampling["sim_steps"])
-    _state.max_z_change = float(sampling["max_z_change"])
-    _state.max_ori_change = math.radians(float(sampling["max_ori_change"]))
-    _state.contact_entities = dict(config["scene"]["contact_entities"])
-    _state.required_contacts = [tuple(pair) for pair in sampling.get("required_contacts", [("active", "passive")])]
-    _state.forbidden_contacts = [tuple(pair) for pair in sampling.get("forbidden_contacts", [("active", "table")])]
-    _state.min_active_z = sampling.get("min_active_z")
-    _state.max_xy_offset_from_passive = sampling.get("max_xy_offset_from_passive")
     _state.pos_bias = {axis: sampling.get("pos_bias", {}).get(axis) for axis in ("x", "y", "z")}
 
 
@@ -736,17 +714,6 @@ def setup(mujoco_model, eval_data, active_body_name: str):
     _state.active_qadr = mujoco_model.jnt_qposadr[jid]
     _state.active_dadr = mujoco_model.jnt_dofadr[jid]
 
-    passive_name = _state.contact_entities.get("passive")
-    _state.passive_body_id = (
-        mujoco.mj_name2id(mujoco_model, mujoco.mjtObj.mjOBJ_BODY, passive_name)
-        if passive_name else -1
-    )
-    table_name = _state.contact_entities.get("table", "table")
-    _state.table_geom_id = mujoco.mj_name2id(
-        mujoco_model, mujoco.mjtObj.mjOBJ_GEOM, table_name
-    )
-
-
 def quat_angle(q1, q2):
     """Smallest angle between two quaternions (in radians)."""
     q1 = q1 / np.linalg.norm(q1)
@@ -774,286 +741,418 @@ def safe_forward(d, label="mj_forward"):
         return False
 
 
-def safe_step(d, label="mj_step"):
-    """Run mj_step safely."""
-    try:
-        mujoco.mj_step(_state.model, d)
-        return True
-    except mujoco.FatalError as e:
-        print(f"[reject] {label} failed: {e}")
-        return False
+@dataclass(frozen=True)
+class CandidateValidatorSettings:
+    """Simulator settings used by candidate validation."""
+
+    sim_steps: int
+    angular_kick_speed: float = 0.05
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.sim_steps, bool)
+            or int(self.sim_steps) != self.sim_steps
+            or self.sim_steps < 0
+        ):
+            raise ValueError("sim_steps must be a nonnegative integer")
+        if (
+            not math.isfinite(self.angular_kick_speed)
+            or self.angular_kick_speed < 0.0
+        ):
+            raise ValueError("angular_kick_speed must be nonnegative and finite")
+
+    @classmethod
+    def from_sampling(cls, sampling: dict) -> "CandidateValidatorSettings":
+        return cls(
+            sim_steps=int(sampling["sim_steps"]),
+            angular_kick_speed=float(sampling.get("angular_kick_speed", 0.05)),
+        )
 
 
-# ----------------------------
-# Contact helpers
-# ----------------------------
-def active_contact_info(d, active_only=True):
-    """
-    Return max penetration and contacts, optionally limited to the active body.
-    
-    MuJoCo contact.dist:
-      dist < 0  => penetration
-      dist = 0  => touching
-      dist > 0  => near contact / within margin
-    """
-    if not safe_forward(d, "active_contact_info/mj_forward"):
-        return float("inf"), []
+class CandidateValidator:
+    """Validate proposed active-object poses without mutating the twin state."""
 
-    contacts = []
-    max_pen = 0.0
+    _AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
 
-    for i in range(d.ncon):
-        c = d.contact[i]
-        g1, g2 = c.geom1, c.geom2
-        b1 = _state.model.geom_bodyid[g1]
-        b2 = _state.model.geom_bodyid[g2]
+    def __init__(
+        self,
+        model: mujoco.MjModel,
+        data: mujoco.MjData,
+        *,
+        active_body_id: int,
+        passive_body_id: int,
+        table_geom_ids,
+        active_dimensions,
+        validation_program: ValidationProgram,
+        settings: CandidateValidatorSettings,
+        rng=None,
+    ) -> None:
+        self.model = model
+        self.reference_data = data
+        self.active_body_id = int(active_body_id)
+        self.passive_body_id = int(passive_body_id)
+        if isinstance(table_geom_ids, (int, np.integer)):
+            table_geom_ids = (int(table_geom_ids),)
+        self.table_geom_ids = frozenset(
+            int(geom_id)
+            for geom_id in (() if table_geom_ids is None else table_geom_ids)
+            if int(geom_id) >= 0
+        )
+        self.active_dimensions = np.asarray(active_dimensions, dtype=float)
+        if (
+            self.active_dimensions.shape != (3,)
+            or not np.all(np.isfinite(self.active_dimensions))
+            or np.any(self.active_dimensions <= 0.0)
+        ):
+            raise ValueError("active_dimensions must contain three positive finite values")
+        self.validation_program = validation_program
+        self.settings = settings
+        self.rng = np.random if rng is None else rng
 
-        if active_only and b1 != _state.active_body_id and b2 != _state.active_body_id:
-            continue
+        if not 0 <= self.active_body_id < model.nbody:
+            raise ValueError(f"Invalid active body id: {self.active_body_id}")
+        semantic_contacts = set(validation_program.required_contacts) | set(
+            validation_program.forbidden_contacts
+        )
+        if (
+            "active_passive" in semantic_contacts
+            or validation_program.xyz_relations
+        ) and not 0 <= self.passive_body_id < model.nbody:
+            raise ValueError(f"Invalid passive body id: {self.passive_body_id}")
+        if "active_table" in semantic_contacts and not self.table_geom_ids:
+            raise ValueError("An active_table rule requires at least one table geom id")
+        self.active_body_ids = self._subtree_body_ids(self.active_body_id)
+        self.passive_body_ids = (
+            self._subtree_body_ids(self.passive_body_id)
+            if 0 <= self.passive_body_id < model.nbody
+            else frozenset()
+        )
 
-        geom1_name = mujoco.mj_id2name(_state.model, mujoco.mjtObj.mjOBJ_GEOM, g1)
-        geom2_name = mujoco.mj_id2name(_state.model, mujoco.mjtObj.mjOBJ_GEOM, g2)
-        body1_name = mujoco.mj_id2name(_state.model, mujoco.mjtObj.mjOBJ_BODY, b1)
-        body2_name = mujoco.mj_id2name(_state.model, mujoco.mjtObj.mjOBJ_BODY, b2)
+        joint_id = int(model.body_jntadr[self.active_body_id])
+        if joint_id < 0 or model.jnt_type[joint_id] != mujoco.mjtJoint.mjJNT_FREE:
+            raise ValueError("The active body must have a free joint")
+        self.active_qadr = int(model.jnt_qposadr[joint_id])
+        self.active_dadr = int(model.jnt_dofadr[joint_id])
+        self._state_spec = mujoco.mjtState.mjSTATE_INTEGRATION
+        self._state_buffer = np.empty(
+            mujoco.mj_stateSize(self.model, self._state_spec),
+            dtype=float,
+        )
+        self._data = mujoco.MjData(self.model)
 
-        dist = float(c.dist)
-        pen = max(0.0, -dist)
-        max_pen = max(max_pen, pen)
+    def _subtree_body_ids(self, root_body_id: int) -> frozenset[int]:
+        body_ids = set()
+        for body_id in range(self.model.nbody):
+            ancestor = body_id
+            while ancestor != 0 and ancestor != root_body_id:
+                ancestor = int(self.model.body_parentid[ancestor])
+            if ancestor == root_body_id:
+                body_ids.add(body_id)
+        return frozenset(body_ids)
 
-        contacts.append({
-            "body1": body1_name,
-            "geom1": geom1_name,
-            "body2": body2_name,
-            "geom2": geom2_name,
-            "dist": dist,
-            "penetration": pen,
-        })
+    def _working_data(self) -> mujoco.MjData:
+        """Reset validator-owned data from the full reference integration state."""
+        mujoco.mj_getState(
+            self.model,
+            self.reference_data,
+            self._state_buffer,
+            self._state_spec,
+        )
+        mujoco.mj_setState(
+            self.model,
+            self._data,
+            self._state_buffer,
+            self._state_spec,
+        )
+        return self._data
 
-    return max_pen, contacts
+    def _set_active_pose(self, data, position, quaternion) -> None:
+        data.qpos[self.active_qadr:self.active_qadr + 3] = position
+        data.qpos[self.active_qadr + 3:self.active_qadr + 7] = quaternion
+        data.qvel[self.active_dadr:self.active_dadr + 6] = 0.0
 
-
-def missing_required_contacts(contacts):
-    """Return required active/passive/table pairs absent after settling."""
-    missing = []
-    for symbolic_a, symbolic_b in _state.required_contacts:
-        entity_a = _state.contact_entities[symbolic_a]
-        entity_b = _state.contact_entities[symbolic_b]
-        found = any(
-            (
-                entity_a in (c["body1"], c["geom1"])
-                and entity_b in (c["body2"], c["geom2"])
+    def _contact_state(self, data) -> tuple[float, set[str]]:
+        """Return active-object penetration and supported object-pair contacts."""
+        max_penetration = 0.0
+        pairs: set[str] = set()
+        for index in range(data.ncon):
+            contact = data.contact[index]
+            geom1, geom2 = int(contact.geom1), int(contact.geom2)
+            body1 = int(self.model.geom_bodyid[geom1])
+            body2 = int(self.model.geom_bodyid[geom2])
+            body1_is_active = body1 in self.active_body_ids
+            body2_is_active = body2 in self.active_body_ids
+            if not body1_is_active and not body2_is_active:
+                continue
+            max_penetration = max(
+                max_penetration,
+                max(0.0, -float(contact.dist)),
             )
-            or (
-                entity_b in (c["body1"], c["geom1"])
-                and entity_a in (c["body2"], c["geom2"])
+            if (
+                body1_is_active
+                and body2 in self.passive_body_ids
+            ) or (
+                body2_is_active
+                and body1 in self.passive_body_ids
+            ):
+                pairs.add("active_passive")
+            if (
+                body1_is_active
+                and geom2 in self.table_geom_ids
+            ) or (
+                body2_is_active
+                and geom1 in self.table_geom_ids
+            ):
+                pairs.add("active_table")
+        return max_penetration, pairs
+
+    def _relation_failures(self, data) -> list[str]:
+        """Evaluate relations using MuJoCo body-frame origins in world axes."""
+        if not self.validation_program.xyz_relations:
+            return []
+        positions = {
+            "active": data.xpos[self.active_body_id],
+            "passive": data.xpos[self.passive_body_id],
+        }
+        failures = []
+        for relation in self.validation_program.xyz_relations:
+            axis_index = self._AXIS_INDEX[relation.axis]
+            subject = float(positions[relation.subject][axis_index])
+            reference = float(positions[relation.reference][axis_index])
+            satisfied = (
+                subject > reference
+                if relation.relation == "greater_than"
+                else subject < reference
             )
-            for c in contacts
-        )
-        if not found:
-            missing.append((symbolic_a, symbolic_b))
-    return missing
+            if not satisfied:
+                failures.append(
+                    f"{relation.subject}.{relation.axis} must be "
+                    f"{relation.relation} {relation.reference}.{relation.axis} "
+                    f"({subject:.6f} vs {reference:.6f})"
+                )
+        return failures
 
+    def _failure(
+        self,
+        reason: str,
+        *,
+        initial_pen=float("nan"),
+        forbidden_contacts=(),
+    ):
+        return False, {
+            "reason": reason,
+            "validation_mode": self.validation_program.validation_mode,
+            "initial_pen": initial_pen,
+            "final_pen": np.nan,
+            "position_drift": None,
+            "allowed_position_drift": None,
+            "z_change": np.nan,
+            "orientation_drift_deg": np.nan,
+            "ori_change": np.nan,
+            "missing_required_contacts": [],
+            "forbidden_contacts_found": list(forbidden_contacts),
+            "final_pos": None,
+            "final_quat": None,
+        }
 
-def _active_touches_table(d) -> bool:
-    """Direct geom-ID check: is any geom of the active body in contact with the table?"""
-    if _state.table_geom_id < 0:
-        return False
-    for i in range(d.ncon):
-        c = d.contact[i]
-        g1, g2 = int(c.geom1), int(c.geom2)
-        b1 = int(_state.model.geom_bodyid[g1])
-        b2 = int(_state.model.geom_bodyid[g2])
-        if (g1 == _state.table_geom_id and b2 == _state.active_body_id) or \
-           (g2 == _state.table_geom_id and b1 == _state.active_body_id):
-            return True
-    return False
-
-
-def final_rejection_reasons(final_pen, z_change, ori_change, missing_contacts,
-                            final_pos=None, passive_pos=None, forbidden_contacts_found=None):
-    """Describe every final-state validation failure."""
-    reasons = []
-    if final_pen >= _state.final_max_pen:
-        reasons.append(
-            f"final penetration {final_pen:.6f} >= limit "
-            f"{_state.final_max_pen:.6f}"
+    def _evaluate_final(
+        self,
+        data,
+        proposed_position,
+        proposed_quaternion,
+        *,
+        initial_pen: float,
+        check_drift: bool,
+    ):
+        final_pen, contacts = self._contact_state(data)
+        final_qpos = data.qpos[self.active_qadr:self.active_qadr + 7].copy()
+        simulated_position = final_qpos[:3]
+        simulated_quaternion = final_qpos[3:]
+        missing = sorted(
+            set(self.validation_program.required_contacts) - contacts
         )
-    if z_change >= _state.max_z_change:
-        reasons.append(
-            f"vertical settling {z_change:.6f} m >= limit "
-            f"{_state.max_z_change:.6f} m"
+        forbidden = sorted(
+            set(self.validation_program.forbidden_contacts) & contacts
         )
-    if ori_change >= _state.max_ori_change:
-        reasons.append(
-            f"orientation drift {math.degrees(ori_change):.2f} deg "
-            f">= limit {math.degrees(_state.max_ori_change):.2f} deg"
-        )
-    if missing_contacts:
-        reasons.append(f"missing required contacts: {missing_contacts}")
-    if forbidden_contacts_found:
-        reasons.append(f"forbidden contacts (active touches table): {forbidden_contacts_found}")
-    if _state.min_active_z is not None and final_pos is not None:
-        if float(final_pos[2]) < _state.min_active_z:
+        reasons = []
+        # A geometric-only pose is already the accepted pose, so it must meet
+        # the same final penetration limit as a settled candidate.
+        if final_pen >= self.validation_program.final_max_pen:
             reasons.append(
-                f"active object Z {final_pos[2]:.4f} m < min_active_z {_state.min_active_z:.4f} m"
+                f"final penetration {final_pen:.6f} >= limit "
+                f"{self.validation_program.final_max_pen:.6f}"
             )
-    limit = _state.max_xy_offset_from_passive
-    if limit is not None and final_pos is not None and passive_pos is not None:
-        xy_offset = float(np.linalg.norm(
-            np.array(final_pos[:2]) - np.array(passive_pos[:2])
-        ))
-        if xy_offset > limit:
-            reasons.append(
-                f"XY offset from passive {xy_offset:.4f} m > limit {limit:.4f} m"
+        if forbidden:
+            reasons.append(f"forbidden contacts: {forbidden}")
+        if missing:
+            reasons.append(f"missing required contacts: {missing}")
+
+        position_drift = None
+        allowed_position_drift = None
+        orientation_drift_deg = np.nan
+        if check_drift:
+            # This is intentionally world-frame. The proposed rotation does not
+            # rotate the displacement before its x/y/z components are checked.
+            position_drift = np.abs(simulated_position - proposed_position)
+            allowed_position_drift = (
+                np.asarray(
+                    self.validation_program.allowed_position_drift_fraction,
+                    dtype=float,
+                )
+                * self.active_dimensions
             )
-    return reasons
+            exceeded = np.flatnonzero(
+                position_drift > allowed_position_drift
+            )
+            if exceeded.size:
+                axes = ["xyz"[index] for index in exceeded]
+                reasons.append(
+                    f"world-frame position drift exceeds {axes}: "
+                    f"{position_drift.tolist()} > "
+                    f"{allowed_position_drift.tolist()}"
+                )
 
+            orientation_drift_deg = math.degrees(
+                quat_angle(proposed_quaternion, simulated_quaternion)
+            )
+            if (
+                orientation_drift_deg
+                > self.validation_program.allowed_orientation_drift_deg
+            ):
+                reasons.append(
+                    f"orientation drift {orientation_drift_deg:.3f} deg > "
+                    f"limit "
+                    f"{self.validation_program.allowed_orientation_drift_deg:.3f} deg"
+                )
 
-# ----------------------------
-# Sampling / validation
-# ----------------------------
-def _candidate_failure(reason, initial_pen=float("inf")):
-    return False, {
-        "reason": reason,
-        "initial_pen": initial_pen,
-        "final_pen": np.nan,
-        "z_change": np.nan,
-        "ori_change": np.nan,
-        "final_pos": None,
-        "final_quat": None,
-    }
+        reasons.extend(self._relation_failures(data))
+        valid = not reasons
+        if self.validation_program.validation_mode == "geometric_only":
+            accepted_position = proposed_position.copy()
+            accepted_quaternion = proposed_quaternion.copy()
+        else:
+            accepted_position = simulated_position.copy()
+            accepted_quaternion = simulated_quaternion.copy()
+        return valid, {
+            "reason": "valid" if valid else "; ".join(reasons),
+            "validation_mode": self.validation_program.validation_mode,
+            "initial_pen": initial_pen,
+            "final_pen": final_pen,
+            "position_drift": position_drift,
+            "allowed_position_drift": allowed_position_drift,
+            "z_change": (
+                abs(float(simulated_position[2] - proposed_position[2]))
+                if check_drift
+                else np.nan
+            ),
+            "orientation_drift_deg": orientation_drift_deg,
+            "ori_change": (
+                math.radians(orientation_drift_deg)
+                if check_drift
+                else np.nan
+            ),
+            "missing_required_contacts": missing,
+            "forbidden_contacts_found": forbidden,
+            "final_pos": accepted_position,
+            "final_quat": accepted_quaternion,
+        }
 
+    def validate(self, position, quaternion):
+        """Return validation status and metrics for one proposed wxyz pose."""
+        proposed_position = np.asarray(position, dtype=float).copy()
+        proposed_quaternion = np.asarray(quaternion, dtype=float).copy()
+        if proposed_position.shape != (3,) or not np.all(np.isfinite(proposed_position)):
+            raise ValueError("position must contain three finite world coordinates")
+        if proposed_quaternion.shape != (4,) or not np.all(
+            np.isfinite(proposed_quaternion)
+        ):
+            raise ValueError("quaternion must contain four finite wxyz values")
+        quaternion_norm = float(np.linalg.norm(proposed_quaternion))
+        if quaternion_norm <= 0.0:
+            raise ValueError("quaternion must have nonzero norm")
+        proposed_quaternion /= quaternion_norm
+        data = self._working_data()
+        self._set_active_pose(data, proposed_position, proposed_quaternion)
+        try:
+            mujoco.mj_forward(self.model, data)
+        except mujoco.FatalError as exc:
+            return self._failure(f"initial mj_forward failed: {exc}")
 
-def _restore_reference_state(reference_state, label):
-    qpos, qvel = reference_state
-    _state.eval_data.qpos[:] = qpos
-    _state.eval_data.qvel[:] = qvel
-    safe_forward(_state.eval_data, label)
+        initial_pen, contacts = self._contact_state(data)
+        if self.validation_program.validation_mode == "geometric_only":
+            return self._evaluate_final(
+                data,
+                proposed_position,
+                proposed_quaternion,
+                initial_pen=initial_pen,
+                check_drift=False,
+            )
 
-
-def evaluate_candidate(pos, quat, reference_state):
-    """
-    Validate a single candidate pose.
-    
-    Args:
-        pos: position [3]
-        quat: quaternion wxyz [4]
-        reference_state: (qpos, qvel) tuple to initialize eval_data from
-    
-    Returns:
-        (valid, info) where valid is bool and info is dict with metrics
-    """
-    qpos0, qvel0 = reference_state
-    _state.eval_data.qpos[:] = qpos0
-    _state.eval_data.qvel[:] = qvel0
-
-    set_active_pose(_state.eval_data, pos, quat, zero_velocity=True)
-    if not safe_forward(_state.eval_data, "candidate initial mj_forward"):
-        _restore_reference_state(
-            reference_state,
-            "candidate restore after initial forward fail",
+        initial_reasons = []
+        if initial_pen >= self.validation_program.initial_max_pen:
+            initial_reasons.append(
+                f"initial penetration {initial_pen:.6f} >= limit "
+                f"{self.validation_program.initial_max_pen:.6f}"
+            )
+        forbidden = sorted(
+            set(self.validation_program.forbidden_contacts) & contacts
         )
-        return _candidate_failure("initial mj_forward failed")
+        if forbidden:
+            initial_reasons.append(
+                f"forbidden contacts at initial pose: {forbidden}"
+            )
+        if initial_reasons:
+            return self._failure(
+                "; ".join(initial_reasons),
+                initial_pen=initial_pen,
+                forbidden_contacts=forbidden,
+            )
 
-    initial_pen, _ = active_contact_info(_state.eval_data)
-    if initial_pen >= _state.initial_max_pen:
-        _restore_reference_state(
-            reference_state,
-            "candidate restore after initial reject",
+        kick_angle = float(self.rng.uniform(0.0, 2.0 * np.pi))
+        data.qvel[self.active_dadr + 3:self.active_dadr + 6] += np.array(
+            [math.cos(kick_angle), 0.0, math.sin(kick_angle)],
+            dtype=float,
+        ) * self.settings.angular_kick_speed
+        for index in range(self.settings.sim_steps):
+            try:
+                mujoco.mj_step(self.model, data)
+            except mujoco.FatalError as exc:
+                return self._failure(
+                    f"mj_step crashed at step {index}: {exc}",
+                    initial_pen=initial_pen,
+                )
+            _, contacts = self._contact_state(data)
+            forbidden = sorted(
+                set(self.validation_program.forbidden_contacts) & contacts
+            )
+            if forbidden:
+                return self._failure(
+                    f"forbidden contacts at step {index + 1}: {forbidden}",
+                    initial_pen=initial_pen,
+                    forbidden_contacts=forbidden,
+                )
+
+        try:
+            mujoco.mj_forward(self.model, data)
+        except mujoco.FatalError as exc:
+            return self._failure(
+                f"final mj_forward failed: {exc}",
+                initial_pen=initial_pen,
+            )
+        return self._evaluate_final(
+            data,
+            proposed_position,
+            proposed_quaternion,
+            initial_pen=initial_pen,
+            check_drift=True,
         )
-        return _candidate_failure("initial penetration too large", initial_pen)
-
-    init_z = float(pos[2])
-    init_quat = quat.copy()
-
-    # Kick with a small random horizontal angular velocity to destabilize any
-    # unstable equilibrium (e.g. plate balanced on its rim). The kick is in the
-    # XZ plane (perpendicular to gravity) so it always acts as a tipping torque
-    # regardless of the object's orientation. Magnitude 0.05 rad/s: small enough
-    # that a properly-constrained pose stays within max_ori_change, large enough
-    # that an inverted-pendulum-like unstable balance topples within sim_steps.
-    _kick_angle = np.random.uniform(0.0, 2.0 * np.pi)
-    _state.eval_data.qvel[_state.active_dadr + 3:_state.active_dadr + 6] += np.array(
-        [np.cos(_kick_angle), 0.0, np.sin(_kick_angle)], dtype=float
-    ) * 0.05
-
-    for i in range(_state.sim_steps):
-        if not safe_step(_state.eval_data, f"candidate mj_step {i}"):
-            _restore_reference_state(
-                reference_state,
-                "candidate restore after mj_step fail",
-            )
-            return _candidate_failure(
-                f"mj_step crashed at step {i}",
-                initial_pen,
-            )
-        step_number = i + 1
-        if step_number % 100 == 0 and _active_touches_table(_state.eval_data):
-            _restore_reference_state(
-                reference_state,
-                "candidate restore after forbidden contact",
-            )
-            return _candidate_failure(
-                f"forbidden contact (active touches table) at step {step_number}",
-                initial_pen,
-            )
-
-    if not safe_forward(_state.eval_data, "candidate final mj_forward"):
-        _restore_reference_state(
-            reference_state,
-            "candidate restore after final forward fail",
-        )
-        return _candidate_failure("final mj_forward failed", initial_pen)
-
-    final_pos = _state.eval_data.qpos[
-        _state.active_qadr:_state.active_qadr + 3
-    ].copy()
-    final_quat = _state.eval_data.qpos[
-        _state.active_qadr + 3:_state.active_qadr + 7
-    ].copy()
-
-    final_pen, _ = active_contact_info(_state.eval_data)
-    _, final_contacts = active_contact_info(
-        _state.eval_data, active_only=False
-    )
-    z_change = abs(float(final_pos[2]) - init_z)
-    ori_change = quat_angle(init_quat, final_quat)
-    missing_contacts = missing_required_contacts(final_contacts)
-    forbidden_contacts_found = [("active", "table")] if _active_touches_table(_state.eval_data) else []
-
-    passive_pos = (
-        _state.eval_data.xpos[_state.passive_body_id].copy()
-        if _state.passive_body_id >= 0 else None
-    )
-    rejection_reasons = final_rejection_reasons(
-        final_pen,
-        z_change,
-        ori_change,
-        missing_contacts,
-        final_pos=final_pos,
-        passive_pos=passive_pos,
-        forbidden_contacts_found=forbidden_contacts_found,
-    )
-    valid = not rejection_reasons
-    reason = "valid" if valid else "; ".join(rejection_reasons)
-
-    info = {
-        "reason": reason,
-        "initial_pen": initial_pen,
-        "final_pen": final_pen,
-        "z_change": z_change,
-        "ori_change": ori_change,
-        "missing_required_contacts": missing_contacts,
-        "final_pos": final_pos,
-        "final_quat": final_quat,
-    }
-
-    return valid, info
 
 
+# Candidate sampling
 def sample_and_validate_poses(
     base_pos,
     base_quat,
+    validator: CandidateValidator,
     n_samples=None,
     max_valid_candidates=None,
     verbose=True,
@@ -1074,10 +1173,6 @@ def sample_and_validate_poses(
 
     valid_candidates = []
     base_rotation = quat_wxyz_to_mat(base_quat)
-    reference_state = (
-        _state.eval_data.qpos.copy(),
-        _state.eval_data.qvel.copy(),
-    )
 
     if verbose:
         print(f"[sampler] sampling {sample_count} candidates")
@@ -1110,7 +1205,7 @@ def sample_and_validate_poses(
         if sample_callback is not None:
             sample_callback(sample_pos, sample_quat)
 
-        valid, info = evaluate_candidate(sample_pos, sample_quat, reference_state)
+        valid, info = validator.validate(sample_pos, sample_quat)
         if verbose and index % 50 == 0:
             print(
                 f"  {index:3d}/{sample_count} valid={valid:5} | "
@@ -1158,11 +1253,9 @@ def apply_sampling_constraints(constraints) -> None:
             constraints.get("noise_factors", {}),
         )
         bias = constraints.get("pos_bias", constraints.get("directional_bias", {}))
-        contact_target = constraints.get("contact_target", "passive")
     else:
         levels = constraints.sampling_variance
         bias = constraints.pos_bias
-        contact_target = constraints.contact_target
     axis_variance_multipliers = {
         axis: _state.position_variance_multipliers.get(
             levels.get(axis, "medium"),
@@ -1177,10 +1270,6 @@ def apply_sampling_constraints(constraints) -> None:
         )
         for axis in ("roll", "pitch", "yaw")
     })
-    contact_target = str(contact_target).strip().lower()
-    if contact_target not in {"passive", "table"}:
-        contact_target = "passive"
-    _state.required_contacts = [("active", contact_target)]
     set_constraints(
         axis_variance_multipliers=axis_variance_multipliers,
         pos_bias=bias,
@@ -1238,6 +1327,7 @@ def sample_validate_and_render_candidates(
     base_pos,
     base_quat,
     *,
+    validator: CandidateValidator,
     out_dir,
     n_samples=None,
     max_images=None,
@@ -1261,6 +1351,7 @@ def sample_validate_and_render_candidates(
     candidates = sample_and_validate_poses(
         base_pos,
         base_quat,
+        validator,
         n_samples=n_samples,
         max_valid_candidates=image_limit,
         verbose=verbose,
@@ -1331,7 +1422,51 @@ class DigitalTwin:
         self.config = benchmark_config
         self.perception = perception
         self.paths = paths
+        active_name = benchmark_config["scene"]["active_object"]
+        self.active_dimensions = np.asarray(
+            OBJECT_CATALOG[active_name]["dimensions"],
+            dtype=float,
+        )
+        self.validation_settings = CandidateValidatorSettings.from_sampling(
+            benchmark_config["digital_twin"]["sampling"]
+        )
         self.result = self._build()
+
+    def _candidate_validator(
+        self,
+        validation_program: ValidationProgram | dict,
+    ) -> CandidateValidator:
+        if isinstance(validation_program, dict):
+            validation_program = ValidationProgram.model_validate(
+                validation_program
+            )
+        model = self.result.model
+        contact_entities = self.config["scene"]["contact_entities"]
+        active_body_id = mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_BODY,
+            self.args.mujoco_active_body,
+        )
+        passive_body_id = mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_BODY,
+            contact_entities["passive"],
+        )
+        table_geom_id = mujoco.mj_name2id(
+            model,
+            mujoco.mjtObj.mjOBJ_GEOM,
+            contact_entities.get("table", "table"),
+        )
+        return CandidateValidator(
+            model,
+            self.result.data,
+            active_body_id=active_body_id,
+            passive_body_id=passive_body_id,
+            table_geom_ids=(table_geom_id,),
+            active_dimensions=self.active_dimensions,
+            validation_program=validation_program,
+            settings=self.validation_settings,
+        )
 
     def _build(self) -> DigitalTwinResult:
         scene = self.config["scene"]
@@ -1424,18 +1559,29 @@ class DigitalTwin:
             ),
         )
 
-    def sample(self, constraints: SamplingConstraints, debug=None) -> list[tuple[np.ndarray, np.ndarray, dict]]:
+    def sample(
+        self,
+        constraints: SamplingConstraints,
+        validation_program: ValidationProgram | dict | None = None,
+        debug=None,
+    ) -> list[tuple[np.ndarray, np.ndarray, dict]]:
         if self.args.skip_sampling:
             return []
+        if validation_program is None:
+            validation_program = self.config["digital_twin"][
+                "validation_program"
+            ]
+        validator = self._candidate_validator(validation_program)
         apply_sampling_constraints(constraints)
         if getattr(debug, "enabled", False):
-            return self._sample_with_debug_viewer()
+            return self._sample_with_debug_viewer(validator)
 
         goal = self.result.initial_goal_pose_mj.T_world_object
         goal_freejoint_name = self.config["scene"].get("goal_freejoint_name")
         return sample_validate_and_render_candidates(
             goal[:3, 3],
             mat_to_quat_wxyz(goal[:3, :3]),
+            validator=validator,
             out_dir=self.paths.candidates,
             n_samples=self.args.n_samples,
             max_images=self.args.max_candidate_images,
@@ -1443,7 +1589,10 @@ class DigitalTwin:
             verbose=True,
         )
 
-    def _sample_with_debug_viewer(self) -> list[tuple[np.ndarray, np.ndarray, dict]]:
+    def _sample_with_debug_viewer(
+        self,
+        validator: CandidateValidator,
+    ) -> list[tuple[np.ndarray, np.ndarray, dict]]:
         try:
             import mujoco.viewer as mj_viewer
             from mujoco.glfw import glfw
@@ -1453,6 +1602,7 @@ class DigitalTwin:
             return sample_validate_and_render_candidates(
                 goal[:3, 3],
                 mat_to_quat_wxyz(goal[:3, :3]),
+                validator=validator,
                 out_dir=self.paths.candidates,
                 n_samples=self.args.n_samples,
                 max_images=self.args.max_candidate_images,
@@ -1505,6 +1655,7 @@ class DigitalTwin:
             return sample_validate_and_render_candidates(
                 goal[:3, 3],
                 mat_to_quat_wxyz(goal[:3, :3]),
+                validator=validator,
                 out_dir=self.paths.candidates,
                 n_samples=self.args.n_samples,
                 max_images=self.args.max_candidate_images,
@@ -1550,11 +1701,34 @@ class GoalRefinementPipeline:
             progress=progress,
         )
         if progress is not None:
-            progress.step(7, "building MuJoCo digital twin")
+            progress.step(
+                7,
+                "generating candidate-validation semantics and building MuJoCo digital twin",
+            )
+        active_object_id = benchmark_config["scene"]["active_object"]
+        passive_object_id = benchmark_config["scene"]["passive_object"]
+        validation_selection = resolve_validation_program_vlm(
+            instruction=args.instruction,
+            active_object_name=active_prompt,
+            active_dimensions=OBJECT_CATALOG[active_object_id]["dimensions"],
+            passive_object_name=passive_prompt,
+            passive_dimensions=OBJECT_CATALOG[passive_object_id]["dimensions"],
+            fallback_program=benchmark_config["digital_twin"]["validation_program"],
+            goal_image=perception.goal_bgr,
+            provider=VLM_PROVIDERS.get("validation_program", "openai"),
+        )
+        (paths.outputs / "validation_program.json").write_text(
+            json.dumps(validation_selection.to_json_dict(), indent=2),
+            encoding="utf-8",
+        )
         twin = DigitalTwin(args, benchmark_config, perception, paths)
         if progress is not None:
             progress.step(8, "sampling valid active-object goal candidates in MuJoCo")
-        candidates = twin.sample(constraints, debug=debug)
+        candidates = twin.sample(
+            constraints,
+            validation_selection.program,
+            debug=debug,
+        )
         rendered = [candidate for candidate in candidates if candidate[2].get("image_path")]
 
         if rendered:
@@ -1583,7 +1757,13 @@ class GoalRefinementPipeline:
         (paths.outputs / "candidate_selection.json").write_text(
             json.dumps(selection, indent=2), encoding="utf-8"
         )
-        return GoalRefinementResult(twin, refined_goal, constraints, selection)
+        return GoalRefinementResult(
+            twin=twin,
+            refined_goal=refined_goal,
+            constraints=constraints,
+            selection=selection,
+            validation_program_selection=validation_selection,
+        )
 
     @staticmethod
     def _constraints(
@@ -1615,11 +1795,10 @@ class GoalRefinementPipeline:
             out_dir=paths.inputs,
         )
         if not args.axis_reasoning:
-            configured_bias = benchmark_config["sampling"].get("pos_bias", {})
+            configured_bias = benchmark_config["digital_twin"]["sampling"].get("pos_bias", {})
             return SamplingConstraints(
                 sampling_variance={axis: "medium" for axis in ("x", "y", "z", "roll", "pitch", "yaw")},
                 pos_bias={axis: configured_bias.get(axis) for axis in ("x", "y", "z")},
-                contact_target="passive",
                 reasoning="VLM axis reasoning disabled by runtime configuration.",
             )
 

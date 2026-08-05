@@ -112,6 +112,7 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
         if planning is None
         else planning.trajectory
     )
+    validation_selection = refinement.validation_program_selection
     artifacts = PipelineArtifacts(
         source=source,
         goal=goal_bgr,
@@ -125,6 +126,9 @@ def run_pipeline_single_stage(args) -> PipelineArtifacts:
             "passive_object": passive_prompt,
             "relative_goal": perception.relative_goal.tolist(),
             "sampling_constraints": refinement.constraints.__dict__,
+            "validation_program": validation_selection.program.to_json_dict(),
+            "validation_program_source": validation_selection.source,
+            "validation_program_error": validation_selection.error,
             "candidate_selection": refinement.selection,
         },
     )

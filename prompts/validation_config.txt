@@ -57,13 +57,14 @@ Rules:
 
 4. Never place the same contact in both `required_contacts` and `forbidden_contacts`.
 
-5. Add an XYZ relation only when it is clearly and reliably implied by the instruction. Relations compare object-center coordinates in the world frame.
+5. Add an XYZ relation only when it is clearly and reliably implied by the instruction. Relations compare the active and passive MuJoCo body-frame origins in the world frame. They do not compare geometric or bounding-box centers.
    - Example: placing a mug on a plate implies `active z > passive z`.
    - Example: placing a dish in or on a rack may imply `active z > passive z`.
    - Otherwise, return an empty list.
 
 6. For `settling`:
-   - `allowed_position_drift_fraction` specifies the maximum absolute final displacement along world x, y, and z, divided by the corresponding active-object dimension.
+   - Position drift is measured in the world frame: `delta_world = final_position_world - proposed_position_world`.
+   - `allowed_position_drift_fraction` specifies the maximum absolute `delta_world` along world x, y, and z as a fraction of the corresponding active-object dimension: `allowed_world = drift_fraction * active_dimensions`.
    - `allowed_orientation_drift_deg` specifies the maximum permitted angular difference between the proposed and final orientations.
    - Choose tolerances based on task sensitivity. A mug hanging from a rack may tolerate substantial rotation while settling, whereas a dish placed in a rack should tolerate much less rotation because a large change may indicate tipping.
 
@@ -72,3 +73,5 @@ Rules:
 8. Do not invent contacts, relations, or constraints that are not clearly supported by the instruction. When uncertain, omit the constraint.
 
 9. Output JSON only. Do not include Markdown, comments, or additional text.
+
+10. Penetration limits, perturbation magnitude, and simulation horizon are system-owned. In particular, never output `initial_max_pen` or `final_max_pen`. Those fields are deliberately absent from the response schema and are attached by the system after your semantic output is validated. Do not add or predict any simulator-engineering fields.

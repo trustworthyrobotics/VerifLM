@@ -6,10 +6,11 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Literal, Optional
 
 import cv2
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pipeline.camera import RGBDFrame
 
@@ -114,8 +115,107 @@ class TaskStage:
 class SamplingConstraints:
     sampling_variance: dict[str, str]
     pos_bias: dict[str, Optional[str]]
-    contact_target: str
     reasoning: str
+
+
+NonNegativeFiniteFloat = Annotated[
+    float,
+    Field(strict=True, ge=0.0, allow_inf_nan=False),
+]
+PositiveFiniteFloat = Annotated[
+    float,
+    Field(strict=True, gt=0.0, allow_inf_nan=False),
+]
+OrientationDriftDegrees = Annotated[
+    float,
+    Field(strict=True, ge=0.0, le=180.0, allow_inf_nan=False),
+]
+
+
+class _StrictJsonModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    def to_json_dict(self) -> dict:
+        return self.model_dump(mode="json")
+
+
+class XYZRelation(_StrictJsonModel):
+    axis: Literal["x", "y", "z"]
+    relation: Literal["greater_than", "less_than"]
+    subject: Literal["active"]
+    reference: Literal["passive"]
+
+
+class ValidationProgramSemantics(_StrictJsonModel):
+    validation_mode: Literal["settling", "geometric_only"]
+    required_contacts: list[Literal["active_passive", "active_table"]]
+    forbidden_contacts: list[Literal["active_passive", "active_table"]]
+    xyz_relations: list[XYZRelation]
+    allowed_position_drift_fraction: Annotated[
+        list[NonNegativeFiniteFloat],
+        Field(min_length=3, max_length=3),
+    ] | None
+    allowed_orientation_drift_deg: OrientationDriftDegrees | None
+    reasoning: str
+
+    @field_validator("allowed_position_drift_fraction", mode="before")
+    @classmethod
+    def reject_boolean_position_drift(cls, value):
+        if isinstance(value, (list, tuple)) and any(isinstance(item, bool) for item in value):
+            raise ValueError("position drift entries must be numeric, not boolean")
+        return value
+
+    @field_validator("allowed_orientation_drift_deg", mode="before")
+    @classmethod
+    def reject_boolean_orientation_drift(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("orientation drift must be numeric, not boolean")
+        return value
+
+    @field_validator("required_contacts", "forbidden_contacts")
+    @classmethod
+    def reject_duplicate_contacts(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("contact lists cannot contain duplicates")
+        return value
+
+    @field_validator("reasoning")
+    @classmethod
+    def require_reasoning(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("reasoning must be non-empty")
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_program_semantics(self):
+        overlap = set(self.required_contacts) & set(self.forbidden_contacts)
+        if overlap:
+            raise ValueError(f"contacts cannot be both required and forbidden: {sorted(overlap)}")
+        has_position_drift = self.allowed_position_drift_fraction is not None
+        has_orientation_drift = self.allowed_orientation_drift_deg is not None
+        if self.validation_mode == "settling" and not (has_position_drift and has_orientation_drift):
+            raise ValueError("settling mode requires both drift tolerances")
+        if self.validation_mode == "geometric_only" and (has_position_drift or has_orientation_drift):
+            raise ValueError("geometric_only mode must not define drift tolerances")
+        return self
+
+
+class ValidationProgram(ValidationProgramSemantics):
+    initial_max_pen: PositiveFiniteFloat
+    final_max_pen: PositiveFiniteFloat
+
+    @field_validator("initial_max_pen", "final_max_pen", mode="before")
+    @classmethod
+    def reject_boolean_penetration_thresholds(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("penetration thresholds must be numeric, not boolean")
+        return value
+
+
+class ValidationProgramSelection(_StrictJsonModel):
+    program: ValidationProgram
+    source: Literal["vlm", "config_fallback"]
+    error: str | None = None
 
 
 @dataclass
@@ -165,6 +265,7 @@ class GoalRefinementResult:
     refined_goal: ObjectPose
     constraints: SamplingConstraints
     selection: dict
+    validation_program_selection: ValidationProgramSelection
 
 # Rigid-transform helpers
 def rotx(angle: float) -> np.ndarray:

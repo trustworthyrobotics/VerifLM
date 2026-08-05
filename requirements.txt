@@ -5,6 +5,7 @@ open3d
 trimesh
 python-dotenv
 openai
+pydantic>=2,<3
 google-genai
 Pillow
 torch
