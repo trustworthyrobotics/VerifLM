@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import copy
 
-from dotenv import load_dotenv
-
 import pipeline.planner as planner
 from pipeline.camera import capture_source
-from pipeline.config import VLM_PROVIDERS
 from pipeline.core import (
     PipelineArtifacts, StagePaths, save_pipeline_result, save_source, save_stage_poses,
 )
@@ -19,8 +16,7 @@ from pipeline.vlm import prepare_goal_image_vlm, resolve_object_prompts, resolve
 
 
 def run_pipeline(args) -> PipelineArtifacts:
-    load_dotenv()
-    stages = resolve_task_stages(args, provider=VLM_PROVIDERS.get("step_1", "openai"))
+    stages = resolve_task_stages(args)
     object_poses = copy.deepcopy(args.object_poses or {})
     result = None
 

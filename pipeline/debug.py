@@ -17,14 +17,6 @@ from pipeline.core import ObjectMask, StagePaths
 _WIN: Optional[str] = None
 
 
-def _depth_to_bgr(depth_m: np.ndarray) -> np.ndarray:
-    valid = np.isfinite(depth_m) & (depth_m > 0)
-    canvas = np.zeros_like(depth_m)
-    canvas[valid] = depth_m[valid]
-    norm = cv2.normalize(canvas, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    return cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-
-
 def _label(img: np.ndarray, text: str) -> np.ndarray:
     out = img.copy()
     cv2.putText(out, text, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)

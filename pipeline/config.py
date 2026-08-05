@@ -298,7 +298,6 @@ CAMERA_TYPE = "gemini"
 # VLM provider for each pipeline operation that actually uses a model.
 # Goal-image generation remains Gemini-only in vlm.py.
 VLM_PROVIDERS = {
-    "step_1": "openai",   # optional task-stage decomposition
     "step_6": "openai",   # sampling-axis reasoning
     "validation_program": "openai",  # candidate-validation semantics
     "step_9": "gemini",   # candidate selection
@@ -1055,18 +1054,12 @@ def object_prompt(object_id: str) -> str:
     return OBJECT_CATALOG.get(object_id, {}).get("prompt", object_id.replace("_", " "))
 
 
-def _normalize_stage(stage: dict | tuple | list, *, candidate_objects: list[str]) -> dict:
-    if isinstance(stage, dict):
-        active = stage.get("active") or stage.get("active_object")
-        passive = stage.get("passive") or stage.get("passive_object")
-        reason = stage.get("reason", "")
-        instruction = stage.get("instruction", "")
-        raw_validation_program = stage.get("validation_program")
-    else:
-        active, passive = stage
-        reason = ""
-        instruction = ""
-        raw_validation_program = None
+def _normalize_stage(stage: dict, *, candidate_objects: list[str]) -> dict:
+    active = stage["active"]
+    passive = stage["passive"]
+    reason = stage.get("reason", "")
+    instruction = stage.get("instruction", "")
+    raw_validation_program = stage.get("validation_program")
 
     if active not in candidate_objects:
         raise ValueError(f"Stage active object {active!r} is not in candidate objects.")
@@ -1078,8 +1071,6 @@ def _normalize_stage(stage: dict | tuple | list, *, candidate_objects: list[str]
     normalized = {
         "active": active,
         "passive": passive,
-        "active_object": active,
-        "passive_object": passive,
         "reason": str(reason),
         "instruction": str(instruction),
     }
@@ -1091,7 +1082,7 @@ def _normalize_stage(stage: dict | tuple | list, *, candidate_objects: list[str]
 
 
 def _source_pose(object_config: dict) -> dict | None:
-    return object_config.get("source_pose") or object_config.get("pose")
+    return object_config.get("source_pose")
 
 
 def _merged_sampling(raw: dict) -> dict:
@@ -1133,13 +1124,11 @@ def derive_scene_fields(scene: dict) -> dict:
         raise ValueError("Scene config requires active_object and passive_object.")
 
     try:
-        active = copy.deepcopy(OBJECT_CATALOG[active_name])
-        passive = copy.deepcopy(OBJECT_CATALOG[passive_name])
+        active = OBJECT_CATALOG[active_name]
+        passive = OBJECT_CATALOG[passive_name]
     except KeyError as exc:
         raise ValueError(f"Unknown object in scene: {exc.args[0]!r}") from exc
 
-    active.update(scene.get("active_asset") or {})
-    passive.update(scene.get("passive_asset") or {})
     scene.setdefault("active_mesh", active.get("mesh"))
     scene.setdefault("passive_mesh", passive.get("mesh"))
     scene.setdefault("mujoco_active_body", active_name)
@@ -1246,19 +1235,10 @@ def _normalize_benchmark_config(
     scene["passive_source_pose"] = _source_pose(passive_config)
 
     motion["grasps"] = copy.deepcopy(OBJECT_CATALOG[active].get("grasps", []))
-    task["candidate_objects"] = list(candidate_objects)
-    task["object_prompts"] = {
-        obj: object_prompt(obj) for obj in candidate_objects
-    }
     task["default_stages"] = default_stages
     task["stage"] = selected_stage
     task["active_prompt"] = object_prompt(active)
     task["passive_prompt"] = object_prompt(passive)
-    task["use_vlm_stage_resolution"] = bool(
-        task.get("use_vlm_stage_resolution", False)
-    )
-    task["skip_sampling"] = bool(task.get("skip_sampling", False))
-
     config["scene"] = derive_scene_fields(scene)
     return config
 
@@ -1290,12 +1270,9 @@ class PipelineConfig:
     instruction: str
     active_prompt: str | None
     passive_prompt: str | None
-    use_vlm_stage_resolution: bool
     active_mesh: str
     passive_mesh: str
     mujoco_active_body: str
-    normal_position_range: np.ndarray
-    normal_orientation_range_deg: np.ndarray
     n_samples: int
     max_candidate_images: int
     object_freejoint_name: str
@@ -1316,15 +1293,12 @@ class PipelineConfig:
     camera_serial: str | None
     axis_reasoning: bool
     debug: bool
-    skip_sampling: bool
     skip_settlement: bool
     board_x_mj: float
     board_y_mj: float
     stage_index: int = 0
     stage: dict | None = None
     default_stages: tuple[dict, ...] = ()
-    candidate_objects: tuple[str, ...] = ()
-    object_prompts: dict[str, str] | None = None
     object_poses: dict[str, dict] | None = None
     stage_count: int = 1
 
@@ -1353,12 +1327,9 @@ def _runtime_config_from_normalized(
         instruction=task["stage"]["instruction"],
         active_prompt=task["active_prompt"],
         passive_prompt=task["passive_prompt"],
-        use_vlm_stage_resolution=task["use_vlm_stage_resolution"],
         active_mesh=scene["active_mesh"],
         passive_mesh=scene["passive_mesh"],
         mujoco_active_body=scene["mujoco_active_body"],
-        normal_position_range=np.asarray(sampling["normal_position_range"], dtype=float),
-        normal_orientation_range_deg=np.asarray(sampling["normal_orientation_range"], dtype=float),
         n_samples=int(sampling["n_samples"]),
         max_candidate_images=int(sampling["max_candidate_images"]),
         object_freejoint_name=scene["object_freejoint_name"],
@@ -1383,14 +1354,11 @@ def _runtime_config_from_normalized(
         camera_serial=camera_serial,
         axis_reasoning=bool(axis_reasoning),
         debug=bool(debug),
-        skip_sampling=task["skip_sampling"],
         skip_settlement=bool(motion.get("skip_settlement", False)),
         board_x_mj=float(board_x_mj),
         board_y_mj=float(board_y_mj),
         stage=task["stage"],
         default_stages=tuple(task["default_stages"]),
-        candidate_objects=tuple(task["candidate_objects"]),
-        object_prompts=task["object_prompts"],
         object_poses=copy.deepcopy(scene["object_poses"]),
         stage_count=max(1, len(task["default_stages"])),
     )
@@ -1472,7 +1440,6 @@ def for_stage(
     )
     return replace(
         stage_args,
-        use_vlm_stage_resolution=False,
         stage_index=stage_index,
         object_poses=copy.deepcopy(object_poses),
         stage_count=stage_count,

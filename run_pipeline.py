@@ -1,11 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
-
-PIPELINE_DIR = Path(__file__).resolve().parent / "pipeline"
-sys.path.insert(0, str(PIPELINE_DIR))
 
 from dotenv import load_dotenv
 

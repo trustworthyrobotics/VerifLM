@@ -4,7 +4,7 @@ mujoco
 open3d
 trimesh
 python-dotenv
-openai
+openai>=2.36,<3
 pydantic>=2,<3
 google-genai
 Pillow

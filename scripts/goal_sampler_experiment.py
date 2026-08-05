@@ -24,16 +24,14 @@ from pipeline.core import (
 from pipeline.digital_twin import (
     CandidateValidator,
     CandidateValidatorSettings,
+    SamplerSettings,
     _body_transform,
     _goal_freejoint_qadr,
     _set_goal_pose,
     benchmark_xml_output_path,
-    configure,
     generate_benchmark_xml,
     render_relation,
     sample_and_validate_poses,
-    setup,
-    set_normal_sampling_ranges,
 )
 
 
@@ -116,8 +114,8 @@ def main() -> int:
             )
         selected = runtime_args.default_stages[args.stage_index]
         stage = TaskStage(
-            selected["active_object"],
-            selected["passive_object"],
+            selected["active"],
+            selected["passive"],
             selected.get("reason", ""),
             selected.get("instruction", ""),
         )
@@ -145,12 +143,7 @@ def main() -> int:
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
 
-    configure(config, benchmark=runtime_args.benchmark)
-    setup(model, data, runtime_args.mujoco_active_body)
-    set_normal_sampling_ranges(
-        position_xyz=runtime_args.normal_position_range,
-        orientation_rpy_deg=runtime_args.normal_orientation_range_deg,
-    )
+    sampler_settings = SamplerSettings.from_config(config)
     contact_entities = config["scene"]["contact_entities"]
     validator = CandidateValidator(
         model,
@@ -337,6 +330,7 @@ def main() -> int:
             mean_pos,
             mean_quat,
             validator,
+            sampler_settings,
             n_samples=sample_count,
             max_valid_candidates=args.success_limit,
             verbose=True,

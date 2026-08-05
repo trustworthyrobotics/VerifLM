@@ -8,8 +8,6 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
-
 import cv2
 import numpy as np
 
@@ -24,9 +22,6 @@ GROUNDING_DINO_REPO = Path(
     os.getenv("GROUNDING_DINO_REPO", str(REPO_ROOT.parent / "GroundingDINO"))
 ).expanduser().resolve()
 SAM2_REPO = Path(os.getenv("SAM2_REPO", str(REPO_ROOT.parent / "sam2"))).expanduser().resolve()
-
-MASK_KEYS = ("source_active", "source_passive", "goal_active", "goal_passive")
-
 
 def _add_repo(path: Path) -> None:
     if str(path) not in sys.path:

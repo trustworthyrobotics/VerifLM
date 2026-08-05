@@ -217,10 +217,6 @@ class _GeminiBackend:
         self._depth_scale_m = depth_unit_fallback_m
 
     @property
-    def depth_enabled(self) -> bool:
-        return self._depth_enabled
-
-    @property
     def intrinsics(self) -> CameraIntrinsics:
         if self._intrinsics is None:
             raise RuntimeError("Camera intrinsics unavailable. Call start() first.")
@@ -474,10 +470,6 @@ class _RealSenseD435Backend:
         self._depth_scale_m = 0.001
 
     @property
-    def depth_enabled(self) -> bool:
-        return self._depth_enabled
-
-    @property
     def intrinsics(self) -> CameraIntrinsics:
         if self._intrinsics is None:
             raise RuntimeError("Camera intrinsics unavailable. Call start() first.")
@@ -693,24 +685,6 @@ class Camera:
     def intrinsics(self) -> CameraIntrinsics:
         return self._backend.intrinsics
 
-    def get_camera_matrix(self) -> np.ndarray:
-        return self.intrinsics.K.copy()
-
-    def get_dist_coeffs(self) -> np.ndarray:
-        return np.zeros((5, 1), dtype=np.float64)
-
-    def get_camera_to_board_transform(self) -> Optional[np.ndarray]:
-        return None if self.T_camera_to_board is None else self.T_camera_to_board.copy()
-
-    def get_board_to_world_transform(self) -> np.ndarray:
-        return self.T_board_to_world.copy()
-
-    def set_board_to_world_transform(self, T_board_to_world: np.ndarray) -> None:
-        self.T_board_to_world = _as_transform(T_board_to_world)
-
-    def get_camera_to_world_transform(self) -> Optional[np.ndarray]:
-        return camera_to_world_transform(self.T_camera_to_board, self.T_board_to_world)
-
     def capture(self, retries: int = 30) -> RGBDFrame:
         raw = self._backend.capture_raw(retries=retries)
         camera_matrix = raw.intrinsics.K.copy()
@@ -809,10 +783,6 @@ class Camera:
         except Exception as exc:
             print(f"[camera] ArUco board tracking unavailable: {exc}")
             return None
-
-
-# Optional backward-compatible alias while downstream code migrates to Camera.
-GeminiCamera = Camera
 
 
 def make_depth_vis(depth_m: np.ndarray) -> np.ndarray:

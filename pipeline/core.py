@@ -25,7 +25,6 @@ MODELS_DIR = REPO_ROOT / "models"
 
 @dataclass(frozen=True)
 class StagePaths:
-    benchmark_dir: Path
     inputs: Path
     outputs: Path
     depth: Path
@@ -51,7 +50,6 @@ class StagePaths:
             return path / stage if stage else path
 
         paths = cls(
-            benchmark_dir=root,
             inputs=child("inputs"),
             outputs=child("outputs"),
             depth=child("depth"),
@@ -158,20 +156,6 @@ class ValidationProgramSemantics(_StrictJsonModel):
     allowed_orientation_drift_deg: OrientationDriftDegrees | None
     reasoning: str
 
-    @field_validator("allowed_position_drift_fraction", mode="before")
-    @classmethod
-    def reject_boolean_position_drift(cls, value):
-        if isinstance(value, (list, tuple)) and any(isinstance(item, bool) for item in value):
-            raise ValueError("position drift entries must be numeric, not boolean")
-        return value
-
-    @field_validator("allowed_orientation_drift_deg", mode="before")
-    @classmethod
-    def reject_boolean_orientation_drift(cls, value):
-        if isinstance(value, bool):
-            raise ValueError("orientation drift must be numeric, not boolean")
-        return value
-
     @field_validator("required_contacts", "forbidden_contacts")
     @classmethod
     def reject_duplicate_contacts(cls, value):
@@ -204,25 +188,11 @@ class ValidationProgram(ValidationProgramSemantics):
     initial_max_pen: PositiveFiniteFloat
     final_max_pen: PositiveFiniteFloat
 
-    @field_validator("initial_max_pen", "final_max_pen", mode="before")
-    @classmethod
-    def reject_boolean_penetration_thresholds(cls, value):
-        if isinstance(value, bool):
-            raise ValueError("penetration thresholds must be numeric, not boolean")
-        return value
-
 
 class ValidationProgramSelection(_StrictJsonModel):
     program: ValidationProgram
     source: Literal["vlm", "config_fallback"]
     error: str | None = None
-
-
-@dataclass
-class EditQuality:
-    classification: str
-    reasoning: str
-    revision_feedback: str
 
 
 @dataclass
@@ -297,10 +267,6 @@ def make_T(R=None, p=None) -> np.ndarray:
     return T
 
 
-def make_T_from_xyz_rpy(xyz, rpy_deg) -> np.ndarray:
-    return make_T(R=rpy_to_R(np.deg2rad(np.asarray(rpy_deg, dtype=float))), p=xyz)
-
-
 def mat_to_quat_wxyz(R) -> np.ndarray:
     """Convert a 3x3 rotation matrix to a normalized wxyz quaternion."""
     R = np.asarray(R, dtype=float)
@@ -348,17 +314,6 @@ def rpy_to_quat(roll, pitch, yaw) -> np.ndarray:
         sr * cp * cy - cr * sp * sy,
         cr * sp * cy + sr * cp * sy,
         cr * cp * sy - sr * sp * cy,
-    ], dtype=np.float64)
-
-
-def quat_to_rpy(quat) -> np.ndarray:
-    quat = np.asarray(quat, dtype=np.float64)
-    quat = quat / np.linalg.norm(quat)
-    w, x, y, z = quat
-    return np.array([
-        math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)),
-        math.asin(np.clip(2 * (w * y - z * x), -1.0, 1.0)),
-        math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)),
     ], dtype=np.float64)
 
 
@@ -417,11 +372,6 @@ def save_stage_poses(benchmark: str, poses: dict) -> None:
     path = ARTIFACTS_DIR / benchmark / "poses" / "stage_poses.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(poses, indent=2), encoding="utf-8")
-
-
-def load_stage_poses(benchmark: str) -> dict:
-    path = ARTIFACTS_DIR / benchmark / "poses" / "stage_poses.json"
-    return json.loads(path.read_text()) if path.exists() else {}
 
 
 def save_source(paths: StagePaths, source) -> None:

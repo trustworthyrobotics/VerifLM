@@ -7,14 +7,15 @@ from typing import Optional, Sequence
 
 import cv2
 import numpy as np
+from pydantic import TypeAdapter
 
 from pipeline.core import (
-    SamplingConstraints, TaskStage, ValidationProgram, ValidationProgramSelection,
+    PositiveFiniteFloat, SamplingConstraints, TaskStage, ValidationProgram,
+    ValidationProgramSelection,
     ValidationProgramSemantics,
     encode_image_as_data_url, extract_json_object, format_prompt_template, prompt_path,
 )
 
-DECOMPOSE_TASK_STAGES_PROMPT = prompt_path("decompose_task_stages.txt")
 GOAL_IMAGE_EDIT_PROMPT = prompt_path("goal_image_edit.txt")
 REASON_ROTATION_PROMPT = prompt_path("reason_sampling_rotation.txt")
 REASON_TRANSLATION_PROMPT = prompt_path("reason_sampling_translation.txt")
@@ -31,26 +32,31 @@ OPENAI_VALIDATION_TIMEOUT_SECONDS = 30.0
 OPENAI_VALIDATION_MAX_RETRIES = 2
 
 LOGGER = logging.getLogger(__name__)
+DIMENSIONS_ADAPTER = TypeAdapter(
+    tuple[PositiveFiniteFloat, PositiveFiniteFloat, PositiveFiniteFloat]
+)
+THRESHOLD_ADAPTER = TypeAdapter(PositiveFiniteFloat)
+
+
+def _openai_api_key() -> str:
+    key = os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError("Set OPENAI_KEY or OPENAI_API_KEY.")
+    return key
 
 
 def _openai_client():
     from openai import OpenAI
 
-    key = os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
-    if not key:
-        raise RuntimeError("Set OPENAI_KEY or OPENAI_API_KEY.")
-    return OpenAI(api_key=key)
+    return OpenAI(api_key=_openai_api_key())
 
 
 def _openai_validation_client():
     """Build the bounded OpenAI client used only for validation-program calls."""
     from openai import OpenAI
 
-    key = os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
-    if not key:
-        raise RuntimeError("Set OPENAI_KEY or OPENAI_API_KEY.")
     return OpenAI(
-        api_key=key,
+        api_key=_openai_api_key(),
         timeout=OPENAI_VALIDATION_TIMEOUT_SECONDS,
         max_retries=OPENAI_VALIDATION_MAX_RETRIES,
     )
@@ -66,31 +72,12 @@ def _object_dimensions(
     dimensions: Sequence[float],
     field_name: str,
 ) -> tuple[float, float, float]:
-    if isinstance(dimensions, (str, bytes)):
-        raise ValueError(f"{field_name} must contain exactly three positive numbers.")
     try:
-        raw_values = tuple(dimensions)
-    except TypeError as exc:
+        return DIMENSIONS_ADAPTER.validate_python(dimensions)
+    except ValueError as exc:
         raise ValueError(
             f"{field_name} must contain exactly three positive numbers."
         ) from exc
-    if len(raw_values) != 3:
-        raise ValueError(f"{field_name} must contain exactly three positive numbers.")
-
-    values: list[float] = []
-    for index, raw_value in enumerate(raw_values):
-        if isinstance(raw_value, (bool, np.bool_)):
-            raise ValueError(f"{field_name}[{index}] must be a positive finite number.")
-        try:
-            value = float(raw_value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"{field_name}[{index}] must be a positive finite number."
-            ) from exc
-        if not np.isfinite(value) or value <= 0.0:
-            raise ValueError(f"{field_name}[{index}] must be a positive finite number.")
-        values.append(value)
-    return values[0], values[1], values[2]
 
 
 def _goal_image_bgr(goal_image: Optional[np.ndarray]) -> Optional[np.ndarray]:
@@ -154,102 +141,40 @@ def _response_refusal(response: object) -> Optional[str]:
 
 
 def _coerce_validation_program(value: object) -> ValidationProgram:
-    if isinstance(value, ValidationProgram):
-        return value
-    validator = getattr(ValidationProgram, "model_validate", None)
-    if not callable(validator):
-        raise RuntimeError("ValidationProgram must provide Pydantic model_validate().")
-    return validator(value)
+    return ValidationProgram.model_validate(value)
 
 
 def _coerce_validation_program_semantics(value: object) -> ValidationProgramSemantics:
     if type(value) is ValidationProgramSemantics:
         return value
-    validator = getattr(ValidationProgramSemantics, "model_validate", None)
-    if not callable(validator):
-        raise RuntimeError(
-            "ValidationProgramSemantics must provide Pydantic model_validate()."
-        )
-    dump = getattr(value, "model_dump", None)
-    if callable(dump):
-        value = dump(mode="python")
-    return validator(value)
-
-
-def _validation_program_semantics_from_json(
-    value: object,
-) -> ValidationProgramSemantics:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError("OpenAI returned no validation-program JSON.")
-    validator = getattr(ValidationProgramSemantics, "model_validate_json", None)
-    if not callable(validator):
-        raise RuntimeError(
-            "ValidationProgramSemantics must provide Pydantic model_validate_json()."
-        )
-    # Parse the entire response. Prose-wrapped or fenced JSON is invalid here.
-    return validator(value)
+    if isinstance(value, ValidationProgramSemantics):
+        value = value.model_dump(mode="python")
+    return ValidationProgramSemantics.model_validate(value)
 
 
 def _request_validation_program_openai(
     content: list[dict],
 ) -> ValidationProgramSemantics:
     client = _openai_validation_client()
-    responses = getattr(client, "responses", None)
-    if responses is None:
-        raise RuntimeError("The installed OpenAI SDK does not provide the Responses API.")
-
-    request_input = [{"role": "user", "content": content}]
-    parse = getattr(responses, "parse", None)
-    if callable(parse):
-        response = parse(
-            model=OPENAI_VALIDATION_MODEL,
-            input=request_input,
-            text_format=ValidationProgramSemantics,
-        )
-        refusal = _response_refusal(response)
-        if refusal is not None:
-            raise RuntimeError(f"OpenAI refused the validation-program request: {refusal}")
-        parsed = _response_field(response, "output_parsed")
-        if parsed is None:
-            raise ValueError("OpenAI returned no parsed validation program.")
-        return _coerce_validation_program_semantics(parsed)
-
-    create = getattr(responses, "create", None)
-    schema_builder = getattr(ValidationProgramSemantics, "model_json_schema", None)
-    if not callable(create) or not callable(schema_builder):
-        raise RuntimeError(
-            "The installed OpenAI SDK cannot request strict validation-program output."
-        )
-    response = create(
+    response = client.responses.parse(
         model=OPENAI_VALIDATION_MODEL,
-        input=request_input,
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "validation_program",
-                "schema": schema_builder(),
-                "strict": True,
-            }
-        },
+        input=[{"role": "user", "content": content}],
+        text_format=ValidationProgramSemantics,
     )
     refusal = _response_refusal(response)
     if refusal is not None:
         raise RuntimeError(f"OpenAI refused the validation-program request: {refusal}")
-    return _validation_program_semantics_from_json(
-        _response_field(response, "output_text")
-    )
+    parsed = _response_field(response, "output_parsed")
+    if parsed is None:
+        raise ValueError("OpenAI returned no parsed validation program.")
+    return _coerce_validation_program_semantics(parsed)
 
 
 def _positive_finite_threshold(value: object, field_name: str) -> float:
-    if isinstance(value, (bool, np.bool_)):
-        raise ValueError(f"{field_name} must be a positive finite number.")
     try:
-        threshold = float(value)
-    except (TypeError, ValueError) as exc:
+        return THRESHOLD_ADAPTER.validate_python(value)
+    except ValueError as exc:
         raise ValueError(f"{field_name} must be a positive finite number.") from exc
-    if not np.isfinite(threshold) or threshold <= 0.0:
-        raise ValueError(f"{field_name} must be a positive finite number.")
-    return threshold
 
 
 def _validation_program_with_thresholds(
@@ -258,18 +183,13 @@ def _validation_program_with_thresholds(
     initial_max_pen: object,
     final_max_pen: object,
 ) -> ValidationProgram:
-    payload = semantics.model_dump(mode="python")
-    payload.update(
-        initial_max_pen=_positive_finite_threshold(
-            initial_max_pen,
-            "initial_max_pen",
-        ),
-        final_max_pen=_positive_finite_threshold(
-            final_max_pen,
-            "final_max_pen",
-        ),
+    return ValidationProgram.model_validate(
+        {
+            **semantics.model_dump(mode="python"),
+            "initial_max_pen": initial_max_pen,
+            "final_max_pen": final_max_pen,
+        }
     )
-    return _coerce_validation_program(payload)
 
 
 def predict_validation_program_vlm(
@@ -442,45 +362,16 @@ def resolve_object_prompts(args) -> tuple[str, str]:
     return args.active_prompt, args.passive_prompt
 
 
-def _validate_stages(data: dict, candidates: Sequence[str]) -> list[TaskStage]:
-    allowed = set(candidates)
-    raw_stages = data.get("stages")
-    if not isinstance(raw_stages, list) or not raw_stages:
-        raise ValueError("Task decomposition returned no stages.")
-
-    stages: list[TaskStage] = []
-    for index, raw in enumerate(raw_stages, start=1):
-        active = str(raw.get("active_object") or raw.get("active") or "").strip()
-        passive = str(raw.get("passive_object") or raw.get("passive") or "").strip()
-        if active not in allowed or passive not in allowed or active == passive:
-            raise ValueError(f"Invalid task stage {index}: active={active!r}, passive={passive!r}")
-        stages.append(
-            TaskStage(
-                active_object=active,
-                passive_object=passive,
-                reason=str(raw.get("reason", "")).strip(),
-                instruction=str(raw.get("instruction", "")).strip(),
-            )
+def resolve_task_stages(args) -> list[TaskStage]:
+    return [
+        TaskStage(
+            active_object=stage["active"],
+            passive_object=stage["passive"],
+            reason=stage.get("reason", ""),
+            instruction=stage.get("instruction", ""),
         )
-    return stages
-
-
-def resolve_task_stages(args, source=None, provider: str = "openai") -> list[TaskStage]:
-    candidates = tuple(args.candidate_objects or ())
-    if not args.use_vlm_stage_resolution:
-        return _validate_stages({"stages": list(args.default_stages)}, candidates)
-
-    available = "\n".join(
-        f"- {object_id}: {(args.object_prompts or {}).get(object_id, object_id.replace('_', ' '))}"
-        for object_id in candidates
-    )
-    prompt = format_prompt_template(
-        DECOMPOSE_TASK_STAGES_PROMPT,
-        instruction=args.instruction,
-        available_objects=available,
-    )
-    images = [] if source is None else [source.rgb_bgr]
-    return _validate_stages(_vision_json(prompt, images, provider), candidates)
+        for stage in args.default_stages
+    ]
 
 
 def prepare_goal_image_vlm(

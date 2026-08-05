@@ -37,10 +37,6 @@ def _body_transform(model, data, body_name: str) -> np.ndarray:
 
 
 # Scene XML generation
-ROOT = REPO_ROOT
-MODELS = MODELS_DIR
-
-
 def benchmark_xml_output_path(
     benchmark: str,
     *,
@@ -71,27 +67,20 @@ def generate_benchmark_xml(
     if passive_name not in candidate_names:
         candidate_names.append(passive_name)
 
-    def _override_for(name: str) -> dict | None:
-        if name == active_name:
-            return scene.get("active_asset") or scene.get(f"{name}_asset")
-        if name == passive_name:
-            return scene.get("passive_asset") or scene.get(f"{name}_asset")
-        return scene.get(f"{name}_asset")
-
-    object_specs = {name: _object_spec(name, _override_for(name)) for name in candidate_names}
+    object_specs = {name: _object_spec(name) for name in candidate_names}
     active = object_specs[active_name]
 
     output = Path(output_path or benchmark_xml_output_path(benchmark))
-    out_path = output if output.is_absolute() else ROOT / output
+    out_path = output if output.is_absolute() else REPO_ROOT / output
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Prefix for include/model file paths: relative from the output XML back to models/
-    _models_rel = Path(os.path.relpath(MODELS, out_path.parent)).as_posix()
+    _models_rel = Path(os.path.relpath(MODELS_DIR, out_path.parent)).as_posix()
     _models_prefix = "" if _models_rel == "." else f"{_models_rel}/"
 
     mujoco = ET.Element("mujoco", {"model": benchmark})
     repo_rel = Path(
-        os.path.relpath(ROOT, out_path.parent)
+        os.path.relpath(REPO_ROOT, out_path.parent)
     ).as_posix()
 
     ET.SubElement(
@@ -143,17 +132,11 @@ def generate_benchmark_xml(
 
 
 
-def _object_spec(name: str, override: dict | None = None) -> dict:
-    spec = copy.deepcopy(_object_catalog().get(name, {}))
-    if override:
-        spec.update(override)
+def _object_spec(name: str) -> dict:
+    spec = copy.deepcopy(OBJECT_CATALOG.get(name, {}))
     if not spec:
         raise ValueError(f"Unknown MuJoCo object {name!r}; add it to OBJECT_CATALOG or scene asset config.")
     return spec
-
-
-def _object_catalog() -> dict:
-    return OBJECT_CATALOG
 
 
 def _add_defaults(mujoco: ET.Element) -> None:
@@ -163,7 +146,7 @@ def _add_defaults(mujoco: ET.Element) -> None:
         "geom",
         {"rgba": "0 1 0 0.3", "conaffinity": "0", "contype": "0"},
     )
-    for name, spec in _object_catalog().items():
+    for name, spec in OBJECT_CATALOG.items():
         if spec.get("primitive"):
             continue
         geom_attrs = {
@@ -230,7 +213,6 @@ def _add_assets(mujoco: ET.Element, objects: tuple[dict, ...], models_prefix: st
             "reflectance": "0.2",
         },
     )
-    # ET.SubElement(asset, "model", {"name": "kuka_iiwa_model", "file": f"{models_prefix}kuka_iiwa_14/iiwa14.xml"})
     ET.SubElement(asset, "model", {"name": "kuka_iiwa_model", "file": f"{models_prefix}kuka_iiwa_7/iiwa7.xml"})
     seen = set()
     for obj in objects:
@@ -257,20 +239,16 @@ def _add_shared_world(worldbody: ET.Element) -> None:
             "condim": "4",
         },
     )
-    ET.SubElement(
-        worldbody,
-        "geom",
-        {"name": "arm1_plate", "type": "box", "pos": "0.40 0.65 0.75645", "size": "0.10 0.10 0.00645", "rgba": "0.3 0.3 0.3 1"},
-    )
-    arm1 = ET.SubElement(worldbody, "body", {"name": "arm1_mount", "pos": "0.40 0.65 0.7629", "euler": "0 0 180"})
-    ET.SubElement(arm1, "attach", {"model": "kuka_iiwa_model", "body": "base", "prefix": "arm1_"})
-    ET.SubElement(
-        worldbody,
-        "geom",
-        {"name": "arm2_plate", "type": "box", "pos": "0.40 -0.65 0.75645", "size": "0.10 0.10 0.00645", "rgba": "0.3 0.3 0.3 1"},
-    )
-    arm2 = ET.SubElement(worldbody, "body", {"name": "arm2_mount", "pos": "0.40 -0.65 0.7629", "euler": "0 0 180"})
-    ET.SubElement(arm2, "attach", {"model": "kuka_iiwa_model", "body": "base", "prefix": "arm2_"})
+    for arm_index, y in ((1, 0.65), (2, -0.65)):
+        plate = {"name": f"arm{arm_index}_plate", "type": "box", "pos": f"0.40 {y} 0.75645",
+                 "size": "0.10 0.10 0.00645", "rgba": "0.3 0.3 0.3 1"}
+        ET.SubElement(worldbody, "geom", plate)
+        mount = ET.SubElement(
+            worldbody, "body",
+            {"name": f"arm{arm_index}_mount", "pos": f"0.40 {y} 0.7629", "euler": "0 0 180"},
+        )
+        ET.SubElement(mount, "attach", {"model": "kuka_iiwa_model", "body": "base",
+                                         "prefix": f"arm{arm_index}_"})
     ET.SubElement(worldbody, "camera", {"name": "ceiling_cam", "mode": "fixed", "pos": "0 0 3.0", "xyaxes": "1 0 0  0 1 0"})
 
 
@@ -304,7 +282,7 @@ def _append_object_body(
         if role == "goal":
             return
         raise ValueError(f"Object {name!r} does not define body_xml.")
-    body = _load_body_xml(MODELS / body_xml)
+    body = _load_body_xml(MODELS_DIR / body_xml)
     body_name = name if role != "goal" else f"{name}_goal"
     body.set("name", body_name)
     for child in body.iter():
@@ -324,7 +302,7 @@ def _derive_goal_body_xml(body_xml: str | None) -> str | None:
     if not body_xml:
         return None
     candidate = str(body_xml).replace("_body.xml", "_goal_body.xml")
-    return candidate if (MODELS / candidate).exists() else None
+    return candidate if (MODELS_DIR / candidate).exists() else None
 
 def _load_body_xml(path: Path) -> ET.Element:
     tree = ET.parse(path)
@@ -361,6 +339,44 @@ _PRIMITIVE_MASSES = {
 }
 
 
+def _primitive_body(name: str, pose: dict, role: str) -> tuple[ET.Element, str]:
+    suffix = "_goal" if role == "goal" else ""
+    body = ET.Element("body", {"name": f"{name}{suffix}"})
+    _set_body_pose(body, pose)
+    if role in {"active", "goal"}:
+        ET.SubElement(body, "freejoint", {"name": f"{name}{suffix}_free"})
+    return body, suffix
+
+
+def _add_primitive_geom(
+    body: ET.Element,
+    *,
+    name: str,
+    suffix: str,
+    role: str,
+    geom_type: str,
+    pos,
+    size,
+    tag: str,
+    mass: float,
+) -> None:
+    attrs = {
+        "type": geom_type,
+        "name": f"{name}{suffix}_{tag}",
+        "pos": _fmt(pos),
+        "size": _fmt(size),
+    }
+    if role == "goal":
+        attrs.update({"class": "goal", "contype": "0", "conaffinity": "0"})
+    else:
+        attrs.update({
+            "condim": "4",
+            "friction": "0.05 0.001 0.0001",
+            "mass": f"{mass:.8g}",
+        })
+    ET.SubElement(body, "geom", attrs)
+
+
 def _make_dish_body(
     name: str,
     pose: dict,
@@ -373,36 +389,14 @@ def _make_dish_body(
     body_mass, rim_mass = _PRIMITIVE_MASSES.get(
         primitive, _PRIMITIVE_MASSES["small_dish"]
     )
-    suffix = "" if role != "goal" else "_goal"
-    body = ET.Element("body", {"name": f"{name}{suffix}"})
-    _set_body_pose(body, pose)
-    if role in {"active", "goal"}:
-        ET.SubElement(body, "freejoint", {"name": f"{name}{suffix}_free"})
-
-    def _add_geom(gtype, pos, size, tag, mass):
-        attrs = {
-            "type": gtype,
-            "name": f"{name}{suffix}_{tag}",
-            "pos": _fmt(pos),
-            "size": _fmt(size),
-        }
-        if role == "goal":
-            attrs.update({"class": "goal", "contype": "0", "conaffinity": "0"})
-        else:
-            attrs.update({
-                "condim": "4",
-                "friction": "0.05 0.001 0.0001",
-                "mass": f"{mass:.8g}",
-            })
-        ET.SubElement(body, "geom", attrs)
-
-    _add_geom("cylinder", (0, 0, bh), (br, bh), "geom", body_mass)
-    _add_geom(
-        "cylinder",
-        (0, 0, 2 * bh + rh),
-        (rr, rh),
-        "rim_geom",
-        rim_mass,
+    body, suffix = _primitive_body(name, pose, role)
+    _add_primitive_geom(
+        body, name=name, suffix=suffix, role=role, geom_type="cylinder",
+        pos=(0, 0, bh), size=(br, bh), tag="geom", mass=body_mass,
+    )
+    _add_primitive_geom(
+        body, name=name, suffix=suffix, role=role, geom_type="cylinder",
+        pos=(0, 0, 2 * bh + rh), size=(rr, rh), tag="rim_geom", mass=rim_mass,
     )
     return body
 
@@ -423,44 +417,26 @@ def _make_cup_body(
     fill_h = _CUP_FILL_H
     half_height = bh + rh
 
-    suffix = "" if role != "goal" else "_goal"
-    body = ET.Element("body", {"name": f"{name}{suffix}"})
-    _set_body_pose(body, pose)
-    if role in {"active", "goal"}:
-        ET.SubElement(body, "freejoint", {"name": f"{name}{suffix}_free"})
-
-    def _add_geom(gtype, pos, size, tag, mass):
-        attrs = {
-            "type": gtype,
-            "name": f"{name}{suffix}_{tag}",
-            "pos": _fmt(pos),
-            "size": _fmt(size),
-        }
-        if role == "goal":
-            attrs.update({"class": "goal", "contype": "0", "conaffinity": "0"})
-        else:
-            attrs.update({
-                "condim": "4",
-                "friction": "0.05 0.001 0.0001",
-                "mass": f"{mass:.8g}",
-            })
-        ET.SubElement(body, "geom", attrs)
-
-    _add_geom(
-        "cylinder",
-        (0, 0, fill_h / 2),
-        (br - wall_t, fill_h / 2),
-        "bottom",
-        body_mass * 0.1,
+    body, suffix = _primitive_body(name, pose, role)
+    _add_primitive_geom(
+        body, name=name, suffix=suffix, role=role, geom_type="cylinder",
+        pos=(0, 0, fill_h / 2), size=(br - wall_t, fill_h / 2),
+        tag="bottom", mass=body_mass * 0.1,
     )
 
     wall_cz = half_height + fill_h / 2
     wall_hz = half_height - fill_h / 2
     panel_mass = body_mass * 0.225
-    _add_geom("box", (0, br - wall_t / 2, wall_cz), (br, wall_t / 2, wall_hz), "wall_n", panel_mass)
-    _add_geom("box", (0, -(br - wall_t / 2), wall_cz), (br, wall_t / 2, wall_hz), "wall_s", panel_mass)
-    _add_geom("box", (br - wall_t / 2, 0, wall_cz), (wall_t / 2, br - wall_t, wall_hz), "wall_e", panel_mass)
-    _add_geom("box", (-(br - wall_t / 2), 0, wall_cz), (wall_t / 2, br - wall_t, wall_hz), "wall_w", panel_mass)
+    for tag, pos, size in (
+        ("wall_n", (0, br - wall_t / 2, wall_cz), (br, wall_t / 2, wall_hz)),
+        ("wall_s", (0, -(br - wall_t / 2), wall_cz), (br, wall_t / 2, wall_hz)),
+        ("wall_e", (br - wall_t / 2, 0, wall_cz), (wall_t / 2, br - wall_t, wall_hz)),
+        ("wall_w", (-(br - wall_t / 2), 0, wall_cz), (wall_t / 2, br - wall_t, wall_hz)),
+    ):
+        _add_primitive_geom(
+            body, name=name, suffix=suffix, role=role, geom_type="box",
+            pos=pos, size=size, tag=tag, mass=panel_mass,
+        )
     return body
 
 
@@ -474,19 +450,7 @@ def _set_body_pose(body: ET.Element, pose: dict) -> None:
 
 
 def _rpy_deg_to_quat(rpy_deg) -> np.ndarray:
-    roll, pitch, yaw = np.deg2rad(np.asarray(rpy_deg, dtype=float))
-    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
-    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
-    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
-    return np.array(
-        [
-            cr * cp * cy + sr * sp * sy,
-            sr * cp * cy - cr * sp * sy,
-            cr * sp * cy + sr * cp * sy,
-            cr * cp * sy - sr * sp * cy,
-        ],
-        dtype=float,
-    )
+    return rpy_to_quat(*np.deg2rad(np.asarray(rpy_deg, dtype=float)))
 
 
 def _fmt(values) -> str:
@@ -612,107 +576,75 @@ def render_constraint_views(
         )
     return rotation, translation
 
-# Physics-based pose sampling
-"""
-Pose sampling and validation via physics simulation.
-Extract from test_sampler.py with only essential functionality.
-"""
-
-
-
-
-
-
 @dataclass
-class _SamplerState:
-    benchmark: str = ""
-    n_samples: int = 0
-    max_candidate_images: int = 0
-    normal_position_range: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    normal_orientation_range: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    position_variance_multipliers: dict = field(default_factory=dict)
-    orientation_variance_multipliers: dict = field(default_factory=dict)
+class SamplerSettings:
+    n_samples: int
+    max_candidate_images: int
+    normal_position_range: np.ndarray
+    normal_orientation_range: np.ndarray
+    position_variance_multipliers: dict
+    orientation_variance_multipliers: dict
     axis_variance_multipliers: dict = field(default_factory=lambda: {
         axis: 1.0 for axis in ("x", "y", "z", "roll", "pitch", "yaw")
     })
     pos_bias: dict = field(default_factory=lambda: {
         axis: None for axis in ("x", "y", "z")
     })
-    model: mujoco.MjModel | None = None
-    eval_data: mujoco.MjData | None = None
-    active_body_id: int | None = None
-    active_qadr: int | None = None
-    active_dadr: int | None = None
 
-_state = _SamplerState()
-
-def configure(config: dict, *, benchmark: str | None = None) -> None:
-    """Load stage-specific proposal-generation and simulator settings."""
-    sampling = config["digital_twin"]["sampling"]
-    _state.benchmark = benchmark or config.get("benchmark", _state.benchmark)
-    _state.n_samples = int(sampling["n_samples"])
-    _state.max_candidate_images = int(sampling["max_candidate_images"])
-    _state.normal_position_range = np.asarray(sampling["normal_position_range"], dtype=float).copy()
-    _state.normal_orientation_range = np.deg2rad(
-        np.asarray(sampling["normal_orientation_range"], dtype=float)
-    )
-    _state.position_variance_multipliers = dict(sampling["position_variance_multipliers"])
-    _state.orientation_variance_multipliers = dict(sampling["orientation_variance_multipliers"])
-    _state.pos_bias = {axis: sampling.get("pos_bias", {}).get(axis) for axis in ("x", "y", "z")}
-
-
-
-def set_normal_sampling_ranges(position_xyz=None, orientation_rpy_deg=None):
-    """
-    Override the normal sampling ranges for position and orientation.
-    
-    Args:
-        position_xyz: [x, y, z] half-ranges in meters
-        orientation_rpy_deg: [roll, pitch, yaw] half-ranges in degrees
-    """
-    if position_xyz is not None:
-        _state.normal_position_range[:] = np.asarray(position_xyz)
-    if orientation_rpy_deg is not None:
-        _state.normal_orientation_range[:] = np.deg2rad(
-            np.asarray(orientation_rpy_deg)
+    @classmethod
+    def from_config(cls, config: dict) -> "SamplerSettings":
+        sampling = config["digital_twin"]["sampling"]
+        return cls(
+            n_samples=int(sampling["n_samples"]),
+            max_candidate_images=int(sampling["max_candidate_images"]),
+            normal_position_range=np.asarray(
+                sampling["normal_position_range"], dtype=float
+            ).copy(),
+            normal_orientation_range=np.deg2rad(
+                np.asarray(sampling["normal_orientation_range"], dtype=float)
+            ),
+            position_variance_multipliers=dict(
+                sampling["position_variance_multipliers"]
+            ),
+            orientation_variance_multipliers=dict(
+                sampling["orientation_variance_multipliers"]
+            ),
+            pos_bias={
+                axis: sampling.get("pos_bias", {}).get(axis)
+                for axis in ("x", "y", "z")
+            },
         )
 
+    def apply_constraints(self, constraints: SamplingConstraints) -> None:
+        levels = constraints.sampling_variance
+        def multiplier(values: dict, axis: str) -> float:
+            return values.get(levels.get(axis, "medium"), values["medium"])
 
-def set_constraints(
-    axis_variance_multipliers=None,
-    pos_bias=None,
-):
-    """
-    Set sampling space constraints based on VLM analysis.
-    
-    Args:
-        axis_variance_multipliers: numeric sampling-range multiplier for each axis
-        pos_bias: dict mapping axis to "positive", "negative", or None
-    """
-    if axis_variance_multipliers is not None:
-        _state.axis_variance_multipliers.update(axis_variance_multipliers)
-    if pos_bias is not None:
-        _state.pos_bias.update(pos_bias)
+        self.axis_variance_multipliers = {
+            axis: multiplier(self.position_variance_multipliers, axis)
+            for axis in ("x", "y", "z")
+        }
+        self.axis_variance_multipliers.update({
+            axis: multiplier(self.orientation_variance_multipliers, axis)
+            for axis in ("roll", "pitch", "yaw")
+        })
+        self.pos_bias = dict(constraints.pos_bias)
 
 
-def setup(mujoco_model, eval_data, active_body_name: str):
-    """Initialize sampler with model, eval data, and active body name."""
-    _state.model = mujoco_model
-    _state.eval_data = eval_data
-    
-    # Get body id and qpos/qvel addresses for the active body
-    _state.active_body_id = mujoco.mj_name2id(
-        mujoco_model, mujoco.mjtObj.mjOBJ_BODY, active_body_name
-    )
-    if _state.active_body_id < 0:
-        raise ValueError(f"Body not found: {active_body_name}")
-    
-    jid = mujoco_model.body_jntadr[_state.active_body_id]
-    if jid < 0 or mujoco_model.jnt_type[jid] != mujoco.mjtJoint.mjJNT_FREE:
-        raise ValueError(f"Body must have <freejoint/>: {active_body_name}")
-    
-    _state.active_qadr = mujoco_model.jnt_qposadr[jid]
-    _state.active_dadr = mujoco_model.jnt_dofadr[jid]
+def _freejoint_addresses(model, body_id: int) -> tuple[int, int]:
+    if not 0 <= body_id < model.nbody:
+        raise ValueError(f"Invalid active body id: {body_id}")
+    joint_id = int(model.body_jntadr[body_id])
+    if joint_id < 0 or model.jnt_type[joint_id] != mujoco.mjtJoint.mjJNT_FREE:
+        raise ValueError("The active body must have a free joint")
+    return int(model.jnt_qposadr[joint_id]), int(model.jnt_dofadr[joint_id])
+
+
+def _set_free_body_pose(model, data, body_id, position, quaternion) -> None:
+    qadr, dadr = _freejoint_addresses(model, body_id)
+    data.qpos[qadr:qadr + 3] = position
+    data.qpos[qadr + 3:qadr + 7] = quaternion
+    data.qvel[dadr:dadr + 6] = 0.0
 
 def quat_angle(q1, q2):
     """Smallest angle between two quaternions (in radians)."""
@@ -723,18 +655,10 @@ def quat_angle(q1, q2):
     return 2.0 * math.acos(dot)
 
 
-def set_active_pose(d, pos, quat, zero_velocity=True):
-    """Kinematically set active object pose."""
-    d.qpos[_state.active_qadr:_state.active_qadr + 3] = pos
-    d.qpos[_state.active_qadr + 3:_state.active_qadr + 7] = quat
-    if zero_velocity:
-        d.qvel[_state.active_dadr:_state.active_dadr + 6] = 0.0
-
-
-def safe_forward(d, label="mj_forward"):
+def _safe_forward(model, data, label="mj_forward"):
     """Run mj_forward safely without killing the script on pathological contacts."""
     try:
-        mujoco.mj_forward(_state.model, d)
+        mujoco.mj_forward(model, data)
         return True
     except mujoco.FatalError as e:
         print(f"[reject] {label} failed: {e}")
@@ -828,11 +752,9 @@ class CandidateValidator:
             else frozenset()
         )
 
-        joint_id = int(model.body_jntadr[self.active_body_id])
-        if joint_id < 0 or model.jnt_type[joint_id] != mujoco.mjtJoint.mjJNT_FREE:
-            raise ValueError("The active body must have a free joint")
-        self.active_qadr = int(model.jnt_qposadr[joint_id])
-        self.active_dadr = int(model.jnt_dofadr[joint_id])
+        self.active_qadr, self.active_dadr = _freejoint_addresses(
+            model, self.active_body_id
+        )
         self._state_spec = mujoco.mjtState.mjSTATE_INTEGRATION
         self._state_buffer = np.empty(
             mujoco.mj_stateSize(self.model, self._state_spec),
@@ -946,9 +868,7 @@ class CandidateValidator:
             "final_pen": np.nan,
             "position_drift": None,
             "allowed_position_drift": None,
-            "z_change": np.nan,
             "orientation_drift_deg": np.nan,
-            "ori_change": np.nan,
             "missing_required_contacts": [],
             "forbidden_contacts_found": list(forbidden_contacts),
             "final_pos": None,
@@ -1040,17 +960,7 @@ class CandidateValidator:
             "final_pen": final_pen,
             "position_drift": position_drift,
             "allowed_position_drift": allowed_position_drift,
-            "z_change": (
-                abs(float(simulated_position[2] - proposed_position[2]))
-                if check_drift
-                else np.nan
-            ),
             "orientation_drift_deg": orientation_drift_deg,
-            "ori_change": (
-                math.radians(orientation_drift_deg)
-                if check_drift
-                else np.nan
-            ),
             "missing_required_contacts": missing,
             "forbidden_contacts_found": forbidden,
             "final_pos": accepted_position,
@@ -1153,6 +1063,7 @@ def sample_and_validate_poses(
     base_pos,
     base_quat,
     validator: CandidateValidator,
+    sampling: SamplerSettings,
     n_samples=None,
     max_valid_candidates=None,
     verbose=True,
@@ -1162,9 +1073,9 @@ def sample_and_validate_poses(
     pause_callback=None,
 ):
     """Sample nearby poses and keep the candidates that pass physics checks."""
-    sample_count = _state.n_samples if n_samples is None else int(n_samples)
+    sample_count = sampling.n_samples if n_samples is None else int(n_samples)
     candidate_limit = (
-        _state.max_candidate_images
+        sampling.max_candidate_images
         if max_valid_candidates is None
         else int(max_valid_candidates)
     )
@@ -1182,21 +1093,21 @@ def sample_and_validate_poses(
         local_pos_offset = np.zeros(3, dtype=float)
         for axis_index, axis in enumerate(("x", "y", "z")):
             axis_range = (
-                _state.normal_position_range[axis_index]
-                * _state.axis_variance_multipliers[axis]
+                sampling.normal_position_range[axis_index]
+                * sampling.axis_variance_multipliers[axis]
             )
-            if _state.pos_bias[axis] == "positive":
+            if sampling.pos_bias[axis] == "positive":
                 low, high = 0.0, abs(axis_range)
-            elif _state.pos_bias[axis] == "negative":
+            elif sampling.pos_bias[axis] == "negative":
                 low, high = -abs(axis_range), 0.0
             else:
                 low, high = -axis_range, axis_range
             local_pos_offset[axis_index] = np.random.uniform(low, high)
         sample_pos = base_pos + local_pos_offset
 
-        orientation_range = _state.normal_orientation_range.copy()
+        orientation_range = sampling.normal_orientation_range.copy()
         for axis_index, axis in enumerate(("roll", "pitch", "yaw")):
-            orientation_range[axis_index] *= _state.axis_variance_multipliers[axis]
+            orientation_range[axis_index] *= sampling.axis_variance_multipliers[axis]
         delta_rpy = np.random.uniform(-orientation_range, orientation_range)
         sample_quat = mat_to_quat_wxyz(
             base_rotation @ quat_wxyz_to_mat(rpy_to_quat(*delta_rpy))
@@ -1239,43 +1150,6 @@ def sample_and_validate_poses(
     return valid_candidates
 
 
-# ----------------------------
-# Pipeline helpers: constrained sampling screenshots + attached-object OMPL
-# ----------------------------
-
-def apply_sampling_constraints(constraints) -> None:
-    """Apply VLM sampling constraints or an equivalent dict."""
-    if constraints is None:
-        return
-    if isinstance(constraints, dict):
-        levels = constraints.get(
-            "sampling_variance",
-            constraints.get("noise_factors", {}),
-        )
-        bias = constraints.get("pos_bias", constraints.get("directional_bias", {}))
-    else:
-        levels = constraints.sampling_variance
-        bias = constraints.pos_bias
-    axis_variance_multipliers = {
-        axis: _state.position_variance_multipliers.get(
-            levels.get(axis, "medium"),
-            _state.position_variance_multipliers["medium"],
-        )
-        for axis in ("x", "y", "z")
-    }
-    axis_variance_multipliers.update({
-        axis: _state.orientation_variance_multipliers.get(
-            levels.get(axis, "medium"),
-            _state.orientation_variance_multipliers["medium"],
-        )
-        for axis in ("roll", "pitch", "yaw")
-    })
-    set_constraints(
-        axis_variance_multipliers=axis_variance_multipliers,
-        pos_bias=bias,
-    )
-
-
 def _goal_freejoint_qadr(model, goal_freejoint_name: str | None) -> int:
     if not goal_freejoint_name:
         return -1
@@ -1290,32 +1164,33 @@ def _set_goal_pose(data, goal_qadr: int, pos, quat) -> None:
     data.qpos[goal_qadr + 3:goal_qadr + 7] = quat
 
 
-def _render_goal_candidate_image(pos, quat, out_path, goal_qadr: int, width=640, height=480, camera_name=None):
+def _render_goal_candidate_image(
+    model, data, pos, quat, out_path, goal_qadr: int,
+    width=640, height=480, camera_name=None,
+):
     """Render the MuJoCo scene with the visual goal body at the candidate pose."""
-    import cv2
-
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    qpos0 = _state.eval_data.qpos.copy()
-    qvel0 = _state.eval_data.qvel.copy()
-    _set_goal_pose(_state.eval_data, goal_qadr, pos, quat)
-    safe_forward(_state.eval_data, "candidate render forward")
+    qpos0 = data.qpos.copy()
+    qvel0 = data.qvel.copy()
+    _set_goal_pose(data, goal_qadr, pos, quat)
+    _safe_forward(model, data, "candidate render forward")
 
     renderer = None
     try:
-        renderer = mujoco.Renderer(_state.model, height=height, width=width)
+        renderer = mujoco.Renderer(model, height=height, width=width)
         if camera_name:
-            renderer.update_scene(_state.eval_data, camera=camera_name)
+            renderer.update_scene(data, camera=camera_name)
         else:
-            renderer.update_scene(_state.eval_data)
+            renderer.update_scene(data)
         rgb = renderer.render()
     finally:
         if renderer is not None:
             renderer.close()
-        _state.eval_data.qpos[:] = qpos0
-        _state.eval_data.qvel[:] = qvel0
-        safe_forward(_state.eval_data, "candidate render restore")
+        data.qpos[:] = qpos0
+        data.qvel[:] = qvel0
+        _safe_forward(model, data, "candidate render restore")
 
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     cv2.putText(bgr, out_path.stem, (20, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
@@ -1328,6 +1203,9 @@ def sample_validate_and_render_candidates(
     base_quat,
     *,
     validator: CandidateValidator,
+    sampling: SamplerSettings,
+    model,
+    data,
     out_dir,
     n_samples=None,
     max_images=None,
@@ -1342,7 +1220,7 @@ def sample_validate_and_render_candidates(
     """Validate sampled poses and render valid candidates from the MuJoCo scene."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    image_limit = _state.max_candidate_images if max_images is None else int(max_images)
+    image_limit = sampling.max_candidate_images if max_images is None else int(max_images)
     if image_limit <= 0:
         raise ValueError("max_images must be positive")
     for old_candidate in out_dir.glob("candidate_*.png"):
@@ -1352,6 +1230,7 @@ def sample_validate_and_render_candidates(
         base_pos,
         base_quat,
         validator,
+        sampling,
         n_samples=n_samples,
         max_valid_candidates=image_limit,
         verbose=verbose,
@@ -1361,12 +1240,14 @@ def sample_validate_and_render_candidates(
         pause_callback=pause_callback,
     )
 
-    goal_qadr = _goal_freejoint_qadr(_state.model, goal_freejoint_name)
+    goal_qadr = _goal_freejoint_qadr(model, goal_freejoint_name)
     if goal_qadr < 0:
         raise RuntimeError(f"Goal freejoint not found in MuJoCo model: {goal_freejoint_name!r}")
     for index, (pos, quat, info) in enumerate(candidates):
         image_path = out_dir / f"candidate_{index:03d}.png"
         info["image_path"] = _render_goal_candidate_image(
+            model,
+            data,
             pos,
             quat,
             image_path,
@@ -1401,7 +1282,7 @@ def _settle_active(
         if model.jnt_bodyid[joint_id] != active_id:
             frozen_qpos.extend(range(qadr, qadr + nq))
 
-    set_active_pose(data, position, quaternion, zero_velocity=True)
+    _set_free_body_pose(model, data, active_id, position, quaternion)
     mujoco.mj_forward(model, data)
     frozen_values = data.qpos[frozen_qpos].copy()
     for step in range(max_steps):
@@ -1430,6 +1311,7 @@ class DigitalTwin:
         self.validation_settings = CandidateValidatorSettings.from_sampling(
             benchmark_config["digital_twin"]["sampling"]
         )
+        self.sampler_settings = SamplerSettings.from_config(benchmark_config)
         self.result = self._build()
 
     def _candidate_validator(
@@ -1514,13 +1396,6 @@ class DigitalTwin:
         model = mujoco.MjModel.from_xml_path(str(xml_path))
         data = mujoco.MjData(model)
         mujoco.mj_forward(model, data)
-        configure(self.config, benchmark=self.args.benchmark)
-        setup(model, data, self.args.mujoco_active_body)
-        set_normal_sampling_ranges(
-            position_xyz=self.args.normal_position_range,
-            orientation_rpy_deg=self.args.normal_orientation_range_deg,
-        )
-
         actual_passive = _body_transform(model, data, passive_name)
         T_goal[:3, 3] += actual_passive[:3, 3] - T_passive[:3, 3]
         T_passive = actual_passive
@@ -1529,7 +1404,16 @@ class DigitalTwin:
         source_initial[2, 3] = max(source_initial[2, 3], tag_z_mj)
         if self.args.skip_settlement:
             source_settled = source_initial
-            set_active_pose(data, source_initial[:3, 3], mat_to_quat_wxyz(source_initial[:3, :3]))
+            active_id = mujoco.mj_name2id(
+                model, mujoco.mjtObj.mjOBJ_BODY, self.args.mujoco_active_body
+            )
+            _set_free_body_pose(
+                model,
+                data,
+                active_id,
+                source_initial[:3, 3],
+                mat_to_quat_wxyz(source_initial[:3, :3]),
+            )
             mujoco.mj_forward(model, data)
         else:
             source_settled = _settle_active(
@@ -1565,28 +1449,31 @@ class DigitalTwin:
         validation_program: ValidationProgram | dict | None = None,
         debug=None,
     ) -> list[tuple[np.ndarray, np.ndarray, dict]]:
-        if self.args.skip_sampling:
-            return []
         if validation_program is None:
             validation_program = self.config["digital_twin"][
                 "validation_program"
             ]
         validator = self._candidate_validator(validation_program)
-        apply_sampling_constraints(constraints)
+        self.sampler_settings.apply_constraints(constraints)
         if getattr(debug, "enabled", False):
             return self._sample_with_debug_viewer(validator)
+        return self._sample_candidates(validator)
 
+    def _sample_candidates(self, validator: CandidateValidator, **callbacks):
         goal = self.result.initial_goal_pose_mj.T_world_object
-        goal_freejoint_name = self.config["scene"].get("goal_freejoint_name")
         return sample_validate_and_render_candidates(
             goal[:3, 3],
             mat_to_quat_wxyz(goal[:3, :3]),
             validator=validator,
+            sampling=self.sampler_settings,
+            model=self.result.model,
+            data=self.result.data,
             out_dir=self.paths.candidates,
             n_samples=self.args.n_samples,
             max_images=self.args.max_candidate_images,
-            goal_freejoint_name=goal_freejoint_name,
+            goal_freejoint_name=self.config["scene"].get("goal_freejoint_name"),
             verbose=True,
+            **callbacks,
         )
 
     def _sample_with_debug_viewer(
@@ -1598,17 +1485,7 @@ class DigitalTwin:
             from mujoco.glfw import glfw
         except ImportError:
             print("[debug] mujoco.viewer is unavailable; sampling without interactive pauses")
-            goal = self.result.initial_goal_pose_mj.T_world_object
-            return sample_validate_and_render_candidates(
-                goal[:3, 3],
-                mat_to_quat_wxyz(goal[:3, :3]),
-                validator=validator,
-                out_dir=self.paths.candidates,
-                n_samples=self.args.n_samples,
-                max_images=self.args.max_candidate_images,
-                goal_freejoint_name=self.config["scene"].get("goal_freejoint_name"),
-                verbose=True,
-            )
+            return self._sample_candidates(validator)
 
         model, data = self.result.model, self.result.data
         goal = self.result.initial_goal_pose_mj.T_world_object
@@ -1652,15 +1529,8 @@ class DigitalTwin:
             if not viewer.is_running():
                 return []
 
-            return sample_validate_and_render_candidates(
-                goal[:3, 3],
-                mat_to_quat_wxyz(goal[:3, :3]),
-                validator=validator,
-                out_dir=self.paths.candidates,
-                n_samples=self.args.n_samples,
-                max_images=self.args.max_candidate_images,
-                goal_freejoint_name=goal_freejoint_name,
-                verbose=True,
+            return self._sample_candidates(
+                validator,
                 sample_callback=show_goal_pose,
                 pause_on_valid=True,
                 pause_callback=pause_on_valid,

@@ -22,7 +22,7 @@ from pipeline.config import (
     PipelineConfig,
 )
 from pipeline.core import (
-    ObjectPose, mat_to_quat_wxyz, quat_wxyz_to_mat,
+    ObjectPose, mat_to_quat_wxyz, matrix_to_rpy_deg, quat_wxyz_to_mat,
 )
 from pipeline.grasp import (
     AnyGraspConfig,
@@ -211,28 +211,6 @@ def _is_allowed_contact(m, geom1, geom2, allowed_pairs):
     )
 
 
-def _is_ignored_contact(m, geom1, geom2, ignored_body_substrings):
-    body_names = (_contact_entity_names(m, geom1)[1], _contact_entity_names(m, geom2)[1])
-    return any(
-        substring in body_name
-        for substring in ignored_body_substrings
-        for body_name in body_names
-    )
-
-
-PASSIVE_GRIPPER_ALLOWED_PENETRATION = 0.001
-PASSIVE_GRIPPER_BODIES = {
-    "arm1_finger_1",
-    "arm1_finger_2",
-    "arm1_box_gripper",
-}
-PASSIVE_OBJECT_BODIES = {
-    "green_dish",
-    "dish_rack",
-    "spoon_rack",
-}
-
-
 def _contact_body_names(m, geom1, geom2):
     return _contact_entity_names(m, geom1)[1], _contact_entity_names(m, geom2)[1]
 
@@ -242,20 +220,6 @@ def _contact_involves_body(m, geom1, geom2, target_body_names):
     return any(name in contact_body_names for name in target_body_names)
 
 
-def _is_passive_gripper_contact(m, geom1, geom2, active_body_names=()):
-    body1_name, body2_name = _contact_body_names(m, geom1, geom2)
-    active_names = set(active_body_names)
-    if body1_name in active_names or body2_name in active_names:
-        return False
-    return (
-        body1_name in PASSIVE_GRIPPER_BODIES
-        and body2_name in PASSIVE_OBJECT_BODIES
-    ) or (
-        body2_name in PASSIVE_GRIPPER_BODIES
-        and body1_name in PASSIVE_OBJECT_BODIES
-    )
-
-
 def _contact_penetration_threshold(
     m,
     geom1,
@@ -263,10 +227,6 @@ def _contact_penetration_threshold(
     allowed_penetration,
     penetration_body_names=(),
 ):
-    if _is_passive_gripper_contact(
-        m, geom1, geom2, active_body_names=penetration_body_names
-    ):
-        return PASSIVE_GRIPPER_ALLOWED_PENETRATION
     if _contact_involves_body(m, geom1, geom2, penetration_body_names):
         return float(allowed_penetration)
     return 0.0
@@ -277,15 +237,10 @@ def _collision_free(
     d,
     allowed_pairs,
     allowed_penetration=0.003,
-    ignored_body_substrings=(),
     penetration_body_names=(),
 ):
     for i in range(d.ncon):
         c = d.contact[i]
-        if _is_ignored_contact(
-            m, c.geom1, c.geom2, ignored_body_substrings
-        ):
-            continue
         if _is_allowed_contact(m, c.geom1, c.geom2, allowed_pairs):
             continue
         threshold = _contact_penetration_threshold(
@@ -305,15 +260,10 @@ def _collision_failure_reason(
     d,
     allowed_pairs,
     allowed_penetration=0.003,
-    ignored_body_substrings=(),
     penetration_body_names=(),
 ):
     for i in range(d.ncon):
         c = d.contact[i]
-        if _is_ignored_contact(
-            m, c.geom1, c.geom2, ignored_body_substrings
-        ):
-            continue
         geom1_name, body1_name = _contact_entity_names(m, int(c.geom1))
         geom2_name, body2_name = _contact_entity_names(m, int(c.geom2))
         if _is_allowed_contact(m, c.geom1, c.geom2, allowed_pairs):
@@ -339,90 +289,6 @@ def _collision_failure_reason(
     return None
 
 
-def collision_free(
-    m,
-    d,
-    allowed_contact_substrings=(),
-    allowed_penetration=0.003,
-    ignored_body_substrings=(),
-    penetration_body_names=(),
-    debug=True,
-):
-    """Return whether the current forwarded MuJoCo state is collision-free."""
-    allowed_pairs = tuple(allowed_contact_substrings)
-    ignored_bodies = tuple(ignored_body_substrings)
-    penetration_bodies = tuple(penetration_body_names)
-    active_threshold = float(allowed_penetration)
-    collision_found = False
-
-    if debug:
-        print(
-            f"[collision] contacts={d.ncon}, "
-            f"active_allowed_penetration={active_threshold:.6f}, "
-            f"passive_gripper_allowed_penetration="
-            f"{PASSIVE_GRIPPER_ALLOWED_PENETRATION:.6f}, "
-            f"penetration_bodies={penetration_bodies}"
-        )
-
-    for i in range(d.ncon):
-        contact = d.contact[i]
-        geom1 = int(contact.geom1)
-        geom2 = int(contact.geom2)
-        geom1_name = (
-            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, geom1)
-            or f"<unnamed geom {geom1}>"
-        )
-        geom2_name = (
-            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, geom2)
-            or f"<unnamed geom {geom2}>"
-        )
-        body1_id = int(m.geom_bodyid[geom1])
-        body2_id = int(m.geom_bodyid[geom2])
-        body1_name = (
-            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, body1_id)
-            or f"<unnamed body {body1_id}>"
-        )
-        body2_name = (
-            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, body2_id)
-            or f"<unnamed body {body2_id}>"
-        )
-        allowed = _is_allowed_contact(m, geom1, geom2, allowed_pairs)
-        ignored = _is_ignored_contact(m, geom1, geom2, ignored_bodies)
-        active_contact = _contact_involves_body(
-            m, geom1, geom2, penetration_bodies
-        )
-        passive_gripper_contact = _is_passive_gripper_contact(
-            m, geom1, geom2, active_body_names=penetration_bodies
-        )
-        threshold = _contact_penetration_threshold(
-            m,
-            geom1,
-            geom2,
-            active_threshold,
-            penetration_bodies,
-        )
-        penetrating = contact.dist < -threshold
-        rejected = penetrating and not allowed and not ignored
-        collision_found = collision_found or rejected
-
-        if debug and rejected:
-            print(
-                f"[collision] contact[{i}] "
-                f"{body1_name}/{geom1_name} <-> {body2_name}/{geom2_name} "
-                f"dist={contact.dist:.6f}, threshold={threshold:.6f}, "
-                f"active_contact={active_contact}, allowed={allowed}, ignored={ignored}, "
-                f"passive_gripper_contact={passive_gripper_contact}, "
-                f"rejected={rejected}, pos={np.round(contact.pos, 5)}"
-            )
-
-    if debug:
-        print(
-            "[collision] result="
-            + ("IN COLLISION" if collision_found else "COLLISION FREE")
-        )
-    return not collision_found
-
-
 def _apply_attached_state(m, d, q, qpos_ids, eef_body_name, object_freejoint_name, T_eef_object):
     set_arm_q(d, qpos_ids, q)
     mujoco.mj_forward(m, d)
@@ -434,15 +300,13 @@ def _apply_attached_state(m, d, q, qpos_ids, eef_body_name, object_freejoint_nam
 def plan_ompl_motion(
     m, d, q_start, q_goal, qpos_ids, limits, eef_body_name, object_freejoint_name,
     T_eef_object, allowed_pairs, solve_time=5.0, interpolate_count=120,
-    max_z=None, xy_bounds=None,
-    ignored_body_substrings=(), allowed_penetration=0.003, penetration_body_names=(),
+    allowed_penetration=0.003, penetration_body_names=(),
     fixed_object_T=None,
 ):
     from ompl import base as ob
     from ompl import geometric as og
 
     allowed_pairs = tuple(allowed_pairs)
-    ignored_body_substrings = tuple(ignored_body_substrings)
     penetration_body_names = tuple(penetration_body_names)
     fixed_object_T = None if fixed_object_T is None else np.asarray(fixed_object_T, dtype=float)
 
@@ -454,14 +318,6 @@ def plan_ompl_motion(
     space.setBounds(bounds)
     ss = og.SimpleSetup(space)
     si = ss.getSpaceInformation()
-
-    # Body IDs for every joint in qpos_ids 鈥?used for height constraint
-    qpos_id_set = set(qpos_ids)
-    arm_body_ids = list({
-        int(m.jnt_bodyid[j])
-        for j in range(m.njnt)
-        if m.jnt_qposadr[j] in qpos_id_set
-    })
 
     # Class-based validity checker (required by OMPL API)
     class AttachedObjectChecker(ob.StateValidityChecker):
@@ -482,38 +338,9 @@ def plan_ompl_motion(
                     m, d, q, qpos_ids, eef_body_name,
                     object_freejoint_name, T_eef_object,
                 )
-            if max_z is not None:
-                high_bodies = [
-                    (
-                        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, bid)
-                        or f"<unnamed body {bid}>",
-                        float(d.xpos[bid, 2]),
-                    )
-                    for bid in arm_body_ids
-                    if d.xpos[bid, 2] > max_z
-                ]
-                if high_bodies:
-                    name, z = high_bodies[0]
-                    return f"{name} z={z:.6f} exceeds max_z={float(max_z):.6f}"
-            if xy_bounds is not None:
-                x_min, x_max, y_min, y_max = xy_bounds
-                for bid in arm_body_ids:
-                    x = float(d.xpos[bid, 0])
-                    y = float(d.xpos[bid, 1])
-                    if x < x_min or x > x_max or y < y_min or y > y_max:
-                        name = (
-                            mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, bid)
-                            or f"<unnamed body {bid}>"
-                        )
-                        return (
-                            f"{name} xy=({x:.6f}, {y:.6f}) outside "
-                            f"bounds=({x_min:.6f}, {x_max:.6f}, "
-                            f"{y_min:.6f}, {y_max:.6f})"
-                        )
             return _collision_failure_reason(
                 m, d, allowed_pairs,
                 allowed_penetration=allowed_penetration,
-                ignored_body_substrings=ignored_body_substrings,
                 penetration_body_names=penetration_body_names,
             )
 
@@ -649,7 +476,6 @@ def interpolate_attached_object_motion(
     goal_T_world_object,
     allowed_contact_substrings,
     interpolate_count=30,
-    ignored_body_substrings=(),
     allowed_penetration=0.003,
     penetration_body_names=(),
     goal_collision_waypoint_allowance=0,
@@ -668,7 +494,6 @@ def interpolate_attached_object_motion(
     start_T = np.asarray(start_T_world_object, dtype=float)
     goal_T = np.asarray(goal_T_world_object, dtype=float)
     allowed_pairs = tuple(allowed_contact_substrings)
-    ignored_bodies = tuple(ignored_body_substrings)
     penetration_bodies = tuple(penetration_body_names)
     waypoint_allowance = max(0, int(goal_collision_waypoint_allowance))
     T_object_eef = np.linalg.inv(np.asarray(T_eef_object, dtype=float))
@@ -682,7 +507,6 @@ def interpolate_attached_object_motion(
         d,
         allowed_pairs,
         allowed_penetration=allowed_penetration,
-        ignored_body_substrings=ignored_bodies,
         penetration_body_names=penetration_bodies,
     ):
         return _result("failed", "linear path start is in collision", q_path=None)
@@ -742,7 +566,6 @@ def interpolate_attached_object_motion(
             d,
             allowed_pairs,
             allowed_penetration=allowed_penetration,
-            ignored_body_substrings=ignored_bodies,
             penetration_body_names=penetration_bodies,
         )
         if not collision_free_now:
@@ -798,7 +621,6 @@ class PlanningContext:
     gripper_info: dict
     gripper_open_ctrl: float
     allowed_contacts: tuple[tuple[str, str], ...]
-    ignored_collision_bodies: tuple[str, ...]
 
 
 @dataclass
@@ -899,7 +721,6 @@ def _make_context(args: PipelineConfig, xml_path: Path) -> PlanningContext:
         gripper_info=gripper_info,
         gripper_open_ctrl=gripper_open_ctrl,
         allowed_contacts=tuple(tuple(x.split(":")) for x in args.allowed_contact_pair),
-        ignored_collision_bodies=(),
     )
 
 
@@ -1336,7 +1157,6 @@ def _plan_fixed_object_path(
         T_eef_object=None,
         allowed_pairs=ctx.allowed_contacts,
         interpolate_count=interpolate_count if interpolate_count is not None else STAGE_INTERPOLATE_COUNT,
-        ignored_body_substrings=ctx.ignored_collision_bodies,
         allowed_penetration=args.allowed_penetration,
         penetration_body_names=(args.mujoco_active_body,),
         fixed_object_T=fixed_object_T,
@@ -1414,7 +1234,6 @@ def _goal_configuration_check(
             data,
             _goal_allowed_contacts(ctx),
             allowed_penetration=args.allowed_penetration,
-            ignored_body_substrings=ctx.ignored_collision_bodies,
             penetration_body_names=(args.mujoco_active_body,),
         )
         if reason is None:
@@ -1652,7 +1471,6 @@ def _goal_plan_candidates(
             ctx.eval_data,
             _goal_allowed_contacts(ctx),
             allowed_penetration=args.allowed_penetration,
-            ignored_body_substrings=ctx.ignored_collision_bodies,
             penetration_body_names=(args.mujoco_active_body,),
         )
         if collision_reason is not None:
@@ -1721,7 +1539,6 @@ def _plan_attached_to_q(
         ctx.allowed_contacts,
         solve_time=OMPL_SOLVE_TIME,
         interpolate_count=interpolate_count if interpolate_count is not None else OMPL_INTERPOLATE_COUNT,
-        ignored_body_substrings=ctx.ignored_collision_bodies,
         allowed_penetration=args.allowed_penetration,
         penetration_body_names=(args.mujoco_active_body,),
     )
@@ -1778,7 +1595,6 @@ def _sample_preinsertion_path(
             candidate.goal_T,
             ctx.allowed_contacts,
             interpolate_count=PREINSERTION_INTERPOLATE_COUNT,
-            ignored_body_substrings=ctx.ignored_collision_bodies,
             allowed_penetration=args.preinsertion_allowed_penetration,
             penetration_body_names=(args.mujoco_active_body,),
             goal_collision_waypoint_allowance=args.preinsertion_waypoint_allowance,
@@ -1887,14 +1703,7 @@ def _log_selected_poses(
     def _fmt(T):
         xyz = np.round(T[:3, 3], 4)
         R = T[:3, :3]
-        pitch = float(np.arcsin(-R[2, 0]))
-        if abs(np.cos(pitch)) > 1e-6:
-            roll = float(np.arctan2(R[2, 1], R[2, 2]))
-            yaw  = float(np.arctan2(R[1, 0], R[0, 0]))
-        else:
-            roll = float(np.arctan2(-R[1, 2], R[1, 1]))
-            yaw  = 0.0
-        rpy_deg = np.round(np.degrees([roll, pitch, yaw]), 2)
+        rpy_deg = np.round(matrix_to_rpy_deg(R), 2)
         quat = np.round(mat_to_quat_wxyz(R), 4)
         return f"xyz={xyz.tolist()}  rpy_deg={rpy_deg.tolist()}  quat(wxyz)={quat.tolist()}"
 
@@ -1910,236 +1719,8 @@ def _log_selected_poses(
 # Public planning interfaces
 # ---------------------------------------------------------------------------
 
-class IKSolver:
-    """Robot kinematics boundary. Replace this class to swap IK implementations."""
-
-    def __init__(self, context: PlanningContext):
-        self.context = context
-
-    def solve(self, target_T: np.ndarray, seed: np.ndarray) -> tuple[np.ndarray, bool]:
-        ctx = self.context
-        return solve_ik(
-            ctx.model, ctx.eval_data, ctx.qpos_ids, ctx.dof_ids, ctx.limits,
-            EEF_BODY_NAME, target_T, seed,
-        )
-
-
-class CollisionChecker:
-    """Collision-policy boundary shared by free and attached-object planning."""
-
-    def __init__(self, context: PlanningContext):
-        self.context = context
-
-    def state_is_valid(self, data: mujoco.MjData) -> bool:
-        ctx = self.context
-        return collision_free(
-            ctx.model,
-            data,
-            allowed_contact_substrings=ctx.allowed_contacts,
-            ignored_body_substrings=ctx.ignored_collision_bodies,
-            allowed_penetration=ctx.args.allowed_penetration,
-            penetration_body_names=(ctx.args.mujoco_active_body,),
-            debug=False,
-        )
-
-    def plan_fixed_object(
-        self,
-        q_start: np.ndarray,
-        q_goal: np.ndarray,
-        fixed_object_T: np.ndarray,
-        *,
-        interpolate_count: int | None = None,
-    ) -> list[np.ndarray] | None:
-        return _plan_fixed_object_path(
-            self.context, q_start, q_goal, fixed_object_T, interpolate_count
-        )
-
-
-class GraspApproachPlanner:
-    """Goal-filter candidates and plan collision-free source approaches."""
-
-    def __init__(self, context: PlanningContext, collision: CollisionChecker):
-        self.context = context
-        self.collision = collision
-
-    def filter_for_goal(
-        self,
-        candidates: Sequence[GraspCandidate],
-        goal_pose: ObjectPose,
-        *,
-        max_results: int | None = None,
-    ) -> list[GoalFilteredGrasp]:
-        return _filter_grasps_for_goal(
-            self.context,
-            candidates,
-            goal_pose,
-            max_results=max_results,
-        )
-
-    def plan_approaches(
-        self,
-        source_pose: ObjectPose,
-        grasps: Sequence[GoalFilteredGrasp],
-    ) -> Iterator[GraspPlan]:
-        yield from _iter_grasp_plans(self.context, source_pose, grasps)
-
-    def attach(self, grasp: GraspPlan) -> np.ndarray | None:
-        return _measure_attachment(self.context, grasp)
-
-
-class AttachedObjectPlanner:
-    """Plan motions while the object is rigidly attached to the end effector."""
-
-    def __init__(
-        self,
-        context: PlanningContext,
-        ik: IKSolver,
-        collision: CollisionChecker,
-    ):
-        self.context = context
-        self.ik = ik
-        self.collision = collision
-
-    def plan_to_configuration(
-        self,
-        q_start: np.ndarray,
-        q_goal: np.ndarray,
-        T_eef_object: np.ndarray,
-        *,
-        interpolate_count: int | None = None,
-    ) -> list[np.ndarray] | None:
-        return _plan_attached_to_q(
-            self.context,
-            q_start,
-            q_goal,
-            T_eef_object,
-            interpolate_count=interpolate_count,
-        )
-
-    def goal_candidates(
-        self,
-        goal_pose: ObjectPose,
-        preinsertion: PreinsertionPlan,
-        T_object_eef: np.ndarray,
-        q_seed: np.ndarray,
-        allowed_goal_z_indices: Sequence[int] | None = None,
-        checked_goal_q_by_index: Sequence[tuple[int, np.ndarray]] = (),
-    ) -> list[GoalPlanCandidate]:
-        return _goal_plan_candidates(
-            self.context,
-            goal_pose,
-            preinsertion,
-            T_object_eef,
-            q_seed,
-            allowed_goal_z_indices,
-            checked_goal_q_by_index,
-        )
-
-    def plan_lift(
-        self,
-        q_start: np.ndarray,
-        T_eef_object: np.ndarray,
-    ) -> tuple[np.ndarray | None, list[np.ndarray]]:
-        return _plan_lift(self.context, q_start, T_eef_object)
-
-
-class InsertionPlanner:
-    """Plan pre-insertion sampling and the final straight insertion segment."""
-
-    def __init__(
-        self,
-        context: PlanningContext,
-        attached: AttachedObjectPlanner,
-    ):
-        self.context = context
-        self.attached = attached
-
-    @staticmethod
-    def configure(args: PipelineConfig) -> PreinsertionPlan:
-        return configured_preinsertion(args)
-
-    def plan_candidate(
-        self,
-        candidate: GoalPlanCandidate,
-        preinsertion: PreinsertionPlan,
-        q_start: np.ndarray,
-        T_eef_object: np.ndarray,
-        T_object_eef: np.ndarray,
-        candidate_count: int,
-    ) -> dict | None:
-        return _plan_goal_candidate(
-            self.context,
-            candidate,
-            preinsertion,
-            q_start,
-            T_eef_object,
-            T_object_eef,
-            candidate_count,
-        )
-
-
-class TrajectoryBuilder:
-    """Build, validate, and persist the controller-facing phase trajectory."""
-
-    def __init__(self, context: PlanningContext):
-        self.context = context
-
-    def build(
-        self,
-        *,
-        grasp: GraspPlan,
-        selected_plan: dict,
-        candidate: GoalPlanCandidate,
-        preinsertion: PreinsertionPlan,
-        T_eef_object: np.ndarray,
-        source_xml: Path,
-    ) -> dict:
-        trajectory = _build_phase_waypoint_plan(
-            ctx=self.context,
-            grasp_plan=grasp,
-            selected_plan=selected_plan,
-            selected_candidate=candidate,
-            pre=preinsertion,
-            selected_T_eef_object=T_eef_object,
-            source_xml=source_xml,
-        )
-        _validate_controller_trajectory(trajectory)
-        return trajectory
-
-    @staticmethod
-    def write(path: Path, trajectory: dict) -> None:
-        _write_trajectory(path, trajectory)
-
-
-class Executor:
-    """Execution boundary independent of OMPL, MuJoCo, and robot hardware.
-
-    ``move_arm`` receives an ``(N, 7)`` path and its waypoint timestamps.
-    ``command_gripper`` receives ``"open"`` or ``"close"``. A real robot,
-    simulator, or logger can implement those two callbacks without changing the
-    planner.
-    """
-
-    def execute(
-        self,
-        trajectory: dict,
-        *,
-        move_arm: Callable[[np.ndarray, np.ndarray], None],
-        command_gripper: Callable[[str], None],
-    ) -> None:
-        _validate_controller_trajectory(trajectory)
-        for phase in trajectory["phases"]:
-            if phase["type"] == "move":
-                move_arm(
-                    np.asarray(phase["waypoints"], dtype=float),
-                    np.asarray(phase["time_from_start"], dtype=float),
-                )
-            else:
-                command_gripper(str(phase["command"]))
-
-
 class Planner:
-    """Compose the seven planning interfaces into one pick-and-place planner."""
+    """Plan one pick-and-place trajectory from the configured scene."""
 
     def __init__(
         self,
@@ -2156,13 +1737,6 @@ class Planner:
         self.anygrasp_config = anygrasp_config
         self.grasp_choice_reader = grasp_choice_reader
         self.context = _make_context(args, self.xml_path)
-        self.ik = IKSolver(self.context)
-        self.collision = CollisionChecker(self.context)
-        self.grasps = GraspApproachPlanner(self.context, self.collision)
-        self.attached = AttachedObjectPlanner(self.context, self.ik, self.collision)
-        self.insertion = InsertionPlanner(self.context, self.attached)
-        self.trajectory_builder = TrajectoryBuilder(self.context)
-        self.executor = Executor()
 
     def _candidate_batches(
         self,
@@ -2173,7 +1747,8 @@ class Planner:
             observation=self.grasp_observation,
             anygrasp_config=self.anygrasp_config,
             authored_configs=self.args.grasp_candidates,
-            goal_filter=lambda candidates, max_results: self.grasps.filter_for_goal(
+            goal_filter=lambda candidates, max_results: _filter_grasps_for_goal(
+                self.context,
                 candidates,
                 goal_pose,
                 max_results=max_results,
@@ -2190,7 +1765,7 @@ class Planner:
         traj_dir: Path,
     ) -> PlanningResult | None:
         print("[planning] planning pick-and-place trajectory")
-        pre = self.insertion.configure(self.args)
+        pre = configured_preinsertion(self.args)
         failed = {
             "reason": "OMPL planning failed for all equivalent goal Z rotations",
             "q_path": None,
@@ -2202,15 +1777,16 @@ class Planner:
 
         for _, candidate_batch in self._candidate_batches(refined_goal_pose):
             saw_goal_feasible_grasp = True
-            for grasp in self.grasps.plan_approaches(source_pose, candidate_batch):
+            for grasp in _iter_grasp_plans(self.context, source_pose, candidate_batch):
                 saw_grasp_approach = True
-                T_eef_object = self.grasps.attach(grasp)
+                T_eef_object = _measure_attachment(self.context, grasp)
                 if T_eef_object is None:
                     failed["reason"] = "grasp attachment failed"
                     continue
                 T_object_eef = np.linalg.inv(T_eef_object)
 
-                retreat = self.attached.plan_to_configuration(
+                retreat = _plan_attached_to_q(
+                    self.context,
                     grasp.q_grasp,
                     grasp.q_pregrasp,
                     T_eef_object,
@@ -2220,7 +1796,8 @@ class Planner:
                     failed["reason"] = "retreat from grasp to pregrasp failed"
                     continue
 
-                candidates = self.attached.goal_candidates(
+                candidates = _goal_plan_candidates(
+                    self.context,
                     refined_goal_pose,
                     pre,
                     T_object_eef,
@@ -2238,7 +1815,8 @@ class Planner:
                     printed_attached_planning = True
 
                 for candidate in candidates:
-                    plan = self.insertion.plan_candidate(
+                    plan = _plan_goal_candidate(
+                        self.context,
                         candidate,
                         pre,
                         grasp.q_pregrasp,
@@ -2264,7 +1842,7 @@ class Planner:
             print("[planning:grasp] no collision-free grasp approach")
             return None
         if selected is None:
-            self.trajectory_builder.write(trajectory_path, failed)
+            _write_trajectory(trajectory_path, failed)
             return PlanningResult(source_pose, refined_goal_pose, pre.settings, failed)
 
         grasp, candidate, selected_plan, T_eef_object, candidates = selected
@@ -2280,17 +1858,19 @@ class Planner:
             grasp_T=grasp.source_pose.T_world_object,
             preinsertion_T=selected_plan["preinsertion_T"],
         )
-        trajectory = self.trajectory_builder.build(
-            grasp=grasp,
+        trajectory = _build_phase_waypoint_plan(
+            ctx=self.context,
+            grasp_plan=grasp,
             selected_plan=selected_plan,
-            candidate=candidate,
-            preinsertion=pre,
-            T_eef_object=T_eef_object,
+            selected_candidate=candidate,
+            pre=pre,
+            selected_T_eef_object=T_eef_object,
             source_xml=self.xml_path,
         )
+        _validate_controller_trajectory(trajectory)
         if len(candidates) > 1:
             print(f"[planning:select] selected goal Z sample {candidate.index}")
-        self.trajectory_builder.write(trajectory_path, trajectory)
+        _write_trajectory(trajectory_path, trajectory)
         return PlanningResult(grasp.source_pose, refined_goal_pose, pre.settings, trajectory)
 
 
@@ -2305,10 +1885,8 @@ def plan_pick_place(
     grasp_observation: GraspObservation | None = None,
     anygrasp_config: AnyGraspConfig | None = None,
     grasp_choice_reader: Callable[[str], str] | None = None,
-    await_next_step=None,
 ) -> PlanningResult | None:
-    """Compatibility facade used by the pipeline orchestrator."""
-    del await_next_step
+    """Facade used by the pipeline orchestrator."""
     return Planner(
         args,
         xml_path,
