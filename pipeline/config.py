@@ -13,6 +13,7 @@ OBJECT_CATALOG = {
     'wooden_rack': {
         'prompt': 'wooden rack',
         'mesh': 'models/meshes/wooden_rack/wooden_rack.obj',
+        'dimensions': (0.2000, 0.1003, 0.0551),
         'asset_xml': 'meshes/wooden_rack_remeshed/wooden_rack_asset.xml',
         'body_xml': 'meshes/wooden_rack_remeshed/wooden_rack_body.xml',
         'geom_friction': '0.05 0.001 0.0001',
@@ -21,6 +22,7 @@ OBJECT_CATALOG = {
     'wooden_stick_toy': {
         'prompt': 'wooden stick toy',
         'mesh': 'models/meshes/wooden_stick_toy/wooden_stick_toy.obj',
+        'dimensions': (0.1429, 0.1005, 0.2067),
         'asset_xml': 'meshes/wooden_stick_toy_remeshed/wooden_stick_toy_asset.xml',
         'body_xml': 'meshes/wooden_stick_toy_remeshed/wooden_stick_toy_body.xml',
         'geom_friction': '0.8 0.02 0.001',
@@ -28,6 +30,7 @@ OBJECT_CATALOG = {
     'red_mug_small': {
         'prompt': 'red mug small',
         'mesh': 'models/meshes/red_mug_small/red_mug_small.obj',
+        'dimensions': (0.0564, 0.0729, 0.0567),
         'asset_xml': 'meshes/red_mug_small_remeshed/red_mug_small_asset.xml',
         'body_xml': 'meshes/red_mug_small_remeshed/red_mug_small_body.xml',
         'grasps': [
@@ -42,6 +45,7 @@ OBJECT_CATALOG = {
     'red_mug_big': {
         'prompt': 'red mug',
         'mesh': 'models/meshes/red_mug_big/red_mug_big.obj',
+        'dimensions': (0.0879, 0.1108, 0.0876),
         'asset_xml': 'meshes/red_mug_big_remeshed/red_mug_big_asset.xml',
         'body_xml': 'meshes/red_mug_big_remeshed/red_mug_big_body.xml',
         'geom_friction': '0.8 0.02 0.001',
@@ -87,6 +91,7 @@ OBJECT_CATALOG = {
     'blue_mug_big': {
         'prompt': 'blue mug',
         'mesh': 'models/meshes/blue_mug_big/blue_mug_big.obj',
+        'dimensions': (0.0849, 0.1174, 0.0918),
         'asset_xml': 'meshes/blue_mug_big_remeshed/blue_mug_big_asset.xml',
         'body_xml': 'meshes/blue_mug_big_remeshed/blue_mug_big_body.xml',
         'grasps': [
@@ -119,6 +124,7 @@ OBJECT_CATALOG = {
     'green_plate_small': {
         'prompt': 'green plate',
         'mesh': 'models/meshes/green_plate_small/green_plate_small.obj',
+        'dimensions': (0.1071, 0.1059, 0.0176),
         'primitive': 'small_dish',
         'grasps': [
             {
@@ -132,6 +138,7 @@ OBJECT_CATALOG = {
     'pink_plate_small': {
         'prompt': 'pink plate',
         'mesh': 'models/meshes/pink_plate_small/pink_plate_small.obj',
+        'dimensions': (0.1076, 0.1078, 0.0180),
         'primitive': 'small_dish',
         'grasps': [
             {
@@ -145,6 +152,7 @@ OBJECT_CATALOG = {
     'yellow_plate_small': {
         'prompt': 'yellow plate',
         'mesh': 'models/meshes/yellow_plate_small/yellow_plate_small.obj',
+        'dimensions': (0.1069, 0.1071, 0.0145),
         'primitive': 'small_dish',
         'grasps': [
             {
@@ -158,6 +166,7 @@ OBJECT_CATALOG = {
     'red_plate_big': {
         'prompt': 'red plate',
         'mesh': 'models/meshes/red_plate_big/red_plate_big.obj',
+        'dimensions': (0.1208, 0.1248, 0.0145),
         'primitive': 'big_dish',
         'grasps': [
             {
@@ -171,6 +180,7 @@ OBJECT_CATALOG = {
     'blue_plate_big': {
         'prompt': 'blue plate',
         'mesh': 'models/meshes/blue_plate_big/blue_plate_big.obj',
+        'dimensions': (0.1245, 0.1226, 0.0156),
         'primitive': 'big_dish',
         'grasps': [
             {
@@ -184,6 +194,7 @@ OBJECT_CATALOG = {
     'teapot': {
         'prompt': 'teapot',
         'mesh': 'models/meshes/teapot/teapot.obj',
+        'dimensions': (0.1676, 0.0919, 0.0961),
         'asset_xml': 'meshes/teapot_remeshed/teapot_asset.xml',
         'body_xml': 'meshes/teapot_remeshed/teapot_body.xml',
         'geom_friction': '0.15 0.001 0.0005',
@@ -205,6 +216,7 @@ OBJECT_CATALOG = {
     'yellow_cap': {
         'prompt': 'yellow cap',
         'mesh': 'models/meshes/yellow_cap/yellow_cap.obj',
+        'dimensions': (0.0743, 0.0757, 0.0278),
         'asset_xml': 'meshes/yellow_cap_remeshed/yellow_cap_asset.xml',
         'body_xml': 'meshes/yellow_cap_remeshed/yellow_cap_body.xml',
         'geom_friction': '0.15 0.001 0.0005',
@@ -221,6 +233,7 @@ OBJECT_CATALOG = {
     'red_cup': {
         'prompt': 'red cup',
         'mesh': 'models/meshes/red_cup/red_cup.obj',
+        'dimensions': (0.0714, 0.0728, 0.1085),
         'primitive': 'cup',
         'grasps': [
             {
@@ -240,6 +253,7 @@ OBJECT_CATALOG = {
     'green_cup': {
         'prompt': 'green cup',
         'mesh': 'models/meshes/green_cup/green_cup.obj',
+        'dimensions': (0.0729, 0.0736, 0.1115),
         'primitive': 'small_cup',
         'grasps': [
             {
@@ -259,6 +273,7 @@ OBJECT_CATALOG = {
     'blue_cup': {
         'prompt': 'blue cup',
         'mesh': 'models/meshes/blue_cup/blue_cup.obj',
+        'dimensions': (0.0728, 0.0723, 0.1104),
         'primitive': 'large_cup',
         'grasps': [
             {
@@ -276,7 +291,6 @@ OBJECT_CATALOG = {
         ],
     },
 }
-
 # Default benchmark and camera used by the CLI.
 BENCHMARK = "plates_on_rack"
 CAMERA_TYPE = "gemini"
