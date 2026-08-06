@@ -1817,10 +1817,8 @@ class Planner:
             ctx=self.context,
             grasp_plan=grasp,
             selected_plan=selected_plan,
-            selected_candidate=candidate,
             pre=pre,
             selected_T_eef_object=T_eef_object,
-            source_xml=self.xml_path,
         )
         _validate_controller_trajectory(trajectory)
         if len(candidates) > 1:
