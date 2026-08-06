@@ -634,10 +634,6 @@ class GraspPlan:
     pregrasp_to_grasp_q_path: list[np.ndarray]
 
     @property
-    def index(self) -> int:
-        return self.candidate.index
-
-    @property
     def gripper_close_ctrl(self) -> float:
         return self.candidate.close_ctrl_value
 
@@ -779,10 +775,8 @@ def _build_phase_waypoint_plan(
     ctx: PlanningContext,
     grasp_plan: GraspPlan,
     selected_plan: dict,
-    selected_candidate: GoalPlanCandidate,
     pre: PreinsertionPlan,
     selected_T_eef_object: np.ndarray,
-    source_xml: Path,
 ) -> dict:
     q_path = [np.asarray(q, dtype=float) for q in selected_plan["q_path"]]
     if not q_path:
@@ -856,33 +850,7 @@ def _build_phase_waypoint_plan(
         _move_phase("return_home", return_home_q_path),
     ]
     metadata = {
-        "benchmark": ctx.args.benchmark,
-        "source_xml": str(source_xml),
-        "selected_grasp_candidate": grasp_plan.index,
-        "selected_grasp_key": grasp_plan.candidate.key,
-        "selected_grasp_source": grasp_plan.candidate.source,
-        "selected_grasp_score": grasp_plan.candidate.score,
-        "selected_grasp_width_m": grasp_plan.candidate.detected_width_m,
-        "selected_goal_z_sample": selected_candidate.index,
-        "selected_preinsertion_position_sample": selected_plan["preinsertion_sample"],
-        "planner": {
-            "type": "ompl_then_linear_insertion" if use_pre else "ompl_attached_rrtconnect",
-            "solve_time": OMPL_SOLVE_TIME,
-            "interpolate_count": OMPL_INTERPOLATE_COUNT,
-            "raw_q_path": _as_waypoint_list(selected_plan["ompl_q_path"]),
-            "linear_q_path": (
-                _as_waypoint_list(selected_plan["linear_q_path"])
-                if selected_plan["linear_q_path"] is not None
-                else []
-            ),
-            "linear_interpolate_count": PREINSERTION_INTERPOLATE_COUNT if use_pre else 0,
-        },
-        "preinsertion": pre.settings,
         "mujoco": {
-            "xml_path": str(source_xml),
-            "object_freejoint_name": ctx.args.object_freejoint_name,
-            "eef_body_name": EEF_BODY_NAME,
-            "gripper_actuator": ctx.gripper_info,
             "gripper": {
                 "open_ctrl": ctx.gripper_open_ctrl,
                 "close_ctrl": grasp_plan.gripper_close_ctrl,
@@ -893,12 +861,6 @@ def _build_phase_waypoint_plan(
             ).tolist(),
         },
     }
-    for phase in phases:
-        if phase["type"] == "move":
-            metadata[f"{phase['name']}_waypoint_count"] = len(phase["waypoints"])
-
-    if use_pre:
-        metadata["q_preinsertion"] = selected_plan["ompl_q_path"][-1].tolist()
 
     return {
         "units": "radians",
@@ -1062,7 +1024,6 @@ def replay_pick_place_trajectory(
     gripper_info = get_gripper_control_info(model, GRIPPER_ACTUATOR_SUFFIX)
     mujoco_meta = trajectory.get("metadata", {}).get("mujoco", {})
     gripper = mujoco_meta.get("gripper", {})
-    eef_body_name = str(mujoco_meta.get("eef_body_name", EEF_BODY_NAME))
     T_eef_object = np.asarray(mujoco_meta["T_eef_object"], dtype=float)
     source_T_world_object = np.asarray(mujoco_meta["source_T_world_object"], dtype=float)
     waypoints = _phase_move_waypoints(trajectory)
@@ -1091,7 +1052,7 @@ def replay_pick_place_trajectory(
                 if event == "attach_object":
                     attached_to_eef = True
                 elif event == "release_object":
-                    T_world_eef = get_body_transform(model, data, eef_body_name)
+                    T_world_eef = get_body_transform(model, data, EEF_BODY_NAME)
                     current_object_T = T_world_eef @ T_eef_object
                     attached_to_eef = False
 
@@ -1105,7 +1066,7 @@ def replay_pick_place_trajectory(
                     gripper_close_ctrl=close_ctrl,
                 )
                 if attached_to_eef:
-                    T_world_eef = get_body_transform(model, data, eef_body_name)
+                    T_world_eef = get_body_transform(model, data, EEF_BODY_NAME)
                     set_freejoint_pose_by_name(
                         model, data, object_freejoint_name, T_world_eef @ T_eef_object
                     )
@@ -1558,10 +1519,10 @@ def _sample_preinsertion_path(
     _n_ik_fail = _n_ompl_fail = _n_linear_fail = 0
     for sample_index in range(sample_count):
         sample_pre_T = candidate.preinsertion_T.copy()
-        sample_noise = np.zeros(3)
         if sample_index > 0:
-            sample_noise = pre.rng.uniform(-pre.position_range, pre.position_range)
-            sample_pre_T[:3, 3] += sample_noise
+            sample_pre_T[:3, 3] += pre.rng.uniform(
+                -pre.position_range, pre.position_range
+            )
 
         sample_q, ok_pre = _solve_eef_ik(ctx, sample_pre_T @ T_object_eef, q_start)
         if not ok_pre:
@@ -1613,10 +1574,7 @@ def _sample_preinsertion_path(
         return {
             "q_path": ompl_q_path + linear_q_path[1:],
             "ompl_q_path": ompl_q_path,
-            "linear_q_path": linear_q_path,
             "preinsertion_T": sample_pre_T,
-            "preinsertion_sample": sample_index,
-            "preinsertion_noise": sample_noise,
         }
     if sample_count > 1:
         print(f"[planning:select] goal Z sample {candidate.index}: all {sample_count} pre-insertion samples failed"
@@ -1686,10 +1644,7 @@ def _plan_goal_candidate(
     return {
         "q_path": full_path,
         "ompl_q_path": full_path,
-        "linear_q_path": None,
         "preinsertion_T": candidate.preinsertion_T,
-        "preinsertion_sample": None,
-        "preinsertion_noise": np.zeros(3),
     }
 
 
