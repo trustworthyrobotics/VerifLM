@@ -10,7 +10,6 @@ from pipeline.core import ValidationProgram, mat_to_quat_wxyz
 
 BENCHMARK = 'plates_on_rack'
 CAMERA_TYPE = 'gemini'
-DEFAULT_REALSENSE_SERIAL = '243622060451'
 VLM_PROVIDERS = {
     'step_6': 'openai',  # sampling-axis reasoning
     'validation_program': 'openai',  # candidate-validation semantics
@@ -1271,7 +1270,6 @@ class PipelineConfig:
     allowed_contact_pair: tuple[str, ...]
     post_release_hover_m: float
     camera_type: str
-    camera_serial: str | None
     axis_reasoning: bool
     debug: bool
     skip_settlement: bool
@@ -1289,7 +1287,6 @@ def _runtime_config_from_normalized(
     *,
     benchmark: str,
     camera_type: str,
-    camera_serial: str | None,
     axis_reasoning: bool,
     debug: bool,
     board_x_mj: float,
@@ -1332,7 +1329,6 @@ def _runtime_config_from_normalized(
         ),
         post_release_hover_m=float(motion["post_release_hover_m"]),
         camera_type=camera_type,
-        camera_serial=camera_serial,
         axis_reasoning=bool(axis_reasoning),
         debug=bool(debug),
         skip_settlement=bool(motion.get("skip_settlement", False)),
@@ -1349,21 +1345,16 @@ def build_pipeline_config(
     benchmark: str,
     *,
     camera_type: str = CAMERA_TYPE,
-    camera_serial: str | None = None,
     axis_reasoning: bool = True,
     debug: bool = False,
     board_x_mj: float = -0.12,
     board_y_mj: float = 0.0,
 ) -> PipelineConfig:
     config = get_benchmark_config(benchmark)
-    serial = camera_serial or (
-        DEFAULT_REALSENSE_SERIAL if camera_type == "realsense" else None
-    )
     return _runtime_config_from_normalized(
         config,
         benchmark=benchmark,
         camera_type=camera_type,
-        camera_serial=serial,
         axis_reasoning=axis_reasoning,
         debug=debug,
         board_x_mj=board_x_mj,
@@ -1413,7 +1404,6 @@ def for_stage(
         config,
         benchmark=args.benchmark,
         camera_type=args.camera_type,
-        camera_serial=args.camera_serial,
         axis_reasoning=args.axis_reasoning,
         debug=args.debug,
         board_x_mj=args.board_x_mj,

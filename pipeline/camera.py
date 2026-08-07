@@ -9,7 +9,7 @@ import time
 import cv2
 import numpy as np
 
-CameraType = Literal["gemini", "realsense", "d435", "realsense_d435"]
+CameraType = Literal["gemini", "realsense", "d415", "realsense_d415", "rs_d415"]
 
 
 @dataclass
@@ -196,13 +196,11 @@ class _GeminiBackend:
         self,
         timeout_ms: int,
         enable_depth: bool,
-        align_depth_to_color: bool,
         warmup_frames: int,
         depth_unit_fallback_m: float,
     ) -> None:
         self.timeout_ms = timeout_ms
         self.enable_depth = enable_depth
-        self.align_depth_to_color = align_depth_to_color
         self.warmup_frames = warmup_frames
         self.depth_unit_fallback_m = depth_unit_fallback_m
 
@@ -229,7 +227,7 @@ class _GeminiBackend:
         self._enable_color_stream()
         if self.enable_depth:
             self._enable_depth_stream()
-        if self._depth_enabled and self.align_depth_to_color:
+        if self._depth_enabled:
             self._try_enable_depth_to_color_alignment()
 
         self.pipeline.start(self.config)
@@ -432,37 +430,31 @@ class _GeminiBackend:
         return float(self.depth_unit_fallback_m)
 
 
-class _RealSenseD435Backend:
+class _RealSenseBackend:
     def __init__(
         self,
         timeout_ms: int,
         enable_depth: bool,
-        align_depth_to_color: bool,
         warmup_frames: int,
         color_width: int,
         color_height: int,
         depth_width: int,
         depth_height: int,
         fps: int,
-        serial: Optional[str] = None,
     ) -> None:
         self.timeout_ms = timeout_ms
         self.enable_depth = enable_depth
-        self.align_depth_to_color = align_depth_to_color
         self.warmup_frames = warmup_frames
         self.color_width = color_width
         self.color_height = color_height
         self.depth_width = depth_width
         self.depth_height = depth_height
         self.fps = fps
-        self.serial = serial
 
         self.rs = _load_realsense_sdk()
         self.pipeline = self.rs.pipeline()
         self.config = self.rs.config()
-        if serial:
-            self.config.enable_device(serial)
-        self.align = self.rs.align(self.rs.stream.color) if align_depth_to_color else None
+        self.align = self.rs.align(self.rs.stream.color)
 
         self._started = False
         self._depth_enabled = False
@@ -481,16 +473,14 @@ class _RealSenseD435Backend:
 
         ctx = self.rs.context()
         devices = ctx.query_devices()
-        target = None
-        for i in range(devices.size()):
-            d = devices[i]
-            if self.serial is None or d.get_info(self.rs.camera_info.serial_number) == self.serial:
-                target = d
-                break
-        if target is not None:
-            print(f"[camera:realsense_d435] hardware reset ...")
-            target.hardware_reset()
-            time.sleep(2)
+        device_count = devices.size()
+        if device_count != 1:
+            raise RuntimeError(
+                f"Expected exactly one connected RealSense camera, found {device_count}."
+            )
+        print("[camera:realsense] hardware reset ...")
+        devices[0].hardware_reset()
+        time.sleep(2)
 
         self.config.enable_stream(
             self.rs.stream.color,
@@ -528,15 +518,15 @@ class _RealSenseD435Backend:
             self._depth_scale_m = float(depth_sensor.get_depth_scale())
 
         self._warmup()
-        print("[camera:realsense_d435] started")
-        print(f"[camera:realsense_d435] K:\n{self.intrinsics.K}")
-        print(f"[camera:realsense_d435] depth_enabled={self._depth_enabled}, depth_scale={self._depth_scale_m:.8f} m/unit")
+        print("[camera:realsense] started")
+        print(f"[camera:realsense] K:\n{self.intrinsics.K}")
+        print(f"[camera:realsense] depth_enabled={self._depth_enabled}, depth_scale={self._depth_scale_m:.8f} m/unit")
 
     def stop(self) -> None:
         if self._started:
             self.pipeline.stop()
             self._started = False
-            print("[camera:realsense_d435] stopped")
+            print("[camera:realsense] stopped")
 
     def capture_raw(self, retries: int) -> RawRGBD:
         if not self._started:
@@ -546,7 +536,7 @@ class _RealSenseD435Backend:
             frames = self.pipeline.wait_for_frames(self.timeout_ms)
             if not frames:
                 continue
-            if self._depth_enabled and self.align is not None:
+            if self._depth_enabled:
                 frames = self.align.process(frames)
 
             color_frame = frames.get_color_frame()
@@ -581,21 +571,21 @@ class _RealSenseD435Backend:
             frames = self.pipeline.wait_for_frames(5000)
             if frames:
                 if not got_first:
-                    print(f"[camera:realsense_d435] first frame at warmup {i}, settling auto-exposure ...")
+                    print(f"[camera:realsense] first frame at warmup {i}, settling auto-exposure ...")
                     got_first = True
             else:
                 if not got_first:
-                    print(f"[camera:realsense_d435] warmup {i}: no frames")
+                    print(f"[camera:realsense] warmup {i}: no frames")
         if not got_first:
             raise RuntimeError("RealSense: no frames received during warmup.")
 
 
 class Camera:
-    """Single RGB-D camera wrapper for Orbbec Gemini or Intel RealSense D435.
+    """Single RGB-D camera wrapper for Orbbec Gemini or Intel RealSense.
 
     Use one parameter to choose the hardware:
         Camera(camera_type="gemini")
-        Camera(camera_type="realsense")  # also accepts "d435" or "realsense_d435"
+        Camera(camera_type="realsense")  # D415 aliases are also accepted
 
     Output convention:
       rgb_bgr: OpenCV BGR uint8 image, H x W x 3
@@ -610,7 +600,6 @@ class Camera:
         camera_type: CameraType = "gemini",
         timeout_ms: int = 100,
         enable_depth: bool = True,
-        align_depth_to_color: bool = True,
         warmup_frames: int = 30,
         depth_unit_fallback_m: float = 0.001,
         enable_board_tracking: bool = True,
@@ -622,12 +611,10 @@ class Camera:
         depth_width: int = 1280,
         depth_height: int = 720,
         fps: int = 30,
-        serial: Optional[str] = None,
     ) -> None:
         self.camera_type = self._normalize_camera_type(camera_type)
         self.timeout_ms = timeout_ms
         self.enable_depth = enable_depth
-        self.align_depth_to_color = align_depth_to_color
         self.warmup_frames = warmup_frames
         self.depth_unit_fallback_m = depth_unit_fallback_m
         self.enable_board_tracking = enable_board_tracking
@@ -636,22 +623,19 @@ class Camera:
             self._backend = _GeminiBackend(
                 timeout_ms=timeout_ms,
                 enable_depth=enable_depth,
-                align_depth_to_color=align_depth_to_color,
                 warmup_frames=warmup_frames,
                 depth_unit_fallback_m=depth_unit_fallback_m,
             )
         else:
-            self._backend = _RealSenseD435Backend(
+            self._backend = _RealSenseBackend(
                 timeout_ms=timeout_ms,
                 enable_depth=enable_depth,
-                align_depth_to_color=align_depth_to_color,
                 warmup_frames=warmup_frames,
                 color_width=color_width,
                 color_height=color_height,
                 depth_width=depth_width,
                 depth_height=depth_height,
                 fps=fps,
-                serial=serial,
             )
 
         self._board_tracker = self._create_board_tracker(board_config or BoardConfig())
@@ -664,9 +648,9 @@ class Camera:
         name = camera_type.lower().strip().replace("-", "_")
         if name == "gemini":
             return "gemini"
-        if name in {"realsense", "d435", "realsense_d435", "rs_d435"}:
-            return "realsense_d435"
-        raise ValueError("camera_type must be 'gemini', 'realsense', 'd435', or 'realsense_d435'.")
+        if name in {"realsense", "d415", "realsense_d415", "rs_d415"}:
+            return "realsense"
+        raise ValueError("camera_type must be 'gemini', 'realsense', or a D415 alias.")
 
     def start(self) -> None:
         self._backend.start()
@@ -751,7 +735,7 @@ class Camera:
             "depth_vis_path": str(depth_vis_path) if depth_vis_path else None,
             "depth_unit": "millimeters",
             "depth_stats": depth_stats,
-            "depth_aligned_to_rgb": bool(self.align_depth_to_color),
+            "depth_aligned_to_rgb": True,
             "timestamp": frame.timestamp,
             "image_width": frame.width,
             "image_height": frame.height,
@@ -799,12 +783,16 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--camera-type", default="gemini", choices=["gemini", "realsense", "d435", "realsense_d435"])
+    parser.add_argument(
+        "--camera-type",
+        default="gemini",
+        choices=["gemini", "realsense", "d415", "realsense_d415"],
+    )
     parser.add_argument("--out-dir", default="assets")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
-    with Camera(camera_type=args.camera_type, enable_depth=True, align_depth_to_color=True) as cam:
+    with Camera(camera_type=args.camera_type, enable_depth=True) as cam:
         while True:
             frame = cam.capture()
             color_vis = frame.board_vis_bgr if frame.board_vis_bgr is not None else frame.rgb_bgr
@@ -852,9 +840,7 @@ def capture_source(args) -> RGBDFrame:
     path = extrinsic_path(args.camera_type)
     with Camera(
         camera_type=args.camera_type,
-        serial=args.camera_serial,
         enable_depth=True,
-        align_depth_to_color=True,
         warmup_frames=60,
     ) as camera:
         if path.exists():

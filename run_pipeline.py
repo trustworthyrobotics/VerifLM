@@ -13,8 +13,7 @@ from pipeline.main import run_pipeline
 def parse_args():
     parser = argparse.ArgumentParser(description="VLM-guided manipulation pipeline")
     parser.add_argument("--benchmark", choices=BENCHMARKS, default=BENCHMARK)
-    parser.add_argument("--camera-type", choices=["gemini", "realsense"], default=CAMERA_TYPE)
-    parser.add_argument("--camera-serial")
+    parser.add_argument("--camera-type", choices=["gemini", "realsense", "d415"], default=CAMERA_TYPE)
     parser.add_argument(
         "--skip-axis-reasoning",
         action="store_true",
@@ -32,7 +31,6 @@ def parse_args():
     return build_pipeline_config(
         parsed.benchmark,
         camera_type=parsed.camera_type,
-        camera_serial=parsed.camera_serial,
         axis_reasoning=not parsed.skip_axis_reasoning,
         debug=parsed.debug,
         board_x_mj=parsed.board_x_mj,

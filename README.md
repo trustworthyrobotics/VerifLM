@@ -55,6 +55,10 @@ python run_pipeline.py --benchmark red_mug_on_plate --debug
 python run_pipeline.py --benchmark red_mug_on_plate --skip-axis-reasoning
 ```
 
+Live RGB-D capture is always configured to align depth to color. RealSense mode
+requires exactly one connected RealSense camera. Regenerate the camera
+extrinsics after moving or replacing the camera.
+
 Goal-position sampling uses the active object's longest catalog dimension as
 the nominal half-range on all three world axes. Goal-orientation sampling uses
 a global 60-degree nominal half-range on roll, pitch, and yaw. Sampling-axis
