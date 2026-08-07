@@ -8,7 +8,47 @@ import numpy as np
 from pipeline.core import ValidationProgram, mat_to_quat_wxyz
 
 
-# Object descriptions, assets, physics properties, and configured grasps.
+BENCHMARK = 'plates_on_rack'
+CAMERA_TYPE = 'gemini'
+DEFAULT_REALSENSE_SERIAL = '243622060451'
+VLM_PROVIDERS = {
+    'step_6': 'openai',  # sampling-axis reasoning
+    'validation_program': 'openai',  # candidate-validation semantics
+    'step_9': 'gemini',  # candidate selection
+}
+
+SURFACE_HEIGHT_M = 0.779
+NORMAL_ORIENTATION_RANGE_DEG = 60.0
+SAMPLING_DEFAULTS = {
+    'max_candidate_images': 5,
+    'position_variance_multipliers': {'low': 0.25, 'medium': 1.0, 'high': 2.0},
+    'orientation_variance_multipliers': {'low': 0.25, 'medium': 1.0, 'high': 2.0},
+    'pos_bias': {'x': None, 'y': None, 'z': None},
+    'angular_kick_speed': 0.05,
+}
+PREINSERTION_DEFAULTS = {
+    'use_preinsertion': False,
+    'axis': '+z',
+    'offset_m': 0.0,
+    'position_range': np.zeros(3),
+    'position_samples': 25,
+    'waypoint_allowance': 0,
+    'stop_short_waypoints': 0,
+    'allowed_penetration': 0.003,
+}
+
+ARM_JOINT_NAMES = 'arm1_joint1,arm1_joint2,arm1_joint3,arm1_joint4,arm1_joint5,arm1_joint6,arm1_joint7'
+EEF_BODY_NAME = 'arm1_box_gripper'
+GRIPPER_ACTUATOR_SUFFIX = 'gripper'
+# q=0 leaves the gripper at its 50 mm open position.
+OPEN_CTRL_VALUE = 0.0
+STAGE_INTERPOLATE_COUNT = 100
+OMPL_SOLVE_TIME = 5.0
+OMPL_INTERPOLATE_COUNT = 120
+LIFT_HEIGHT_M = 0.10
+MAX_JOINT_VEL = 0.2
+
+
 OBJECT_CATALOG = {
     'wooden_rack': {
         'prompt': 'wooden rack',
@@ -291,29 +331,7 @@ OBJECT_CATALOG = {
         ],
     },
 }
-# Default benchmark and camera used by the CLI.
-BENCHMARK = "plates_on_rack"
-CAMERA_TYPE = "gemini"
 
-# VLM provider for each pipeline operation that actually uses a model.
-# Goal-image generation remains Gemini-only in vlm.py.
-VLM_PROVIDERS = {
-    "step_6": "openai",   # sampling-axis reasoning
-    "validation_program": "openai",  # candidate-validation semantics
-    "step_9": "gemini",   # candidate selection
-}
-
-# Shared MuJoCo tabletop Z coordinate. Object source poses below are expressed
-# relative to this value so changing the table does not leave static objects
-# floating above or embedded in it.
-SURFACE_HEIGHT_M = 0.779
-
-
-# Benchmark definitions contain only values that differ by task.
-# Position drift is checked in world coordinates. Express the same absolute cap
-# on every axis as a fraction of the active object's corresponding dimension.
-# Orientation fallback values below retain the legacy max_ori_change unit
-# interpretation. They are rounded for readability, without unit conversion.
 def _world_drift_fractions(cap_m: float, active_object_id: str) -> list[float]:
     return [
         cap_m / dimension
@@ -353,8 +371,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 1000,
-                'normal_position_range': np.array([0.03, 0.03, 0.03]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -372,7 +388,6 @@ BENCHMARKS = {
                 'allowed_position_drift_fraction': _world_drift_fractions(
                     0.05, 'red_mug_big'
                 ),
-                # Preserve the legacy unit interpretation at readable precision.
                 'allowed_orientation_drift_deg': 0.07,
                 'reasoning': 'The mug must remain supported above the plate without touching the table.',
             },
@@ -438,8 +453,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 1000,
-                'normal_position_range': np.array([0.03, 0.03, 0.03]),
-                'normal_orientation_range': np.array([10.0, 10.0, 10.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -457,7 +470,6 @@ BENCHMARKS = {
                 'allowed_position_drift_fraction': _world_drift_fractions(
                     0.05, 'red_mug_big'
                 ),
-                # Preserve the legacy unit interpretation at readable precision.
                 'allowed_orientation_drift_deg': 0.07,
                 'reasoning': 'Each mug must remain supported above its plate without touching the table.',
             },
@@ -517,8 +529,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 2000,
-                'normal_position_range': np.array([0.03, 0.03, 0.03]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -572,8 +582,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 1000,
-                'normal_position_range': np.array([0.03, 0.005, 0.02]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 600,
                 'pos_bias': {'x': 'negative', 'y': None, 'z': 'negative'},
             },
@@ -656,8 +664,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 1000,
-                'normal_position_range': np.array([0.02, 0.02, 0.02]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -685,8 +691,6 @@ BENCHMARKS = {
         ),
     },
     'stack_plate': {
-        # This setup calibrates the passive plate from the perceived board
-        # frame instead of forcing its object origin onto the tabletop.
         'scene': {'anchor_passive_to_surface': False},
         'task': {
             'objects': {
@@ -720,8 +724,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 1000,
-                'normal_position_range': np.array([0.02, 0.02, 0.04]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -803,8 +805,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 1000,
-                'normal_position_range': np.array([0.03, 0.03, 0.03]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -865,8 +865,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 500,
-                'normal_position_range': np.array([0.02, 0.02, 0.02]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 500,
             },
             'validation_program': {
@@ -924,8 +922,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 500,
-                'normal_position_range': np.array([0.02, 0.02, 0.02]),
-                'normal_orientation_range': np.array([60.0, 60.0, 60.0]),
                 'sim_steps': 2,
             },
             'validation_program': {
@@ -953,7 +949,6 @@ BENCHMARKS = {
     'mug_on_rack': {
         'task': {
             'objects': {
-                # 'red_mug_big': {'source_pose': {'xyz': (0.0150, 0.4050, SURFACE_HEIGHT_M + 0.075), 'rpy_deg': (0.0, 77.0, 140.0)}},
                 'red_mug_big': {'source_pose': {'xyz': (0.030, 0.2050, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, 0.0)}},
                 'wooden_stick_toy': {'source_pose': {'xyz': (-0.05, 0.49, SURFACE_HEIGHT_M), 'rpy_deg': (0.0, 0.0, -90.0)}},
             },
@@ -981,8 +976,6 @@ BENCHMARKS = {
         'digital_twin': {
             'sampling': {
                 'n_samples': 5000,
-                'normal_position_range': np.array([0.12, 0.06, 0.06]),
-                'normal_orientation_range': np.array([120.0, 120.0, 120.0]),
                 'sim_steps': 500,
                 'pos_bias': {'x': 'negative', 'y': None, 'z': 'positive'},
             },
@@ -992,8 +985,6 @@ BENCHMARKS = {
                 'final_max_pen': 0.0001,
                 'required_contacts': ['active_passive'],
                 'forbidden_contacts': ['active_table'],
-                # Intentionally replace the legacy absolute min_active_z floor
-                # with the generic body-origin ordering relation.
                 'xyz_relations': [{
                     'axis': 'z',
                     'relation': 'greater_than',
@@ -1013,42 +1004,6 @@ BENCHMARKS = {
         ),
     },
 }
-
-# Shared defaults removed from the individual benchmark dictionaries.
-SAMPLING_DEFAULTS = {
-    "max_candidate_images": 5,
-    "position_variance_multipliers": {"low": 0.25, "medium": 1.0, "high": 2.0},
-    "orientation_variance_multipliers": {"low": 0.25, "medium": 1.0, "high": 2.0},
-    "pos_bias": {"x": None, "y": None, "z": None},
-    "angular_kick_speed": 0.05,
-}
-
-PREINSERTION_DEFAULTS = {
-    "use_preinsertion": False,
-    "axis": "+z",
-    "offset_m": 0.0,
-    "position_range": np.zeros(3),
-    "position_samples": 25,
-    "waypoint_allowance": 0,
-    "stop_short_waypoints": 0,
-    "allowed_penetration": 0.003,
-}
-
-
-# Robot and planner defaults.
-ARM_JOINT_NAMES = "arm1_joint1,arm1_joint2,arm1_joint3,arm1_joint4,arm1_joint5,arm1_joint6,arm1_joint7"
-EEF_BODY_NAME = "arm1_box_gripper"
-GRIPPER_ACTUATOR_SUFFIX = "gripper"
-# The two finger slides start at q=0 with a 50 mm gap; increasing the tendon
-# command closes them toward the center. Keep approach/release at the open end.
-OPEN_CTRL_VALUE = 0.0
-STAGE_INTERPOLATE_COUNT = 100
-OMPL_SOLVE_TIME = 5.0
-OMPL_INTERPOLATE_COUNT = 120
-LIFT_HEIGHT_M = 0.10
-DEFAULT_REALSENSE_SERIAL = "243622060451"
-MAX_JOINT_VEL = 0.2
-
 
 def object_prompt(object_id: str) -> str:
     return OBJECT_CATALOG.get(object_id, {}).get("prompt", object_id.replace("_", " "))
@@ -1085,10 +1040,34 @@ def _source_pose(object_config: dict) -> dict | None:
     return object_config.get("source_pose")
 
 
-def _merged_sampling(raw: dict) -> dict:
+def _longest_axis_position_range(active_object_id: str) -> np.ndarray:
+    dimensions = np.asarray(
+        OBJECT_CATALOG[active_object_id]['dimensions'],
+        dtype=float,
+    )
+    if (
+        dimensions.shape != (3,)
+        or not np.all(np.isfinite(dimensions))
+        or np.any(dimensions <= 0.0)
+    ):
+        raise ValueError(
+            f'Object {active_object_id!r} must define three positive finite dimensions.'
+        )
+    return np.full(3, float(np.max(dimensions)), dtype=float)
+
+
+def _merged_sampling(raw: dict, *, active_object_id: str) -> dict:
     sampling = copy.deepcopy(SAMPLING_DEFAULTS)
     supplied = copy.deepcopy(raw)
     sampling.update(supplied)
+    sampling['normal_orientation_range'] = np.full(
+        3,
+        NORMAL_ORIENTATION_RANGE_DEG,
+        dtype=float,
+    )
+    sampling['normal_position_range'] = _longest_axis_position_range(
+        active_object_id
+    )
     sampling["position_variance_multipliers"] = {
         **SAMPLING_DEFAULTS["position_variance_multipliers"],
         **supplied.get("position_variance_multipliers", {}),
@@ -1171,8 +1150,7 @@ def _normalize_benchmark_config(
     ]
     if stage is not None:
         selected_stage = _normalize_stage(stage, candidate_objects=candidate_objects)
-        # Runtime stage resolution passes a fresh stage dict. Recover a configured
-        # per-stage fallback when the resolved active/passive pair identifies one.
+        # Recover the configured fallback for a uniquely matching runtime stage.
         matching_defaults = [
             item
             for item in default_stages
@@ -1202,7 +1180,10 @@ def _normalize_benchmark_config(
     scene = config.setdefault("scene", {})
     motion = _merged_motion(config.get("motion", {}))
     digital_twin = copy.deepcopy(config.get("digital_twin", {}))
-    sampling = _merged_sampling(digital_twin.get("sampling", {}))
+    sampling = _merged_sampling(
+        digital_twin.get('sampling', {}),
+        active_object_id=selected_stage['active'],
+    )
     raw_validation_program = selected_stage.get(
         "validation_program", digital_twin.get("validation_program")
     )

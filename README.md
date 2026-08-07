@@ -55,4 +55,9 @@ python run_pipeline.py --benchmark red_mug_on_plate --debug
 python run_pipeline.py --benchmark red_mug_on_plate --skip-axis-reasoning
 ```
 
-Sampling-axis reasoning is enabled by default; use `--skip-axis-reasoning` to fall back to configured sampling constraints.
+Goal-position sampling uses the active object's longest catalog dimension as
+the nominal half-range on all three world axes. Goal-orientation sampling uses
+a global 60-degree nominal half-range on roll, pitch, and yaw. Sampling-axis
+reasoning is enabled by default and scales those ranges per axis; use
+`--skip-axis-reasoning` to use the medium scale and configured positional
+biases.
