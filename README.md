@@ -1,27 +1,5 @@
 # VerifLM
 
-VerifLM captures or loads an RGB-D source scene, edits a goal image with a VLM, segments active/passive objects, estimates object poses with FoundationPose, builds a MuJoCo digital twin, samples physically valid goal poses, asks a VLM to select the best candidate, and plans a pick/place trajectory.
-
-## File Structure
-
-```text
-run_pipeline.py          CLI entrypoint
-pipeline/
-  main.py                pipeline orchestration and stage handling
-  config.py              benchmark/task/object/motion configuration
-  core.py                shared dataclasses, paths, transforms, serialization
-  camera.py              RGB-D capture and calibration utilities
-  vlm.py                 Gemini/OpenAI calls and prompt loading
-  perception.py          VGGT depth, GroundingDINO/SAM2 masks, FoundationPose
-  digital_twin.py        MuJoCo scene generation, constraints, sampling
-  planner.py             grasp, IK, OMPL, and trajectory generation
-  debug.py               interactive previews, mask review, debug artifacts
-prompts/                 editable VLM prompt templates
-models/                  MuJoCo XMLs, meshes, generated scene XMLs
-extrinsics/              camera extrinsic calibration files
-artifacts/               runtime outputs; ignored by git
-```
-
 ## External Dependencies
 
 Install the normal Python stack for this repo (`numpy`, `opencv-python`, `torch`, `mujoco`, `open3d`, `Pillow`, `python-dotenv`, `openai`, `google-genai`, etc.) plus these external systems, cloned as siblings of this repo (i.e. in the same parent directory as `VerifLM/`):
@@ -40,28 +18,3 @@ Create `.env` in the repo root. Do not commit it.
 # VLM providers
 OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=...
-
-# Optional model overrides
-OPENAI_VISION_MODEL=gpt-5.5
-GEMINI_MODEL=gemini-2.0-flash
-GEMINI_IMAGE_MODEL=gemini-2.0-flash-preview-image-generation
-```
-
-## Running
-
-```bash
-python run_pipeline.py --benchmark red_mug_on_plate --camera-type gemini
-python run_pipeline.py --benchmark red_mug_on_plate --debug
-python run_pipeline.py --benchmark red_mug_on_plate --skip-axis-reasoning
-```
-
-Live RGB-D capture is always configured to align depth to color. RealSense mode
-requires exactly one connected RealSense camera. Regenerate the camera
-extrinsics after moving or replacing the camera.
-
-Goal-position sampling uses the active object's longest catalog dimension as
-the nominal half-range on all three world axes. Goal-orientation sampling uses
-a global 60-degree nominal half-range on roll, pitch, and yaw. Sampling-axis
-reasoning is enabled by default and scales those ranges per axis; use
-`--skip-axis-reasoning` to use the medium scale and configured positional
-biases.

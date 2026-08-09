@@ -4,8 +4,6 @@ Instruction: {instruction}
 Active object (move this): {active_object}
 Passive object (do NOT touch): {passive_object}
 
-{revision_feedback}
-
 Rules:
 - Move or reorient ONLY the active object. Every other element — passive object, background, table, lighting, camera angle — must remain pixel-identical.
 - Preserve the active object's shape, color, texture, and scale.
