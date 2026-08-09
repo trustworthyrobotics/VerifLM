@@ -1,4 +1,6 @@
 import torch
+import time
+import subprocess
 import numpy as np
 import json
 import cv2
@@ -149,3 +151,62 @@ class Segmenter:
                 cv2.imwrite(str(path), mask)
         return masks
 
+class PoseEstimator:
+    def __init__(self, repo_path, container="foundationpose_realsense"):
+        self.repo_path = Path(repo_path)
+        self.container = container
+
+    def _cleanup(self, timeout=5):
+        subprocess.run(
+            ["docker", "exec", self.container, "pkill", "-9", "-f", "python"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        end = time.time() + timeout
+        while time.time() < end:
+            result = subprocess.run(
+                ["docker", "exec", self.container, "pgrep", "-f", "python"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            if result.returncode != 0:
+                return
+            time.sleep(0.5)
+        print("[perception]: FP cleaned up successfully")
+
+    def predict(self, rgb_path, depth_path, mask_path, mesh_path, K, output_dir, output_name):
+        output_dir = Path(output_dir).resolve()
+
+        cmd = [
+            "docker", "exec", self.container,
+            "python", str(self.repo / "run_frame.py"),
+            "--mesh_file", str(Path(mesh_path).resolve()),
+            "--color_file", str(Path(rgb_path).resolve()),
+            "--depth_file", str(Path(depth_path).resolve()),
+            "--mask_file", str(Path(mask_path).resolve()),
+            "--fx", str(float(K[0, 0])),
+            "--fy", str(float(K[1, 1])),
+            "--cx", str(float(K[0, 2])),
+            "--cy", str(float(K[1, 2])),
+            "--debug", "1",
+            "--debug_dir", str(output_dir),
+        ]
+
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        finally:
+            self._cleanup()
+
+        if result.returncode != 0:
+            error = "\n".join(result.stdout.decode(errors="replace").splitlines()[-8:])
+            raise RuntimeError(f"[perception]: FP failed with error: \n{error}")
+        
+        pose_path = output_dir / "ob_in_cam" / "000000.txt"
+        if not pose_path.exists():
+            raise RuntimeError(f"[perception]: FP produced no pose")
+
+        T_cam_object = np.loadtxt(pose_path)
+        np.save(output_dir/output_name, T_cam_object)
+
+        return T_cam_object
