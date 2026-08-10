@@ -18,6 +18,7 @@ class DepthEstimator:
         self.model = VGGT.from_pretrained("facebook/VGGT-1B").to(self.device).eval()
 
     def predict(self, input_paths: list=[], output_paths=None):
+        # Jointly infer the depth of both images result in more consistent geometry and depth scale
         images = load_and_preprocess_images(input_paths).to(self.device)
         with torch.no_grad():
             pred = self.model(images) # torch.Size([1,N,H,W,1])
@@ -28,27 +29,34 @@ class DepthEstimator:
                 np.save(output_paths[i], depth_raw[i])
         return depth_raw
 
-    def correct(self, depth_paths, mask_paths, output_path):
-        # Compares the depth maps of passive object in the source image against the edited image, then calculate a scaling factor
-        # paths[0] = source, paths[1] = edited
-        source_depth = np.load(depth_paths[0])
-        edited_depth = np.load(depth_paths[1])
+    def correct(self, source_depth_paths, source_mask_paths, edited_depth_path, output_path):
+        # Compare VGGT-estimated depth against groundtruth depth to calculate D'=s*D+t
+        # source_depth_paths[0] = camera depth, source_depth_paths[1] = vggt depth
+        # source_mask_paths[0] = active object mask, source_mask_paths[1] = passive object mask
+        # We only compare the depth maps of active and passive objects, since these are the most trustworthy regions
 
-        source_mask = cv2.imread(str(mask_paths[0]), cv2.IMREAD_GRAYSCALE) > 0
-        edited_mask = cv2.imread(str(mask_paths[1]), cv2.IMREAD_GRAYSCALE) > 0
+        source_true_depth = np.load(source_depth_paths[0])
+        source_vggt_depth = np.load(source_depth_paths[1])
+        edited_vggt_depth = np.load(edited_depth_path)
 
-        source_values = source_depth[source_mask]
-        edited_values = edited_depth[edited_mask]
+        source_active_mask = cv2.imread(str(source_mask_paths[0]), cv2.IMREAD_GRAYSCALE) > 0 # converts into an array of booleans
+        source_passive_mask = cv2.imread(str(source_mask_paths[1]), cv2.IMREAD_GRAYSCALE) > 0
 
-        source_values = source_values[np.isfinite(source_values) & (source_values > 0)]
-        edited_values = edited_values[np.isfinite(edited_values) & (edited_values > 0)]
+        source_true_depth_filtered = source_true_depth[source_active_mask | source_passive_mask]
+        source_vggt_depth_filtered = source_vggt_depth[source_active_mask | source_passive_mask]
 
-        scale = np.median(source_values) / np.median(edited_values)
-        corrected = edited_depth * scale
+        valid = (np.isfinite(source_true_depth_filtered) & np.isfinite(source_vggt_depth_filtered) &
+                 (source_true_depth_filtered > 0) & (source_vggt_depth_filtered > 0))
 
-        np.save(output_path, corrected.astype(np.float32))
-        return corrected, scale
+        source_true_depth_filtered = source_true_depth_filtered[valid]
+        source_vggt_depth_filtered = source_vggt_depth_filtered[valid]
 
+        s, t = np.polyfit(source_vggt_depth_filtered, source_true_depth_filtered, 1)
+        print(f"[perception]: D'={s} * D + {t}")
+        edited_vggt_depth_m = s * edited_vggt_depth + t
+
+        np.save(output_path, edited_vggt_depth_m.astype(np.float32))
+        return edited_vggt_depth_m, s, t
 
 class BBoxer:
     def __init__(self, repo_path):
@@ -159,7 +167,7 @@ class PoseEstimator:
     def _cleanup(self, timeout=5):
         subprocess.run(
             ["docker", "exec", self.container, "pkill", "-9", "-f", "python"],
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, 
             stderr=subprocess.DEVNULL,
         )
 

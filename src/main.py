@@ -1,9 +1,11 @@
-from config import OBJECT_CATALOG, BENCHMARK_CONFIGS
-from pathlib import Path
 import argparse
-from camera import Camera
-from vlm import edit_image
-from perception import DepthEstimator, BBoxer, Segmenter
+import numpy as np
+from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS
+from pathlib import Path
+from src.camera import Camera
+from src.vlm import edit_image
+from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
+
 
 # Read user args
 parser = argparse.ArgumentParser()
@@ -59,15 +61,33 @@ segmenter = Segmenter(SAM2_DIR)
 segmenter.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"],
                   bboxes=list(bboxes_json.values()), 
                   output_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png", PERCEPTION_DIR/"edited_active_mask.png", PERCEPTION_DIR/"edited_passive_mask.png"])
-depth_estimator.correct(depth_paths=[PERCEPTION_DIR/"source_vggt_depth_raw.npy", PERCEPTION_DIR/"edited_vggt_depth_raw.npy"],
-                        mask_paths=[PERCEPTION_DIR/"source_passive_mask.png", PERCEPTION_DIR/"edited_passive_mask.png"], 
-                        output_path=PERCEPTION_DIR/"edited_vggt_depth_corrected.npy")
+depth_estimator.correct(source_depth_paths=[CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_vggt_depth_raw.npy"], 
+                        source_mask_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png"],
+                        edited_depth_path=PERCEPTION_DIR/"edited_vggt_depth_raw.npy",
+                        output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy")
 
-# 5. FP pose estimation + render image in open3d
+# 5. FP pose estimation 
+# Output: estimated object poses in world frame in PERCEPTION_DIR
+pose_estimator = PoseEstimator(repo_path=FP_DIR)
+T_cam_active_source = pose_estimator.predict(rgb_path=CAMERA_DIR/"source_rgb.png", depth_path=CAMERA_DIR/"source_depth_m.npy", 
+                                            mask_path=PERCEPTION_DIR/"source_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
+                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="source_active_pose_cam.npy")
+T_cam_passive_source = pose_estimator.predict(rgb_path=CAMERA_DIR/"source_rgb.png", depth_path=CAMERA_DIR/"source_depth_m.npy", 
+                                            mask_path=PERCEPTION_DIR/"source_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
+                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="source_passive_pose_cam.npy")
 
-# 1. Make camera able to load extrinsics!!!
+T_cam_active_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
+                                            mask_path=PERCEPTION_DIR/"edited_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
+                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_active_pose_cam.npy")
+T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
+                                            mask_path=PERCEPTION_DIR/"edited_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
+                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_passive_pose_cam.npy")
 
-# 6. Query VLM for validation program V and sampling constraints S
-# 7. Sample in Mujoco + render successful candidates
-# 8. Grasp Planning
-# 9. OMPL trajectory (stages: {waypoints + timestamps}) 
+# 6. Render poses
+# Output: axis-labeled pictures of objects in RENDER_DIR
+T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
+
+# 7. Query VLM for validation program V and sampling constraints S
+# 8. Sample in Mujoco + render successful candidates
+# 9. Grasp Planning
+# 10. OMPL trajectory (stages: {waypoints + timestamps}) 

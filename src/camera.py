@@ -12,7 +12,7 @@ class ArucoBoard:
         self.marker_length_m = marker_length_m
         self.marker_separation=marker_separation
         self.dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        self.board = cv2.aruco.GridBoard((markers_x, markers_y), marker_length_m, marker_separation)
+        self.board = cv2.aruco.GridBoard((markers_x, markers_y), marker_length_m, marker_separation, self.dictionary)
         self.detector = cv2.aruco.ArucoDetector(self.dictionary)
 
     def detect(self, bgr): 
@@ -21,7 +21,10 @@ class ArucoBoard:
 
     def get_extrinsics(self, bgr, K, dist_coeffs, corners, ids):
         obj_pts, img_pts = self.board.matchImagePoints(corners, ids)
-        _, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist_coeffs)
+        success, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist_coeffs)
+        if not success:
+            raise RuntimeError("[camera]: solvePnP failed!")
+        
         R, _ = cv2.Rodrigues(rvec)
         t = tvec.reshape((3, )) # id array of 3 elements
         T_cam_board = np.eye(4)
@@ -42,6 +45,7 @@ class Camera():
         self.width = width
         self.height = height
         self.fps = fps
+        self.T_cam_board = None
 
     def start(self):
         if self.started:
@@ -84,11 +88,13 @@ class Camera():
 
     def capture(self, render=False, save=False, calculate_extrinsics=False, out_dir=None, prefix="source"):
         frames = None
-        for _ in range(30):
+        for _ in range(5):
             frames = self.pipeline.wait_for_frames(1000)
             frames = self.align.process(frames)
             if not frames:
                 continue
+            else:
+                break
 
         if not frames:
             return
@@ -98,23 +104,24 @@ class Camera():
         depth_frame = frames.get_depth_frame()
         bgr = np.asanyarray(color_frame.get_data())
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        depth_raw = np.asanyarray(depth_frame.get_data())
+        depth_raw = np.asanyarray(depth_frame.get_data()).astype(np.float32)
         depth_m = depth_raw * self.depth_scale_m
         depth_m[(depth_m <= 0) | (~np.isfinite(depth_m))] = np.nan
 
         # try to detect aruco board
-        T_cam_board = None
         if calculate_extrinsics:
             board = ArucoBoard()
             corners, ids = board.detect(bgr)
-            if not ids:
+            if ids is None or len(ids) == 0:
                 raise RuntimeError("[camera]: failed to detect arucoboard")
-            T_cam_board = board.get_extrinsics(bgr, self.K, self.dist_coeffs, corners, ids)
-            extrinsics_path = out_dir/f"{prefix}_extrinsics.npy"
-            np.save(extrinsics_path, T_cam_board)
+            self.T_cam_board = board.get_extrinsics(bgr, self.K, self.dist_coeffs, corners, ids)
+
+            if out_dir is not None:
+                extrinsics_path = out_dir/f"{prefix}_extrinsics.npy"
+                np.save(extrinsics_path, self.T_cam_board)
         else:
             extrinsics_path = out_dir/f"{prefix}_extrinsics.npy"
-            T_cam_board = np.load(extrinsics_path) if extrinsics_path.exists() else None
+            self.T_cam_board = np.load(extrinsics_path) if extrinsics_path.exists() else None
 
         if render:
             min_depth_m = 0.2
@@ -133,11 +140,11 @@ class Camera():
             out_dir.mkdir(exist_ok=True, parents=True)
             bgr_path = out_dir / f"{prefix}_bgr.png"
             rgb_path = out_dir / f"{prefix}_rgb.png"
-            depth_path = out_dir / f"{prefix}_depth_raw.png"
+            depth_path = out_dir / f"{prefix}_depth_m.npy"
             meta_path = out_dir / f"{prefix}_camera_meta.json"
             metadata = {
-                'bgr_path': bgr_path,
-                'rgb_path': rgb_path, 
+                'bgr_path': str(bgr_path),
+                'rgb_path': str(rgb_path), 
                 'depth_path': depth_path,
                 'K': self.K.tolist(),
                 'dist_coeffs': self.dist_coeffs.tolist(),
@@ -146,10 +153,17 @@ class Camera():
 
             cv2.imwrite(bgr_path, bgr)
             cv2.imwrite(rgb_path, rgb)
-            cv2.imwrite(depth_path, depth_raw)
+            np.save(depth_path, depth_m)
             with open(meta_path, "w") as f:
                 json.dump(metadata, f, indent=4)
             print(f"[camera]: saved {bgr_path}, {rgb_path}, and {depth_path}")
 
-
+    def get_intrinsics(self):
+        # [[fx, 0, cx],
+        #  [0, fy, cy],
+        #  [0, 0, 1]]
+        return self.K
+    
+    def get_extrinsics(self):
+        return self.T_cam_board
 
