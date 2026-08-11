@@ -2,6 +2,7 @@
 artifacts/
 extrinsics/
 tests/
+.vscode/
 
 # Runtime logs
 Log/
