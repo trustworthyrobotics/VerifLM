@@ -45,7 +45,7 @@ camera.stop()
 
 # 2. Query VLM to edit the image
 # Output: edited image stored in VLM_DIR
-edit_image(instruction=CONFIG["instruction"], active=CONFIG["active"], passive=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
+edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
 
 # 3. VGGT depth estimation
 # Output: estimated depths stored in PERCEPTION_DIR
@@ -55,12 +55,12 @@ depth_estimator.predict(input_paths=[CAMERA_DIR/"source_rgb.png", VLM_DIR/"edite
 # 4. GroundingDINO + SA2 loop (user provides bbox if necessary) + depth correction
 # Output: bboxes and masks stored in PERCEPTION_DIR
 bboxer = BBoxer(GROUNDING_DINO_DIR)
-bboxes_json = bboxer.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"], 
+bbox_list = bboxer.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"], 
                             prompts=[ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"], ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"]],
                             output_path=PERCEPTION_DIR/"bboxes.json")
 segmenter = Segmenter(SAM2_DIR)
 segmenter.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"],
-                  bboxes=list(bboxes_json.values()), 
+                  bboxes=bbox_list, 
                   output_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png", PERCEPTION_DIR/"edited_active_mask.png", PERCEPTION_DIR/"edited_passive_mask.png"])
 depth_estimator.correct(source_depth_paths=[CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_vggt_depth_raw.npy"], 
                         source_mask_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png"],

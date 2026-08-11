@@ -138,25 +138,22 @@ class Camera():
         if save:
             out_dir = Path(out_dir)
             out_dir.mkdir(exist_ok=True, parents=True)
-            bgr_path = out_dir / f"{prefix}_bgr.png"
             rgb_path = out_dir / f"{prefix}_rgb.png"
             depth_path = out_dir / f"{prefix}_depth_m.npy"
             meta_path = out_dir / f"{prefix}_camera_meta.json"
             metadata = {
-                'bgr_path': str(bgr_path),
                 'rgb_path': str(rgb_path), 
-                'depth_path': depth_path,
+                'depth_path': str(depth_path),
                 'K': self.K.tolist(),
                 'dist_coeffs': self.dist_coeffs.tolist(),
                 # 'T_cam_board': T_cam_board.tolist() if isinstance(T_cam_board, np.ndarray) else None,
             }
 
-            cv2.imwrite(bgr_path, bgr)
-            cv2.imwrite(rgb_path, rgb)
+            cv2.imwrite(rgb_path, bgr)
             np.save(depth_path, depth_m)
             with open(meta_path, "w") as f:
                 json.dump(metadata, f, indent=4)
-            print(f"[camera]: saved {bgr_path}, {rgb_path}, and {depth_path}")
+            print(f"[camera]: saved {rgb_path}, and {depth_path}")
 
     def get_intrinsics(self):
         # [[fx, 0, cx],

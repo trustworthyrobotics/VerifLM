@@ -65,42 +65,40 @@ class BBoxer:
                                 str(self.repo_path / "weights/groundingdino_swint_ogc.pth"))
 
     def predict(self, input_paths, prompts, output_path=None, loop=False):
-        output_json = {}
+        bbox_list = [None] * len(input_paths)
 
-        for path, prompt, in zip(input_paths, prompts):
+        for i, (path, prompt), in enumerate(zip(input_paths, prompts)):
             bgr = cv2.imread(str(path))
             _, image = load_image(str(path))
 
             bboxes, scores, _ = predict(self.model, image, prompt, box_threshold=0.35, text_threshold=0.25)
 
             if len(bboxes) == 0: # failed prediction
-                output_json[prompt] = None
                 continue
                 
             h, w = bgr.shape[:2]
             cx, cy, bw, bh = bboxes[scores.argmax()].tolist()
 
-            output_json[prompt] = (int((cx-bw/2)*w), int((cy-bh/2)*h), int((cx+bw/2)*w), int((cy+bh/2)*h)) # (xmin, ymin, xmax, ymax)
+            bbox_list[i] = (int((cx-bw/2)*w), int((cy-bh/2)*h), int((cx+bw/2)*w), int((cy+bh/2)*h)) # (xmin, ymin, xmax, ymax)
 
         if loop:
-            self.review(input_paths, output_json)
+            self.review(input_paths, bbox_list)
 
         if output_path: 
-            Path(output_path).write_text(json.dumps(output_json))
+            Path(output_path).write_text(json.dumps(bbox_list, indent=4))
 
-        return output_json
+        return bbox_list
 
-    def review(self, input_paths, output_json):
+    def review(self, input_paths, bbox_list):
         # Wait for user to redraw bboxes 
-        keys = list(output_json)
 
         while True:
             panels = []
             failed = False
 
-            for i, (path, key) in enumerate(zip(input_paths, keys)):
+            for i, (path, bbox) in enumerate(zip(input_paths, bbox_list)):
                 image = cv2.imread(str(path))
-                bbox = output_json[key]
+                bbox = bbox_list[i]
 
                 if bbox is not None:
                     cv2.rectangle(image, bbox[:2], bbox[2:], (0, 255, 0), 2)
@@ -109,7 +107,7 @@ class BBoxer:
                     failed = True
                     status = "DETECTION FAILED - redraw"
 
-                cv2.putText(image, f"{i+1}: {key} | {status}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+                cv2.putText(image, f"{i+1}: {status}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
                 panels.append(cv2.resize(image, (640,360)))
 
             preview = np.vstack([np.hstack(panels[0:2]), np.hstack(panels[2:])])
@@ -132,7 +130,7 @@ class BBoxer:
             cv2.destroyWindow(f"Draw box {choice}")
 
             if w > 0 and h > 0:
-                output_json[keys[choice_i]] = (x, y, x+w, y+h)
+                bbox_list[choice_i] = (x, y, x+w, y+h)
 
         cv2.destroyAllWindows()
             
@@ -146,7 +144,7 @@ class Segmenter:
     def predict(self, input_paths, bboxes, output_paths):
         masks = []
 
-        for path, bbox in zip(input_paths, bboxes.values()):
+        for path, bbox in zip(input_paths, bboxes):
             image = cv2.imread(str(path))
             self.model.set_image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 

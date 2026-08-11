@@ -61,14 +61,14 @@ def query(prompt, input_image_paths=None, provider: Literal["openai", "gemini"]=
         return interaction.output_text
 
 def edit_image(instruction, active_object, passive_object, input_image_path, output_image_path):
-    prompt = load_prompt("prompts/goal_image_edit.txt", instruction=instruction, active_object=active_object, passive_object=passive_object)
+    prompt = load_prompt("prompts/edit_image.txt", instruction=instruction, active_object=active_object, passive_object=passive_object)
     png_bytes = query(prompt, [input_image_path], "gemini", "image")
     with open(output_image_path, "wb") as f:
         f.write(png_bytes)
 
 def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path):
-    translation_prompt = load_prompt('prompts/reason_sampling_translation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
-    rotation_prompt = load_prompt('prompts/reason_sampling_rotation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
+    translation_prompt = load_prompt('prompts/get_sampling_constraints_translation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
+    rotation_prompt = load_prompt('prompts/get_sampling_constraints_rotation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
 
     json_t = query(translation_prompt, translation_image_paths, "openai", "json")
     json_r = query(rotation_prompt, rotation_image_paths, "openai", "json")
@@ -94,7 +94,7 @@ def get_sampling_constraints(instruction, active_object, passive_object, active_
     return S
 
 def get_validation_program(instruction, active_object, passive_object, active_dimensions, passive_dimensions, input_image_paths, output_path):
-    prompt = load_prompt("prompts/validation_program.txt", instruction=instruction, active_object=active_object, passive_object=passive_object, 
+    prompt = load_prompt("prompts/get_validation_program.txt", instruction=instruction, active_object=active_object, passive_object=passive_object, 
                          active_dimensions=active_dimensions, passive_dimensions=passive_dimensions)
     json_raw = query(prompt, input_image_paths, "openai", "json")
 
@@ -114,3 +114,11 @@ def get_validation_program(instruction, active_object, passive_object, active_di
         pitch_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["pitch"]],
         yaw_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["yaw"]],
     )
+
+def select_best_candidate(instruction, active_object, passive_object, input_image_paths, output_path):
+    prompt = load_prompt("prompts/select_best_candidate.txt", instruction, active_object, passive_object)
+    json_raw = query(prompt, input_image_paths, "openai", "json")
+    with open(output_path, "w") as file:
+        json.dump(json_raw, file, indent=4)
+
+    return json_raw["best_index"]

@@ -25,7 +25,7 @@ class SamplingConstraints:
     x_bias: Literal["positive", "negative", "none"]
     y_bias: Literal["positive", "negative", "none"]
     z_bias: Literal["positive", "negative", "none"]
-    def sample_dt(r, bias):
+    def sample_dt(self, r, bias):
         if bias == "positive":
             return np.random.uniform(0, r)
         if bias == "negative":
@@ -63,7 +63,6 @@ class ValidationProgram:
     yaw_drift_tolerance: float
     max_initial_penetration: float = 0.1
     max_final_penetration: float = 0.002
-    reasoning: str
 
 @dataclass
 class Scene:
