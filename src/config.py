@@ -301,7 +301,7 @@ BENCHMARK_CONFIGS = {
             'allowed_position_drift_fraction': 0.5,
             'allowed_orientation_drift_deg': 20,
         },
-        'render_camera_views': (
+        'render_config': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
             {'lookat': (0.0, 0.0, 0.0), 'front': (1, 1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
         ),
@@ -325,7 +325,7 @@ BENCHMARK_CONFIGS = {
             'allowed_position_drift_fraction': 0.5,
             'allowed_orientation_drift_deg': 20.0,
         },
-        'render_camera_views': (
+        'render_config': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (6.0, -6.0, 6.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
             {'lookat': (0.0, 0.0, 0.0), 'front': (6.0, 6.0, 6.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
         ),
@@ -349,7 +349,7 @@ BENCHMARK_CONFIGS = {
             'allowed_position_drift_fraction': 0.5,
             'allowed_orientation_drift_deg': 22.0,
         },
-        "render_camera_views": (
+        "render_config": (
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.4, 0.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 0.9},
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.4, 0.4), 'up': (0.0, 0.0, 1.0), 'zoom': 0.8},
         ),

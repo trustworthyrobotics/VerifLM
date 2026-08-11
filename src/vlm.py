@@ -5,6 +5,8 @@ from typing import Literal
 from dotenv import load_dotenv
 from openai import OpenAI
 from google import genai
+from digital_twin import SamplingConstraints, ValidationProgram, XYZRelation
+from digital_twin import POSITION_TOLERANCE_MAP, POSITION_CONSTRAINT_MAP, ORIENTATION_TOLERANCE_MAP, ORIENTATION_CONSTRAINT_MAP
 
 load_dotenv()
 openai_client = OpenAI()
@@ -58,8 +60,57 @@ def query(prompt, input_image_paths=None, provider: Literal["openai", "gemini"]=
 
         return interaction.output_text
 
-def edit_image(instruction, active, passive, input_image_path, output_image_path):
-    prompt = load_prompt("prompts/goal_image_edit.txt", instruction=instruction, active=active, passive=passive)
+def edit_image(instruction, active_object, passive_object, input_image_path, output_image_path):
+    prompt = load_prompt("prompts/goal_image_edit.txt", instruction=instruction, active_object=active_object, passive_object=passive_object)
     png_bytes = query(prompt, [input_image_path], "gemini", "image")
     with open(output_image_path, "wb") as f:
         f.write(png_bytes)
+
+def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path):
+    translation_prompt = load_prompt('prompts/reason_sampling_translation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
+    rotation_prompt = load_prompt('prompts/reason_sampling_rotation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
+
+    json_t = query(translation_prompt, translation_image_paths, "openai", "json")
+    json_r = query(rotation_prompt, rotation_image_paths, "openai", "json")
+
+    with open(translation_output_path, "w") as file:
+        json.dump(json_t, file, indent=4)
+
+    with open(rotation_output_path, "w") as file:
+        json.dump(json_r, file, indent=4)
+
+    max_active_dim = max(active_dimensions)
+    S = SamplingConstraints(
+        x=POSITION_CONSTRAINT_MAP[json_t["translation"]["x"]["assessment"]]*max_active_dim,
+        y=POSITION_CONSTRAINT_MAP[json_t["translation"]["y"]["assessment"]]*max_active_dim,
+        z=POSITION_CONSTRAINT_MAP[json_t["translation"]["z"]["assessment"]]*max_active_dim,
+        x_bias=json_t["translation"]["x"]["direction"],
+        y_bias=json_t["translation"]["y"]["direction"],
+        z_bias=json_t["translation"]["z"]["direction"],
+        roll=ORIENTATION_CONSTRAINT_MAP[json_r["rotation"]["roll"]["assessment"]],
+        pitch=ORIENTATION_CONSTRAINT_MAP[json_r["rotation"]["pitch"]["assessment"]],
+        yaw=ORIENTATION_CONSTRAINT_MAP[json_r["rotation"]["yaw"]["assessment"]],
+    )
+    return S
+
+def get_validation_program(instruction, active_object, passive_object, active_dimensions, passive_dimensions, input_image_paths, output_path):
+    prompt = load_prompt("prompts/validation_program.txt", instruction=instruction, active_object=active_object, passive_object=passive_object, 
+                         active_dimensions=active_dimensions, passive_dimensions=passive_dimensions)
+    json_raw = query(prompt, input_image_paths, "openai", "json")
+
+    with open(output_path, "w") as file:
+        json.dump(json_raw, file, indent=4)
+
+    xyz_relations = [XYZRelation(axis=json_raw["xyz_relations"]["axis"], relation=json_raw["xyz_relations"]["relation"])]
+    V = ValidationProgram(
+        validation_mode=json_raw["validation_mode"],
+        required_contacts=json_raw["required_contacts"],
+        forbidden_contacts=json_raw["forbidden_contacts"],
+        xyz_relations=xyz_relations,
+        x_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["x"]],
+        y_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["y"]],
+        z_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["z"]],
+        roll_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["roll"]],
+        pitch_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["pitch"]],
+        yaw_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["yaw"]],
+    )

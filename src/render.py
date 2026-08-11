@@ -32,7 +32,7 @@ def render_mesh(mesh: TriangleMesh, show_axes=True, axis_size=0.15):
     vis.destroy_window()
 
 def render_for_vlm(active_path, passive_path, output_path, T_passive_active=None, T_passive_world=None, 
-                   axis: Literal["active", "world"]="active", lookat=[0,0,0], front=[0,1,0], up=[0,0,1], zoom=1, axis_size=0.15):
+                   rendered_frame: Literal["active", "world"]="active", lookat=[0,0,0], front=[0,1,0], up=[0,0,1], zoom=1, axis_size=0.15):
     active_mesh = load_mesh(active_path)
     passive_mesh = load_mesh(passive_path)
 
@@ -45,11 +45,13 @@ def render_for_vlm(active_path, passive_path, output_path, T_passive_active=None
     vis.add_geometry(passive_mesh)
     vis.add_geometry(active_mesh)
 
-    if axis == "active":
+    if rendered_frame == "active":
         active_axes = TriangleMesh.create_coordinate_frame(size=axis_size)
         active_axes.transform(T_passive_active)
         vis.add_geometry(active_axes)
-    elif axis == "world":
+    elif rendered_frame == "world":
+        T_passive_world[0:3, 3] = np.array([-0.05, 0, 0.05])
+
         world_axes = TriangleMesh.create_coordinate_frame(size=axis_size)
         world_axes.transform(T_passive_world)
         vis.add_geometry(world_axes)

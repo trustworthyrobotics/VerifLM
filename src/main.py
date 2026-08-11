@@ -3,8 +3,9 @@ import numpy as np
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS
 from pathlib import Path
 from src.camera import Camera
-from src.vlm import edit_image
+from src.vlm import edit_image, get_sampling_constraints, get_validation_program
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
+from src.render import render_for_vlm
 
 
 # Read user args
@@ -85,9 +86,40 @@ T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png",
 
 # 6. Render poses
 # Output: axis-labeled pictures of objects in RENDER_DIR
+
+# First pair of renderings: world-axis-labeled renders for translational reasoning
+T_cam_world = camera.get_extrinsics()
+T_passive_world_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_world
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
+               T_passive_world=T_passive_world_edited, rendered_frame="world",
+               lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
+               T_passive_world=T_passive_world_edited, rendered_frame="world",
+               lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+
+# Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
 T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
+               T_passive_world=T_passive_active_edited, rendered_frame="active",
+               lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
+               T_passive_world=T_passive_active_edited, rendered_frame="active",
+               lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+
 
 # 7. Query VLM for validation program V and sampling constraints S
+# output: sampling constraints S and validation program V
+S = get_sampling_constraints(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
+                             active_dimensions=ACTIVE_CATALOG["dimensions"], 
+                             translation_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
+                             rotation_image_paths=[RENDER_DIR/"rotation_0.png", RENDER_DIR/"rotation_1.png"],
+                             translation_output_path=VLM_DIR/"translation_constraints.json",
+                             rotation_output_path=VLM_DIR/"rotation_constraints.json")
+V = get_validation_program(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
+                           active_dimensions=ACTIVE_CATALOG["dimensions"], passive_dimensions=PASSIVE_CATALOG["dimensions"],
+                           input_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
+                           output_path=VLM_DIR/"validation_program.json")
+
 # 8. Sample in Mujoco + render successful candidates
 # 9. Grasp Planning
 # 10. OMPL trajectory (stages: {waypoints + timestamps}) 

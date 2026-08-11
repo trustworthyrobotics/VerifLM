@@ -1,0 +1,68 @@
+You are defining semantic validation constraints for a MuJoCo robotic manipulation goal pose.
+
+Task instruction:
+{instruction}
+
+Active object:
+
+* Name: {active_object}
+* Dimensions [x, y, z] in meters: {active_dimensions}
+
+Passive object:
+
+* Name: {passive_object}
+* Dimensions [x, y, z] in meters: {passive_dimensions}
+
+Choose one validation mode:
+
+* `settling`: simulate under gravity and validate the final settled pose. Use when the active object should end in a stable, supported configuration.
+* `geometric_only`: validate only the proposed pose without simulation. Use for intentionally unsupported goals where gravity would make the object fall.
+
+Return JSON only:
+
+{
+"validation_mode": "settling | geometric_only",
+"required_contacts": [
+"active_passive | active_table"
+],
+"forbidden_contacts": [
+"active_passive | active_table"
+],
+"xyz_relations": [
+{
+"axis": "x | y | z",
+"relation": "greater_than | less_than",
+"subject": "active",
+"reference": "passive"
+}
+],
+"position_drift_tolerance": {
+"x": "strict | moderate | permissive",
+"y": "strict | moderate | permissive",
+"z": "strict | moderate | permissive"
+} | null,
+"orientation_drift_tolerance": {
+"x": "strict | moderate | permissive",
+"y": "strict | moderate | permissive",
+"z": "strict | moderate | permissive"
+} | null,
+"reasoning": "brief explanation"
+}
+
+Rules:
+
+1. Use only whole-object contacts and whole-object XYZ relations. Do not refer to semantic parts such as handles, rims, slots, pegs, or spouts.
+
+2. `required_contacts` must exist after settling, or at the proposed pose for `geometric_only`. `forbidden_contacts` must not occur. Use empty lists when no contact constraint is clearly implied.
+
+3. Add an XYZ relation only when clearly implied by the task. Relations compare the active and passive MuJoCo body-frame origins in the world frame.
+
+4. For `settling`, choose drift tolerance based on how much motion is acceptable while still preserving the intended goal:
+
+   * `strict`: small motion only; noticeable drift likely means failure.
+   * `moderate`: some settling or reorientation is acceptable.
+   * `permissive`: substantial motion is acceptable as long as the task remains satisfied.
+
+5. For `geometric_only`, set both drift tolerance fields to `null`.
+
+6. Do not invent uncertain constraints. Penetration limits, simulation duration, perturbations, and numeric drift thresholds are system-owned and must not be included.
