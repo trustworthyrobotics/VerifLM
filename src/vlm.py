@@ -102,17 +102,18 @@ def get_validation_program(instruction, active_object, passive_object, active_di
         json.dump(json_raw, file, indent=4)
 
     xyz_relations = [XYZRelation(axis=json_raw["xyz_relations"]["axis"], relation=json_raw["xyz_relations"]["relation"])]
+    max_active_dim = max(active_dimensions)
     V = ValidationProgram(
         validation_mode=json_raw["validation_mode"],
         required_contacts=json_raw["required_contacts"],
         forbidden_contacts=json_raw["forbidden_contacts"],
         xyz_relations=xyz_relations,
-        x_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["x"]],
-        y_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["y"]],
-        z_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["z"]],
-        roll_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["roll"]],
-        pitch_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["pitch"]],
-        yaw_drift_tolerance=ORIENTATION_CONSTRAINT_MAP[json_raw["orientation_drift_tolerance"]["yaw"]],
+        x_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["x"]] * max_active_dim,
+        y_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["y"]] * max_active_dim,
+        z_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["z"]] * max_active_dim,
+        roll_drift_tolerance=ORIENTATION_TOLERANCE_MAP[json_raw["orientation_drift_tolerance"]["roll"]],
+        pitch_drift_tolerance=ORIENTATION_TOLERANCE_MAP[json_raw["orientation_drift_tolerance"]["pitch"]],
+        yaw_drift_tolerance=ORIENTATION_TOLERANCE_MAP[json_raw["orientation_drift_tolerance"]["yaw"]],
     )
 
 def select_best_candidate(instruction, active_object, passive_object, input_image_paths, output_path):
