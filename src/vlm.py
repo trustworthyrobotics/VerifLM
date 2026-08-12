@@ -66,7 +66,7 @@ def edit_image(instruction, active_object, passive_object, input_image_path, out
     with open(output_image_path, "wb") as f:
         f.write(png_bytes)
 
-def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path):
+def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path) -> SamplingConstraints:
     translation_prompt = load_prompt('prompts/get_sampling_constraints_translation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
     rotation_prompt = load_prompt('prompts/get_sampling_constraints_rotation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
 
@@ -93,7 +93,7 @@ def get_sampling_constraints(instruction, active_object, passive_object, active_
     )
     return S
 
-def get_validation_program(instruction, active_object, passive_object, active_dimensions, passive_dimensions, input_image_paths, output_path):
+def get_validation_program(instruction, active_object, passive_object, active_dimensions, passive_dimensions, input_image_paths, output_path) -> ValidationProgram:
     prompt = load_prompt("prompts/get_validation_program.txt", instruction=instruction, active_object=active_object, passive_object=passive_object, 
                          active_dimensions=active_dimensions, passive_dimensions=passive_dimensions)
     json_raw = query(prompt, input_image_paths, "openai", "json")

@@ -1,11 +1,12 @@
 import argparse
 import numpy as np
-from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS
+from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, 
 from pathlib import Path
 from src.camera import Camera
 from src.vlm import edit_image, get_sampling_constraints, get_validation_program
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
 from src.render import render_for_vlm
+from src.digital_twin import T_mujoco_board, DigitalTwin, SceneBuilder, Scene, ValidationProgram, SamplingConstraints
 
 
 # Read user args
@@ -89,22 +90,22 @@ T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png",
 # Output: axis-labeled pictures of objects in RENDER_DIR
 
 # First pair of renderings: world-axis-labeled renders for translational reasoning
-T_cam_world = camera.get_extrinsics()
-T_passive_world_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_world
+T_cam_board = camera.get_extrinsics()
+T_passive_board_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_board
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
-               T_passive_world=T_passive_world_edited, rendered_frame="world",
+               T_passive_board=T_passive_board_edited, rendered_frame="world",
                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
-               T_passive_world=T_passive_world_edited, rendered_frame="world",
+               T_passive_board=T_passive_board_edited, rendered_frame="world",
                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
 # Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
 T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
-               T_passive_world=T_passive_active_edited, rendered_frame="active",
+               T_passive_board=T_passive_active_edited, rendered_frame="active",
                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
-               T_passive_world=T_passive_active_edited, rendered_frame="active",
+               T_passive_board=T_passive_active_edited, rendered_frame="active",
                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
 
@@ -122,5 +123,21 @@ V = get_validation_program(instruction=CONFIG["instruction"], active_object=CONF
                            output_path=VLM_DIR/"validation_program.json")
 
 # 8. Sample in Mujoco + render successful candidates
+T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
+T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
+T_mujoco_goal = T_mujoco_passive @ T_passive_active_edited
+scene_builder = SceneBuilder()
+scene = scene_builder.build(active_name=CONFIG["active"], passive_name=CONFIG["passive"], 
+                    T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_goal=T_mujoco_goal,
+                    output_path=XML_DIR/f"{BENCHMARK_NAME}.xml")
+digital_twin = DigitalTwin(scene, V, S)
+valid_candidates = digital_twin.sample(n_samples=1000, max_valid=5, sim_steps=500, visualize=True) # returns a list of valid T_mujoco_goal
+
+for i, T_mujoco_goal_valid in enumerate(valid_candidates):
+    T_passive_active_valid = np.linalg.inv(T_mujoco_passive) @ T_mujoco_goal_valid
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}",
+                   T_passive_active=T_passive_active_valid, rendered_frame="active",
+                   lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+
 # 9. Grasp Planning
 # 10. OMPL trajectory (stages: {waypoints + timestamps}) 
