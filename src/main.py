@@ -1,6 +1,6 @@
 import argparse
 import numpy as np
-from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, 
+from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS
 from pathlib import Path
 from src.camera import Camera
 from src.vlm import edit_image, get_sampling_constraints, get_validation_program
