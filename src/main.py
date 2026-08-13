@@ -7,7 +7,7 @@ from src.vlm import edit_image, get_sampling_constraints, get_validation_program
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
 from src.render import render_for_vlm
 from src.digital_twin import T_mujoco_board, DigitalTwin, SceneBuilder, Scene, ValidationProgram, SamplingConstraints
-
+from src.trajectory import GraspPlanner, MotionPlanner, TrajectoryPlanner
 
 # Read user args
 parser = argparse.ArgumentParser()
@@ -37,6 +37,8 @@ for dir in [OUTPUT_ROOT_DIR, CAMERA_DIR, PERCEPTION_DIR, RENDER_DIR, VLM_DIR, TR
 GROUNDING_DINO_DIR = ROOT_DIR.parent / "GroundingDINO"
 SAM2_DIR = ROOT_DIR.parent / "sam2"
 FP_DIR = ROOT_DIR.parent / "FoundationPose"
+ANYGRASP_DIR = ROOT_DIR.parent / "anygrasp_sdk" / "grasp_detection"
+ANYGRASP_CHECKPOINT = ANYGRASP_DIR / "checkpoints" / "checkpoint_detection.tar"
 
 # 1. Camera capture RGBD
 # Output: rgbd observations stored in CAMERA_DIR
@@ -140,4 +142,11 @@ for i, T_mujoco_goal_valid in enumerate(valid_candidates):
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
 # 9. Grasp Planning
+grasp_planner = GraspPlanner(ACTIVE_CATALOG, camera.get_intrinsics(), ANYGRASP_CHECKPOINT)
+candidate_grasps = grasp_planner.plan(source_pose=T_cam_active_source, 
+                                      rgb_path=CAMERA_DIR/"source_rgb.png",
+                                      depth_path=CAMERA_DIR/"source_depth_m.npy",
+                                      mask_path=PERCEPTION_DIR/"source_active_mask.png",
+                                      use_anygrasp=False)
+
 # 10. OMPL trajectory (stages: {waypoints + timestamps}) 
