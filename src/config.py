@@ -281,3 +281,13 @@ BENCHMARK_CONFIGS = {
     'book_on_stand_nonprehensile': {},
     'order_letters': {},
 }
+
+# Transformations
+import numpy as np
+T_mujoco_board = np.array([ # arucoboard frame expressed in mujoco's origin frame
+    [1.0, 0.0, 0.0, -0.12],
+    [0.0, -1.0, 0.0, 0.0],
+    [0.0, 0.0, -1.0, 0.7893],
+    [0, 0, 0, 1]
+])
+T_arm_board = np.eyes(4)

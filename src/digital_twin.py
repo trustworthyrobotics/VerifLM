@@ -7,14 +7,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Literal
 from scipy.spatial.transform import Rotation
-from config import OBJECT_CATALOG
+from config import OBJECT_CATALOG, T_mujoco_board
 
-T_mujoco_board = np.array([ # arucoboard frame expressed in mujoco's origin frame
-    [1.0, 0.0, 0.0, -0.12],
-    [0.0, -1.0, 0.0, 0.0],
-    [0.0, 0.0, -1.0, 0.7893],
-    [0, 0, 0, 1]
-])
 POSITION_TOLERANCE_MAP = {"strict": 0.10,"moderate": 0.25, "permissive": 0.50} # multiply by the active object's longest dimension
 ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
 POSITION_CONSTRAINT_MAP = {"correct": 0.2, "normal_search": 1.0, "major_revision": 2.0} # multiply by the active object's longest dimension

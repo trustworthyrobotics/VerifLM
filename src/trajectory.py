@@ -1,18 +1,43 @@
 import numpy as np
 import cv2
+import mujoco
+import mujoco.viewer
+import json
+import time
 from dataclasses import dataclass
 from typing import Literal
 from digital_twin import Scene
 from scipy.spatial.transform import Rotation
+from ompl import base as ob
+from ompl import geometric as og
+from types import SimpleNamespace
+from pathlib import Path
 
 ANYGRASP_HOVER_DISTANCE = 0.10
 EEF_FINGERTIP_REACH = 0.1135
-
 ANYGRASP_EEF_ROTATION = np.array([
     [0, 0, 1],
     [1, 0, 0],
     [0, 1, 0],
 ], dtype=float)
+
+ARM_PREFIX = "arm1_"
+ARM_JOINT_NAMES = tuple(f"{ARM_PREFIX}joint{i}" for i in range(1, 8))
+ARM_JOINT_LIMITS = np.array([
+    [-2.96706,  2.96706],
+    [-2.09440,  2.09440],
+    [-2.96706,  2.96706],
+    [-2.09440,  2.09440],
+    [-2.96706,  2.96706],
+    [-2.09440,  2.09440],
+    [-3.05433,  3.05433],
+])
+ROBOT_BODY_NAMES = tuple([ARM_PREFIX + name for name in ("base", "link1", "link2", "link3", "link4", "link5", "link6", "link7", "adapter_box", "box_gripper", "finger_1", "finger_2")])
+FINGER_BODY_NAMES = (ARM_PREFIX+"finger_1", ARM_PREFIX+"finger_2")
+EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
+TABLE_GEOM_NAME = "table"
+ACTIVE_TABLE_TOLERANCE = 0.002
+ACTIVE_PASSIVE_TOLERANCE = 0.002
 
 @dataclass(frozen=True)
 class Grasp:
@@ -32,23 +57,107 @@ class TrajectoryStage:
     q_path: list[np.ndarray] | None = None
     time_from_start: list[float] | None = None
 
-def solve_ik(scene: Scene, T_world_eef):
-    pass
-
 class CollisionChecker:
     def __init__(self, scene: Scene):
         self.scene = scene
-        self.arm_qadrs = ...
-        self.robot_geom_ids = ...
-        self.active_geom_ids = ...
-        self.passive_geom_ids = ...
-        self.finger_geom_ids = ...
+        self.model = scene.model
+        self.data = mujoco.MjData(self.model)
 
-    def check(self, q, T_eef_active=None):
+        # Arm joint addresses
+        arm_joint_ids = [self.model.joint(name).id for name in ARM_JOINT_NAMES]
+        self.arm_qadrs = np.array([self.model.jnt_qposadr[jid] for jid in arm_joint_ids])
+
+        # Active object freejoint address
+        active_joint_id = int(self.model.body_jntadr[scene.active_body_id])
+        self.active_qadr = int(self.model.jnt_qposadr[active_joint_id])
+
+        # Robot geoms
+        robot_body_ids = {self.model.body(name).id for name in ROBOT_BODY_NAMES}
+        self.robot_geom_ids = {
+            gid for gid in range(self.model.ngeom)
+            if int(self.model.geom_bodyid[gid]) in robot_body_ids
+        }
+
+        # Finger geoms
+        finger_body_ids = {self.model.body(name).id for name in FINGER_BODY_NAMES}
+        self.finger_geom_ids = {gid for gid in range(self.model.ngeom) if int(self.model.geom_bodyid[gid]) in finger_body_ids}
+
+        # Active/passive object geoms
+        self.active_geom_ids = {gid for gid in range(self.model.ngeom) if int(self.model.geom_bodyid[gid]) == scene.active_body_id}
+        self.passive_geom_ids = {gid for gid in range(self.model.ngeom) if int(self.model.geom_bodyid[gid]) == scene.passive_body_id}
+
+        self.table_geom_id = self.model.geom(TABLE_GEOM_NAME).id
+        self.eef_body_id = self.model.body(EEF_BODY_NAME).id
+
+    def check(self, q, T_eef_active=None, allow_active_fingers=False):
         # Set arm to q and attach active object to EEF if provided
-        # Reject self-collision, robot-environment collision, and active-environment collision
-        # Allow active-object contact with the gripper fingers
-        pass
+        self.data.qpos[:] = self.scene.data.qpos
+        self.data.qvel[:] = 0
+        self.data.qpos[self.arm_qadrs] = q
+        mujoco.mj_forward(self.model, self.data)
+
+        if T_eef_active is not None:
+            eef = self.data.body(EEF_BODY_NAME)
+
+            T_world_eef = np.eye(4)
+            T_world_eef[:3, 3] = eef.xpos
+            T_world_eef[:3, :3] = eef.xmat.reshape(3, 3)
+
+            T_world_active = T_world_eef @ T_eef_active
+            quat_xyzw = Rotation.from_matrix(T_world_active[:3, :3]).as_quat()
+
+            self.data.qpos[self.active_qadr:self.active_qadr + 3] = T_world_active[:3, 3]
+            self.data.qpos[self.active_qadr + 3:self.active_qadr + 7] = quat_xyzw[[3, 0, 1, 2]]
+
+            mujoco.mj_forward(self.model, self.data)
+
+        # Check contacts
+        for i in range(self.data.ncon):
+            contact = self.data.contact[i]
+            g1, g2 = int(contact.geom1), int(contact.geom2)
+
+            r1, r2 = g1 in self.robot_geom_ids, g2 in self.robot_geom_ids
+            a1, a2 = g1 in self.active_geom_ids, g2 in self.active_geom_ids
+            p1, p2 = g1 in self.passive_geom_ids, g2 in self.passive_geom_ids
+            t1, t2 = g1 == self.table_geom_id, g2 == self.table_geom_id
+            if contact.dist >= 0:
+                continue
+
+            # Small active-table penetration is tolerated
+            if (a1 and t2) or (a2 and t1):
+                if contact.dist >= -ACTIVE_TABLE_TOLERANCE:
+                    continue
+                return False
+
+            # Small active-passive penetration is tolerated
+            if (a1 and p2) or (a2 and p1):
+                if contact.dist >= -ACTIVE_PASSIVE_TOLERANCE:
+                    continue
+                return False
+
+            # Robot self-collision
+            if r1 and r2:
+                return False
+
+            # Active object may contact fingers only during grasp/transfer stages
+            if (a1 and r2) or (a2 and r1):
+                robot_geom = g2 if a1 else g1
+
+                if allow_active_fingers and robot_geom in self.finger_geom_ids:
+                    continue
+
+                return False
+
+            # Robot-environment collision
+            if r1 or r2:
+                return False
+
+            # Attached active object hitting anything else
+            if T_eef_active is not None and (a1 or a2):
+                return False
+
+        return True
+            
 
 class GraspPlanner:
     def __init__(self, object_catalog, K, anygrasp_checkpoint):
@@ -56,7 +165,7 @@ class GraspPlanner:
         self.K = np.asarray(K, dtype=float)
         self.anygrasp_checkpoint = anygrasp_checkpoint
 
-    def plan(self, source_pose, rgb_path=None, depth_path=None, mask_path=None,
+    def plan(self, T_cam_object, rgb_path=None, depth_path=None, mask_path=None,
              use_anygrasp=False, mask_margin_px=10, max_candidates=50):
         # Generate AnyGrasp candidates near the active-object mask or use hardcoded grasps
         if not use_anygrasp:
@@ -87,7 +196,7 @@ class GraspPlanner:
         if max_candidates is not None:
             raw = raw[:max_candidates]
 
-        return [self._to_grasp(row, source_pose) for row in raw]
+        return [self._to_grasp(row, T_cam_object) for row in raw]
 
     def _point_cloud(self, rgb, depth, min_depth=0.1, max_depth=2.0):
         # Convert RGB-D into camera-frame point cloud
@@ -172,9 +281,9 @@ class GraspPlanner:
 
         return Grasp(T_object_eef, T_object_pregrasp_eef)    
 
-    def load_hardcoded(self, object_catalog):
+    def load_hardcoded(self):
         grasps = []
-        grasp_configs = object_catalog["grasps"]
+        grasp_configs = self.object_catalog["grasps"]
         if grasp_configs == None or len(grasp_configs) == 0:
             return grasps
 
@@ -191,47 +300,130 @@ class GraspPlanner:
             T_object_pregrasp_eef[:3, 3] += np.array(hover_offset_xyz)
 
             z_rotation_samples = grasp_config["z_rotation_samples"]
-            if not grasp_config["z_rotation_samples"] or grasp_config["z_rotation_samples"] == 1:
+            if z_rotation_samples is None or z_rotation_samples == 1:
+                grasps.append(Grasp(T_object_eef, T_object_pregrasp_eef))
                 continue
 
             for angle in np.linspace(0.0, 360.0, z_rotation_samples, endpoint=False):
                 T_object_rotation = np.eye(4)
                 T_object_rotation[:3, :3] = Rotation.from_euler("z", angle, degrees=True).as_matrix()
-
-                T_object_eef = T_object_rotation @ T_object_eef
-                T_object_pregrasp_eef = T_object_rotation @ T_object_pregrasp_eef
-                grasps.append(Grasp(T_object_eef=T_object_eef, T_object_pregrasp_eef=T_object_pregrasp_eef))
+                grasps.append(Grasp(T_object_rotation @ T_object_eef, T_object_rotation @ T_object_pregrasp_eef))
 
         return grasps
-
-class MotionPlanner:
-    def __init__(self, scene: Scene):
-        # Initialize collision checker and cache arm joint limits
-        self.scene = scene
-        self.collision_checker = CollisionChecker(scene)
-        self.joint_limits = ...
-
-    def plan(self, q_start, q_goal, T_eef_active=None):
-        # Run OMPL RRT with CollisionChecker.check as the state validity checker
-        # Simplify and interpolate the collision-free path
-        pass
-
 
 class TrajectoryPlanner: 
     def __init__(self, scene: Scene, max_joint_vel=0.2):
         self.scene = scene
-        pass
+        self.model = scene.model
+        self.ik_data = mujoco.MjData(self.model)
+        self.max_joint_vel = max_joint_vel
+        self.collision_checker = CollisionChecker(scene)
 
-    def plan(self, q_start, q_goal, candidate_grasps):
-        # For every candidate grasp that passed (1) IK feasible source and goal (2) collision free at source and goal
-        ## get OMPL trajectory
-        ## interpolate()
-        ## time-parametrize
-        pass
+        self.arm_qadrs = np.array([self.model.joint(name).qposadr[0] for name in ARM_JOINT_NAMES])
+        self.arm_dadrs = np.array([self.model.joint(name).dofadr[0] for name in ARM_JOINT_NAMES])
+        self.eef_body_id = self.model.body(EEF_BODY_NAME).id
+        self.chosen_grasp = None
+
+    def plan(self, q_start, T_mujoco_object_src, T_mujoco_object_goal, grasps: list[Grasp], output_path=None):
+        # For every candidate grasp 
+        stages = None
+        for i, grasp in enumerate(grasps):
+            T_eef_object = np.linalg.inv(grasp.T_object_eef)
+            T_mujoco_eef_grasp = T_mujoco_object_src @ grasp.T_object_eef 
+            T_mujoco_eef_pregrasp = T_mujoco_object_src @ grasp.T_object_pregrasp_eef
+            T_mujoco_eef_goal = T_mujoco_object_goal @ grasp.T_object_eef
+
+            q_pregrasp = self.solve_ik(T_mujoco_eef_pregrasp)
+            q_grasp = self.solve_ik(T_mujoco_eef_grasp, q_pregrasp) if q_pregrasp is not None else None
+            q_goal = self.solve_ik(T_mujoco_eef_goal, q_grasp) if q_grasp is not None else None
+
+            ## check (1) IK feasible source and goal (2) collision free at source and goal
+            if q_pregrasp is None or q_grasp is None or q_goal is None:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK")
+                continue
+            # if (not self.collision_checker.check(q_start) or 
+            #    not self.collision_checker.check(q_goal, T_eef_object)):
+            #     print(f"[trajectory]: {i}/{len(grasps)} failed due to collision")
+            #     continue
+
+            ## OMPL + simplify + interpolate paths
+            traj_start_pregrasp = self.plan_trajectory(q_start, q_pregrasp)
+            if not traj_start_pregrasp:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan start to pregrasp path")
+                continue
+            traj_pregrasp_grasp = self.plan_grasp_approach(q_pregrasp, q_grasp)
+            if not traj_pregrasp_grasp:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan pregrasp to grasp path")
+                continue
+            traj_grasp_pregrasp = list(reversed(traj_pregrasp_grasp))
+
+            traj_pregrasp_goal = self.plan_trajectory(q_pregrasp, q_goal, T_eef_object)
+            if not traj_pregrasp_goal:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan pregrasp to goal path")
+                continue
+
+            ## Create time-parametrized trajectory
+            stages = [
+                TrajectoryStage("move", q_path=traj_start_pregrasp, time_from_start=self.time_parametrize(traj_start_pregrasp)),
+                TrajectoryStage("move", q_path=traj_pregrasp_grasp, time_from_start=self.time_parametrize(traj_pregrasp_grasp)),
+                TrajectoryStage("grasp"),
+                TrajectoryStage("move", q_path=traj_grasp_pregrasp, time_from_start=self.time_parametrize(traj_grasp_pregrasp)),
+                TrajectoryStage("move", q_path=traj_pregrasp_goal, time_from_start=self.time_parametrize(traj_pregrasp_goal)),
+                TrajectoryStage("release")
+            ]
+            self.chosen_grasp = grasp
+            break
+
+        # write trajectory along with chosen_grasp
+        if output_path is not None and stages is not None:
+            data = {"T_object_eef": self.chosen_grasp.T_object_eef.tolist(),
+                    "T_object_pregrasp_eef": self.chosen_grasp.T_object_pregrasp_eef.tolist(),
+                    "trajectory": [{"type": stage.type, 
+                                    "q_path": [q.tolist() for q in stage.q_path] if stage.q_path is not None else None, 
+                                    "time_from_start": stage.time_from_start if stage.time_from_start is not None else None} for stage in stages]}
+            Path(output_path).write_text(json.dumps(data, indent=2))
+            
+        return stages
+
+    def plan_trajectory(self, q_start, q_goal, T_eef_active=None, solve_time=5.0):
+        space = ob.RealVectorStateSpace(7)
+        bounds = ob.RealVectorBounds(7)
+        for i, (low, high) in enumerate(ARM_JOINT_LIMITS):
+            bounds.setLow(i, low)
+            bounds.setHigh(i, high)
+        space.setBounds(bounds)
+
+        setup = og.SimpleSetup(space)
+        checker_fn = lambda s: self.collision_checker.check(np.array([s[i] for i in range(7)]), T_eef_active, allow_active_fingers=T_eef_active is not None)
+        setup.setStateValidityChecker(ob.StateValidityCheckerFn(checker_fn))
+        setup.getSpaceInformation().setStateValidityCheckingResolution(0.005)
+
+        start, goal = ob.State(space), ob.State(space)
+        for i in range(7):
+            start[i], goal[i] = q_start[i], q_goal[i]
+
+        setup.setStartAndGoalStates(start, goal)
+        setup.setPlanner(og.RRTConnect(setup.getSpaceInformation()))
+
+        if not setup.solve(solve_time):
+            return None
+
+        setup.simplifySolution()
+        path = setup.getSolutionPath()
+        path.interpolate()
+        q_list = []
+        for i in range(path.getStateCount()):
+            state = path.getState(i)
+            q_list.append([state[j] for j in range(7)])
+        return q_list
+
+    def plan_grasp_approach(self, q_pregrasp, q_grasp, steps=15):
+        path = [(1-a)*q_pregrasp+a*q_grasp for a in np.linspace(0, 1, steps)]
+        return path
 
     def time_parametrize(self, q_path, min_segment_dt=0.001):
         times = [0.0]
-        elapsed = [0.0]
+        elapsed = 0.0
         for q0, q1 in zip(q_path[:-1], q_path[1:]):
             delta_q = np.abs(q1 - q0)
             segment_dt = np.max(delta_q) / self.max_joint_vel
@@ -239,6 +431,67 @@ class TrajectoryPlanner:
             elapsed += segment_dt
             times.append(elapsed)
         return times
+    
+    def solve_ik(self, T_mujoco_eef, q_init=None, max_iters=500, pos_tol=1e-3, rot_tol=1e-2, damping=1e-3, step_size=0.5):
+        self.ik_data.qpos[:] = self.scene.data.qpos
+        q = self.ik_data.qpos[self.arm_qadrs].copy() if q_init is None else np.asarray(q_init).copy()
+
+        for _ in range(max_iters):
+            q = np.clip(q, ARM_JOINT_LIMITS[:,0], ARM_JOINT_LIMITS[:,1])
+            self.ik_data.qpos[self.arm_qadrs] = q
+            mujoco.mj_forward(self.model, self.ik_data)
+
+            eef = self.ik_data.body(EEF_BODY_NAME)
+            pos_err = T_mujoco_eef[:3,3] - eef.xpos
+            rot_err = Rotation.from_matrix(T_mujoco_eef[:3,:3] @ eef.xmat.reshape(3,3).T).as_rotvec()
+            if np.linalg.norm(pos_err) < pos_tol and np.linalg.norm(rot_err) < rot_tol:
+                return q.copy()
+
+            jac_pos, jac_rot = np.zeros((3, self.model.nv)), np.zeros((3, self.model.nv))
+            mujoco.mj_jacBody(self.model, self.ik_data, jac_pos, jac_rot, self.eef_body_id)
+            J = np.vstack((jac_pos[:, self.arm_dadrs], jac_rot[:, self.arm_dadrs]))
+            error = np.hstack((pos_err, rot_err))
+            q += step_size * J.T @ np.linalg.solve(J @ J.T + damping*np.eye(6), error)
+
+        return None
 
     def replay_trajectory(self, trajectory: list[TrajectoryStage]):
-        pass
+        data = mujoco.MjData(self.model)
+        data.qpos[:] = self.scene.data.qpos
+        active_qadr = self.collision_checker.active_qadr
+        T_eef_object = np.linalg.inv(self.chosen_grasp.T_object_eef)
+        attached = False
+
+        with mujoco.viewer.launch_passive(self.model, data) as viewer:
+            for stage in trajectory:
+                if stage.type == "grasp":
+                    attached = True
+                    continue
+                if stage.type == "release":
+                    attached = False
+                    continue
+
+                t0 = time.monotonic()
+                for q, t in zip(stage.q_path, stage.time_from_start):
+                    t = t / 3.0 # speed up replay by a factor of 3
+                    while viewer.is_running() and time.monotonic() - t0 < t:
+                        viewer.sync()
+                        time.sleep(0.001)
+                    if not viewer.is_running():
+                        return
+
+                    data.qpos[self.arm_qadrs] = q
+                    mujoco.mj_forward(self.model, data)
+
+                    if attached:
+                        eef = data.body(EEF_BODY_NAME)
+                        T_mujoco_eef = np.eye(4)
+                        T_mujoco_eef[:3, 3] = eef.xpos
+                        T_mujoco_eef[:3, :3] = eef.xmat.reshape(3,3)
+                        T_mujoco_object = T_mujoco_eef @ T_eef_object
+                        quat = Rotation.from_matrix(T_mujoco_object[:3, :3]).as_quat()
+
+                        data.qpos[active_qadr:active_qadr+3] = T_mujoco_object[:3,3]
+                        data.qpos[active_qadr+3:active_qadr+7] = quat[[3,0,1,2]]
+                        mujoco.mj_forward(self.model, data)
+                    viewer.sync()
