@@ -290,4 +290,4 @@ T_mujoco_board = np.array([ # arucoboard frame expressed in mujoco's origin fram
     [0.0, 0.0, -1.0, 0.7893],
     [0, 0, 0, 1]
 ])
-T_arm_board = np.eyes(4)
+T_arm_board = np.eye(4)

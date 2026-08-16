@@ -1,13 +1,15 @@
 import argparse
 import numpy as np
-from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS
+import cv2
+from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
 from pathlib import Path
 from src.camera import Camera
-from src.vlm import edit_image, get_sampling_constraints, get_validation_program
+from src.vlm import edit_image, get_sampling_constraints, get_validation_program, select_best_candidate
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
 from src.render import render_for_vlm
-from src.digital_twin import T_mujoco_board, DigitalTwin, SceneBuilder, Scene, ValidationProgram, SamplingConstraints
-from src.trajectory import GraspPlanner, MotionPlanner, TrajectoryPlanner
+from src.digital_twin import DigitalTwin, SceneBuilder
+from src.trajectory import GraspPlanner, TrajectoryPlanner
+
 
 # Read user args
 parser = argparse.ArgumentParser()
@@ -22,8 +24,8 @@ ACTIVE_CATALOG = OBJECT_CATALOG[CONFIG["active"]]
 PASSIVE_CATALOG = OBJECT_CATALOG[CONFIG["passive"]]
 
 # Define directories
-ROOT_DIR = Path(__file__).resolve()
-OUTPUT_ROOT_DIR = Path("artifacts" / BENCHMARK_NAME)
+ROOT_DIR = Path(__file__).resolve().parent
+OUTPUT_ROOT_DIR = ROOT_DIR / "artifacts" / BENCHMARK_NAME
 CAMERA_DIR = OUTPUT_ROOT_DIR / "camera"
 PERCEPTION_DIR = OUTPUT_ROOT_DIR / "perception"
 RENDER_DIR = OUTPUT_ROOT_DIR / "render"
@@ -44,8 +46,14 @@ ANYGRASP_CHECKPOINT = ANYGRASP_DIR / "checkpoints" / "checkpoint_detection.tar"
 # Output: rgbd observations stored in CAMERA_DIR
 camera = Camera()
 camera.start()
-camera.capture(render=True, save=True, calculate_extrinsics=args.calc_extrinsics, out_dir=CAMERA_DIR)
-camera.stop()
+try: 
+    camera.capture(render=True, save=True, calculate_extrinsics=args.calc_extrinsics, out_dir=CAMERA_DIR)
+finally:
+    camera.stop()
+
+T_cam_board = camera.get_extrinsics()
+if T_cam_board is None:
+    raise RuntimeError("Camera extrinsics unavailable")
 
 # 2. Query VLM to edit the image
 # Output: edited image stored in VLM_DIR
@@ -56,12 +64,12 @@ edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], pa
 depth_estimator = DepthEstimator()
 depth_estimator.predict(input_paths=[CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png"], output_paths=[PERCEPTION_DIR/"source_vggt_depth_raw.npy", PERCEPTION_DIR/"edited_vggt_depth_raw.npy"])
 
-# 4. GroundingDINO + SA2 loop (user provides bbox if necessary) + depth correction
+# 4. GroundingDINO + SAM2 loop (user provides bbox if necessary) + depth correction
 # Output: bboxes and masks stored in PERCEPTION_DIR
 bboxer = BBoxer(GROUNDING_DINO_DIR)
 bbox_list = bboxer.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"], 
                             prompts=[ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"], ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"]],
-                            output_path=PERCEPTION_DIR/"bboxes.json")
+                            output_path=PERCEPTION_DIR/"bboxes.json", loop=True)
 segmenter = Segmenter(SAM2_DIR)
 segmenter.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"],
                   bboxes=bbox_list, 
@@ -72,7 +80,7 @@ depth_estimator.correct(source_depth_paths=[CAMERA_DIR/"source_depth_m.npy", PER
                         output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy")
 
 # 5. FP pose estimation 
-# Output: estimated object poses in world frame in PERCEPTION_DIR
+# Output: estimated object poses in camera frame in PERCEPTION_DIR
 pose_estimator = PoseEstimator(repo_path=FP_DIR)
 T_cam_active_source = pose_estimator.predict(rgb_path=CAMERA_DIR/"source_rgb.png", depth_path=CAMERA_DIR/"source_depth_m.npy", 
                                             mask_path=PERCEPTION_DIR/"source_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
@@ -88,26 +96,30 @@ T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png",
                                             mask_path=PERCEPTION_DIR/"edited_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
                                             K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_passive_pose_cam.npy")
 
+
+# Derive more transformations for later use
+T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
+T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
+T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
+T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_edited
+
 # 6. Render poses
 # Output: axis-labeled pictures of objects in RENDER_DIR
 
 # First pair of renderings: world-axis-labeled renders for translational reasoning
-T_cam_board = camera.get_extrinsics()
-T_passive_board_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_board
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
-               T_passive_board=T_passive_board_edited, rendered_frame="world",
+               T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
-               T_passive_board=T_passive_board_edited, rendered_frame="world",
+               T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
 # Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
-T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
-               T_passive_board=T_passive_active_edited, rendered_frame="active",
+               T_passive_active=T_passive_active_edited, rendered_frame="active",
                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
-               T_passive_board=T_passive_active_edited, rendered_frame="active",
+               T_passive_active=T_passive_active_edited, rendered_frame="active",
                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
 
@@ -125,28 +137,50 @@ V = get_validation_program(instruction=CONFIG["instruction"], active_object=CONF
                            output_path=VLM_DIR/"validation_program.json")
 
 # 8. Sample in Mujoco + render successful candidates
-T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
-T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
-T_mujoco_goal = T_mujoco_passive @ T_passive_active_edited
 scene_builder = SceneBuilder()
 scene = scene_builder.build(active_name=CONFIG["active"], passive_name=CONFIG["passive"], 
-                    T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_goal=T_mujoco_goal,
+                    T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_active_goal=T_mujoco_active_goal,
                     output_path=XML_DIR/f"{BENCHMARK_NAME}.xml")
 digital_twin = DigitalTwin(scene, V, S)
-valid_candidates = digital_twin.sample(n_samples=1000, max_valid=5, sim_steps=500, visualize=True) # returns a list of valid T_mujoco_goal
+candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True) # returns a list of valid T_mujoco_active_goal
+if not candidates:
+    raise RuntimeError("No physically valid goal candidates found.")
 
-for i, T_mujoco_goal_valid in enumerate(valid_candidates):
-    T_passive_active_valid = np.linalg.inv(T_mujoco_passive) @ T_mujoco_goal_valid
+candidate_image_paths = []
+for i, T_mujoco_active_goal_valid in enumerate(candidates):
+    T_passive_active_valid = np.linalg.inv(T_mujoco_passive) @ T_mujoco_active_goal_valid
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}",
                    T_passive_active=T_passive_active_valid, rendered_frame="active",
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
-# 9. Grasp Planning
+    image_path = RENDER_DIR / f"valid_candidate_{i}.png"
+    image = cv2.imread(str(image_path))
+    cv2.putText(image, f"candidate_{i}", (20,75), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+    cv2.imwrite(str(image_path), image)
+    candidate_image_paths.append(image_path)
+
+# 9. Select best candidate
+best_index = select_best_candidate(CONFIG["instruction"], CONFIG["active"], CONFIG["passive"], 
+                                   input_image_paths=candidate_image_paths, output_path=VLM_DIR/"best_candidate.json")
+T_mujoco_active_goal_selected = candidates[best_index]
+
+# 10. Grasp Planning
 grasp_planner = GraspPlanner(ACTIVE_CATALOG, camera.get_intrinsics(), ANYGRASP_CHECKPOINT)
-candidate_grasps = grasp_planner.plan(source_pose=T_cam_active_source, 
+candidate_grasps = grasp_planner.plan(T_cam_object=T_cam_active_source, 
                                       rgb_path=CAMERA_DIR/"source_rgb.png",
                                       depth_path=CAMERA_DIR/"source_depth_m.npy",
                                       mask_path=PERCEPTION_DIR/"source_active_mask.png",
                                       use_anygrasp=False)
 
-# 10. OMPL trajectory (stages: {waypoints + timestamps}) 
+# 11. Trajectory planning
+q_start = np.zeros((7,))
+trajectory_planner = TrajectoryPlanner(scene)
+stages = trajectory_planner.plan(
+    q_start=q_start,
+    T_mujoco_object_src=T_mujoco_active,
+    T_mujoco_object_goal=T_mujoco_active_goal_selected,
+    grasps=candidate_grasps,
+    output_path=TRAJECTORY_DIR/"trajectory.json",
+)
+
+print(f"[main]: Trajectory saved to {TRAJECTORY_DIR}/trajectory.json")

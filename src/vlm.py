@@ -101,23 +101,46 @@ def get_validation_program(instruction, active_object, passive_object, active_di
     with open(output_path, "w") as file:
         json.dump(json_raw, file, indent=4)
 
-    xyz_relations = [XYZRelation(axis=json_raw["xyz_relations"]["axis"], relation=json_raw["xyz_relations"]["relation"])]
+    xyz_relations = [XYZRelation(axis=item["xyz_relations"]["axis"], relation=item["xyz_relations"]["relation"]) for item in json_raw.get("xyz_relations", [])]
     max_active_dim = max(active_dimensions)
-    V = ValidationProgram(
-        validation_mode=json_raw["validation_mode"],
-        required_contacts=json_raw["required_contacts"],
-        forbidden_contacts=json_raw["forbidden_contacts"],
+    validation_mode = json_raw["validation_mode"]
+
+    if validation_mode == "geometric_only":
+        # Drift is not evaluated in geometric_only mode.
+        x_drift = 0.0
+        y_drift = 0.0
+        z_drift = 0.0
+        roll_drift = 0.0
+        pitch_drift = 0.0
+        yaw_drift = 0.0
+
+    else:
+        position = json_raw["position_drift_tolerance"]
+        orientation = json_raw["orientation_drift_tolerance"]
+        x_drift = (POSITION_TOLERANCE_MAP[position["x"]] * max_active_dim)
+        y_drift = (POSITION_TOLERANCE_MAP[position["y"]] * max_active_dim)
+        z_drift = (POSITION_TOLERANCE_MAP[position["z"]] * max_active_dim)
+
+        # Current prompt calls rotation axes x/y/z.
+        roll_drift = ORIENTATION_TOLERANCE_MAP[orientation["roll"]]
+        pitch_drift = ORIENTATION_TOLERANCE_MAP[orientation["pitch"]]
+        yaw_drift = ORIENTATION_TOLERANCE_MAP[orientation["yaw"]]
+
+    return ValidationProgram(
+        validation_mode=validation_mode,
+        required_contacts=json_raw.get("required_contacts", []),
+        forbidden_contacts=json_raw.get("forbidden_contacts", []),
         xyz_relations=xyz_relations,
-        x_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["x"]] * max_active_dim,
-        y_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["y"]] * max_active_dim,
-        z_drift_tolerance=POSITION_TOLERANCE_MAP[json_raw["position_drift_tolerance"]["z"]] * max_active_dim,
-        roll_drift_tolerance=ORIENTATION_TOLERANCE_MAP[json_raw["orientation_drift_tolerance"]["roll"]],
-        pitch_drift_tolerance=ORIENTATION_TOLERANCE_MAP[json_raw["orientation_drift_tolerance"]["pitch"]],
-        yaw_drift_tolerance=ORIENTATION_TOLERANCE_MAP[json_raw["orientation_drift_tolerance"]["yaw"]],
+        x_drift_tolerance=x_drift,
+        y_drift_tolerance=y_drift,
+        z_drift_tolerance=z_drift,
+        roll_drift_tolerance=roll_drift,
+        pitch_drift_tolerance=pitch_drift,
+        yaw_drift_tolerance=yaw_drift,
     )
 
 def select_best_candidate(instruction, active_object, passive_object, input_image_paths, output_path):
-    prompt = load_prompt("prompts/select_best_candidate.txt", instruction, active_object, passive_object)
+    prompt = load_prompt("prompts/select_best_candidate.txt", instruction=instruction, active_object=active_object, passive_object=passive_object)
     json_raw = query(prompt, input_image_paths, "openai", "json")
     with open(output_path, "w") as file:
         json.dump(json_raw, file, indent=4)

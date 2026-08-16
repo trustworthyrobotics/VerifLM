@@ -11,8 +11,8 @@ from config import OBJECT_CATALOG, T_mujoco_board
 
 POSITION_TOLERANCE_MAP = {"strict": 0.10,"moderate": 0.25, "permissive": 0.50} # multiply by the active object's longest dimension
 ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
-POSITION_CONSTRAINT_MAP = {"correct": 0.2, "normal_search": 1.0, "major_revision": 2.0} # multiply by the active object's longest dimension
-ORIENTATION_CONSTRAINT_MAP = {"correct": 12.0, "normal_search": 60.0, "major_revision": 120.0} 
+POSITION_CONSTRAINT_MAP = {"correct": 0.125, "normal_search": 0.5, "major_revision": 1.0} # multiply by the active object's longest dimension
+ORIENTATION_CONSTRAINT_MAP = {"correct": 15.0, "normal_search": 60.0, "major_revision": 120.0} 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODELS_DIR = REPO_ROOT / "models"
 PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to produce fully accurate meshes 
@@ -132,7 +132,7 @@ class SceneBuilder:
         self.lab_scene_path = Path(lab_scene_path).resolve()
         self.models_dir = MODELS_DIR
 
-    def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive, T_mujoco_goal, output_path) -> Scene: # OUTPUT_DIR = MODELS_DIR/"generated_xmls"
+    def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive, T_mujoco_active_goal, output_path) -> Scene: # OUTPUT_DIR = MODELS_DIR/"generated_xmls"
         root = ET.parse(self.lab_scene_path).getroot()
         asset = root.find("asset")
         worldbody = root.find("worldbody")
@@ -148,7 +148,7 @@ class SceneBuilder:
 
         worldbody.append(self.make_body(active_name, T_mujoco_active, "active"))
         worldbody.append(self.make_body(passive_name, T_mujoco_passive, "passive"))
-        worldbody.append(self.make_body(active_name, T_mujoco_goal, "goal"))
+        worldbody.append(self.make_body(active_name, T_mujoco_active_goal, "goal"))
 
         ET.indent(root, space="  ")
         ET.ElementTree(root).write(output_path)
@@ -159,7 +159,7 @@ class SceneBuilder:
         passive_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"passive_{passive_name}")
         goal_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"goal_{active_name}")
         goal_mocap_id = int(model.body_mocapid[goal_body_id])
-        table_geom_id = mujoco.mj_name2id(model. mujoco.mjtObj.mjOBJ_GEOM, "table")
+        table_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "table")
         if any(id is None or id < 0 for id in (active_body_id, passive_body_id, goal_body_id, goal_mocap_id, table_geom_id)):
             raise ValueError("[digital-twin]: failed to retrieve certain ids")
 
@@ -280,22 +280,31 @@ class DigitalTwin:
         self.active_qadr = self.model.jnt_qposadr[active_freejoint_id]
         self.active_dadr = self.model.jnt_dofadr[active_freejoint_id]
 
-        self.T_goal = self.get_mocap_pose(scene.goal_mocap_id)
+        self.T_goal = self.get_mocap_pose(scene.data, scene.goal_mocap_id)
         self.viewer_data = None
         self.viewer = None
 
 
-    def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=500):
+    def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=500, output_path=None):
         if not visualize:
-            return self.sample(n_samples, max_valid, sim_steps, show=False)
+            candidates = self.sample(n_samples, max_valid, sim_steps, visualize=False)
+        else:
+            import time
+            import mujoco.viewer
 
-        import time
-        import mujoco.viewer
+            self.viewer_data = mujoco.MjData(self.model)
 
-        self.viewer_data = mujoco.MjData(self.model)
+            with mujoco.viewer.launch_passive(self.model, self.viewer_data) as self.viewer:
+                return self.sample(n_samples, max_valid, sim_steps, visualize=True)
 
-        with mujoco.viewer.launch_passive(self.model, self.viewer_data) as self.viewer:
-            return self.sample(n_samples, max_valid, sim_steps, show=True)
+        if output_path is not None:
+            output_path = Path(output_path)
+            if candidates:
+                candidates_array = np.stack(candidates)
+            else:
+                candidates_array = np.empty((0,4,4))
+            np.save(output_path, candidates_array)
+        return candidates
 
     def sample(self, n_samples, max_valid, sim_steps, visualize=False):
         candidates = []

@@ -299,7 +299,7 @@ class GraspPlanner:
             T_object_pregrasp_eef = T_object_eef.copy()
             T_object_pregrasp_eef[:3, 3] += np.array(hover_offset_xyz)
 
-            z_rotation_samples = grasp_config["z_rotation_samples"]
+            z_rotation_samples = grasp_config.get("z_rotation_samples", 1)
             if z_rotation_samples is None or z_rotation_samples == 1:
                 grasps.append(Grasp(T_object_eef, T_object_pregrasp_eef))
                 continue
@@ -414,7 +414,7 @@ class TrajectoryPlanner:
         q_list = []
         for i in range(path.getStateCount()):
             state = path.getState(i)
-            q_list.append([state[j] for j in range(7)])
+            q_list.append(np.array([state[j] for j in range(7)], dtype=float))
         return q_list
 
     def plan_grasp_approach(self, q_pregrasp, q_grasp, steps=15):

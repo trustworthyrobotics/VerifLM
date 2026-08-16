@@ -186,7 +186,7 @@ class PoseEstimator:
 
         cmd = [
             "docker", "exec", self.container,
-            "python", str(self.repo / "run_frame.py"),
+            "python", str(self.repo_path / "run_frame.py"),
             "--mesh_file", str(Path(mesh_path).resolve()),
             "--color_file", str(Path(rgb_path).resolve()),
             "--depth_file", str(Path(depth_path).resolve()),
