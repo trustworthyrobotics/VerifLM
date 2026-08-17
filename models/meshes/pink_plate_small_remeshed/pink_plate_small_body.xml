@@ -1,0 +1,59 @@
+<root>
+    <body name="pink_plate_small" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
+        <freejoint name="pink_plate_small_free" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_0" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_1" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_2" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_3" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_4" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_5" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_6" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_7" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_8" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_9" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_10" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_11" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_12" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_13" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_14" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_15" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_16" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_17" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_18" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_19" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_20" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_21" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_22" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_23" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_24" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_25" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_26" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_27" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_28" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_29" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_30" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_31" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_32" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_33" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_34" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_35" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_36" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_37" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_38" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_39" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_40" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_41" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_42" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_43" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_44" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_45" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_46" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_47" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_48" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_49" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_50" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_51" />
+        <geom class="pink_plate_small" type="mesh" mesh="pink_plate_small_52" />
+    </body>
+</root>

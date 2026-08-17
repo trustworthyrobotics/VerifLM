@@ -1,72 +1,70 @@
 <asset>
-    <mesh name="wooden_rack_0" file="wooden_rack_0.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_1" file="wooden_rack_1.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_2" file="wooden_rack_2.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_3" file="wooden_rack_3.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_4" file="wooden_rack_4.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_5" file="wooden_rack_5.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_6" file="wooden_rack_6.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_7" file="wooden_rack_7.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_8" file="wooden_rack_8.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_9" file="wooden_rack_9.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_10" file="wooden_rack_10.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_11" file="wooden_rack_11.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_12" file="wooden_rack_12.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_13" file="wooden_rack_13.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_14" file="wooden_rack_14.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_15" file="wooden_rack_15.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_16" file="wooden_rack_16.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_17" file="wooden_rack_17.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_18" file="wooden_rack_18.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_19" file="wooden_rack_19.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_20" file="wooden_rack_20.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_21" file="wooden_rack_21.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_22" file="wooden_rack_22.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_23" file="wooden_rack_23.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_24" file="wooden_rack_24.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_25" file="wooden_rack_25.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_26" file="wooden_rack_26.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_27" file="wooden_rack_27.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_28" file="wooden_rack_28.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_29" file="wooden_rack_29.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_30" file="wooden_rack_30.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_31" file="wooden_rack_31.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_32" file="wooden_rack_32.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_33" file="wooden_rack_33.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_34" file="wooden_rack_34.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_35" file="wooden_rack_35.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_36" file="wooden_rack_36.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_37" file="wooden_rack_37.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_38" file="wooden_rack_38.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_39" file="wooden_rack_39.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_40" file="wooden_rack_40.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_41" file="wooden_rack_41.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_42" file="wooden_rack_42.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_43" file="wooden_rack_43.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_44" file="wooden_rack_44.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_45" file="wooden_rack_45.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_46" file="wooden_rack_46.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_47" file="wooden_rack_47.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_48" file="wooden_rack_48.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_49" file="wooden_rack_49.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_50" file="wooden_rack_50.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_51" file="wooden_rack_51.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_52" file="wooden_rack_52.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_53" file="wooden_rack_53.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_54" file="wooden_rack_54.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_55" file="wooden_rack_55.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_56" file="wooden_rack_56.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_57" file="wooden_rack_57.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_58" file="wooden_rack_58.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_59" file="wooden_rack_59.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_60" file="wooden_rack_60.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_61" file="wooden_rack_61.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_62" file="wooden_rack_62.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_63" file="wooden_rack_63.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_64" file="wooden_rack_64.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_65" file="wooden_rack_65.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_66" file="wooden_rack_66.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_67" file="wooden_rack_67.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_68" file="wooden_rack_68.obj" scale="1 1 1"/>
-    <mesh name="wooden_rack_69" file="wooden_rack_69.obj" scale="1 1 1"/>
+    <mesh name="wooden_rack_0" file="wooden_rack_0.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_1" file="wooden_rack_1.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_2" file="wooden_rack_2.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_3" file="wooden_rack_3.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_4" file="wooden_rack_4.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_5" file="wooden_rack_5.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_6" file="wooden_rack_6.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_7" file="wooden_rack_7.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_8" file="wooden_rack_8.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_9" file="wooden_rack_9.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_10" file="wooden_rack_10.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_11" file="wooden_rack_11.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_12" file="wooden_rack_12.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_13" file="wooden_rack_13.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_14" file="wooden_rack_14.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_15" file="wooden_rack_15.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_16" file="wooden_rack_16.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_17" file="wooden_rack_17.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_18" file="wooden_rack_18.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_19" file="wooden_rack_19.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_20" file="wooden_rack_20.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_21" file="wooden_rack_21.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_22" file="wooden_rack_22.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_23" file="wooden_rack_23.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_24" file="wooden_rack_24.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_25" file="wooden_rack_25.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_26" file="wooden_rack_26.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_27" file="wooden_rack_27.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_28" file="wooden_rack_28.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_29" file="wooden_rack_29.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_30" file="wooden_rack_30.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_31" file="wooden_rack_31.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_32" file="wooden_rack_32.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_33" file="wooden_rack_33.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_34" file="wooden_rack_34.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_35" file="wooden_rack_35.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_36" file="wooden_rack_36.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_37" file="wooden_rack_37.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_38" file="wooden_rack_38.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_39" file="wooden_rack_39.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_40" file="wooden_rack_40.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_41" file="wooden_rack_41.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_42" file="wooden_rack_42.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_43" file="wooden_rack_43.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_44" file="wooden_rack_44.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_45" file="wooden_rack_45.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_46" file="wooden_rack_46.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_47" file="wooden_rack_47.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_48" file="wooden_rack_48.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_49" file="wooden_rack_49.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_50" file="wooden_rack_50.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_51" file="wooden_rack_51.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_52" file="wooden_rack_52.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_53" file="wooden_rack_53.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_54" file="wooden_rack_54.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_55" file="wooden_rack_55.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_56" file="wooden_rack_56.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_57" file="wooden_rack_57.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_58" file="wooden_rack_58.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_59" file="wooden_rack_59.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_60" file="wooden_rack_60.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_61" file="wooden_rack_61.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_62" file="wooden_rack_62.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_63" file="wooden_rack_63.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_64" file="wooden_rack_64.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_65" file="wooden_rack_65.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_66" file="wooden_rack_66.obj" scale="1 1 1" />
+    <mesh name="wooden_rack_67" file="wooden_rack_67.obj" scale="1 1 1" />
 </asset>

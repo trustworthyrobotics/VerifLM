@@ -1,6 +1,6 @@
 <root>
-    <body name="yellow_cap" pos="0.0 0.2 0.74" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="0.05" diaginertia="0.0005 0.0005 0.001" />
+    <body name="yellow_cap" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="yellow_cap_free" />
         <geom class="yellow_cap" type="mesh" mesh="yellow_cap_0" />
         <geom class="yellow_cap" type="mesh" mesh="yellow_cap_1" />
@@ -231,6 +231,5 @@
         <geom class="yellow_cap" type="mesh" mesh="yellow_cap_226" />
         <geom class="yellow_cap" type="mesh" mesh="yellow_cap_227" />
         <geom class="yellow_cap" type="mesh" mesh="yellow_cap_228" />
-        <geom class="yellow_cap" type="mesh" mesh="yellow_cap_229" />
     </body>
 </root>

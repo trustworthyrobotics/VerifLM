@@ -1,6 +1,6 @@
 <root>
-    <body name="blue_mug_big" pos="0.0 0.2 0.74" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="0.2" diaginertia="0.01 0.01 0.01" />
+    <body name="blue_mug_big" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="blue_mug_big_free" />
         <geom class="blue_mug_big" type="mesh" mesh="blue_mug_big_0" />
         <geom class="blue_mug_big" type="mesh" mesh="blue_mug_big_1" />
@@ -84,6 +84,5 @@
         <geom class="blue_mug_big" type="mesh" mesh="blue_mug_big_79" />
         <geom class="blue_mug_big" type="mesh" mesh="blue_mug_big_80" />
         <geom class="blue_mug_big" type="mesh" mesh="blue_mug_big_81" />
-        <geom class="blue_mug_big" type="mesh" mesh="blue_mug_big_82" />
     </body>
 </root>

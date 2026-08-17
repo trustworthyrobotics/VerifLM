@@ -1,6 +1,6 @@
 <root>
-    <body name="red_mug_small" pos="0.0 0.2 0.74" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="0.2" diaginertia="0.01 0.01 0.01" />
+    <body name="red_mug_small" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="red_mug_small_free" />
         <geom class="red_mug_small" type="mesh" mesh="red_mug_small_0" />
         <geom class="red_mug_small" type="mesh" mesh="red_mug_small_1" />
@@ -79,18 +79,5 @@
         <geom class="red_mug_small" type="mesh" mesh="red_mug_small_74" />
         <geom class="red_mug_small" type="mesh" mesh="red_mug_small_75" />
         <geom class="red_mug_small" type="mesh" mesh="red_mug_small_76" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_77" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_78" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_79" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_80" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_81" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_82" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_83" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_84" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_85" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_86" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_87" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_88" />
-        <geom class="red_mug_small" type="mesh" mesh="red_mug_small_89" />
     </body>
 </root>

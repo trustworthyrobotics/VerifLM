@@ -1,6 +1,6 @@
 <root>
-    <body name="teapot" pos="0.0 0.2 0.74" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="0.5" diaginertia="0.008 0.008 0.006" />
+    <body name="teapot" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="teapot_free" />
         <geom class="teapot" type="mesh" mesh="teapot_0" />
         <geom class="teapot" type="mesh" mesh="teapot_1" />

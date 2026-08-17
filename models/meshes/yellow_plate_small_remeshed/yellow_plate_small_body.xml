@@ -1,0 +1,48 @@
+<root>
+    <body name="yellow_plate_small" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
+        <freejoint name="yellow_plate_small_free" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_0" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_1" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_2" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_3" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_4" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_5" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_6" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_7" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_8" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_9" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_10" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_11" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_12" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_13" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_14" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_15" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_16" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_17" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_18" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_19" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_20" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_21" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_22" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_23" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_24" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_25" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_26" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_27" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_28" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_29" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_30" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_31" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_32" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_33" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_34" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_35" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_36" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_37" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_38" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_39" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_40" />
+        <geom class="yellow_plate_small" type="mesh" mesh="yellow_plate_small_41" />
+    </body>
+</root>

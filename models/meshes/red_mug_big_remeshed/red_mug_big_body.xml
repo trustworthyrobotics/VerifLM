@@ -1,8 +1,7 @@
 <root>
-    <body name="red_mug_big" pos="0.0 0.2 0.74" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="0.2" diaginertia="0.01 0.01 0.01" />
+    <body name="red_mug_big" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="red_mug_big_free" />
-        <geom class="red_mug_big" type="cylinder" size="0.039 0.041" pos="0 -0.01 0.041" name="red_mug_big_geom" mass="0.01" friction="0.001 0.0001 0.0001" />
         <geom class="red_mug_big" type="mesh" mesh="red_mug_big_0" />
         <geom class="red_mug_big" type="mesh" mesh="red_mug_big_1" />
         <geom class="red_mug_big" type="mesh" mesh="red_mug_big_2" />

@@ -1,0 +1,52 @@
+<root>
+    <body name="blue_plate_big" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
+        <freejoint name="blue_plate_big_free" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_0" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_1" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_2" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_3" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_4" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_5" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_6" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_7" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_8" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_9" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_10" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_11" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_12" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_13" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_14" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_15" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_16" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_17" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_18" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_19" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_20" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_21" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_22" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_23" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_24" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_25" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_26" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_27" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_28" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_29" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_30" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_31" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_32" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_33" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_34" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_35" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_36" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_37" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_38" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_39" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_40" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_41" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_42" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_43" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_44" />
+        <geom class="blue_plate_big" type="mesh" mesh="blue_plate_big_45" />
+    </body>
+</root>

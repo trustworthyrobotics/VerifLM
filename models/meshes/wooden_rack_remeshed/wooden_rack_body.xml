@@ -1,6 +1,6 @@
 <root>
-    <body name="wooden_rack" pos="0.0 0.2 0.74" quat="1 0 0 0">
-        <inertial pos="0 0 0" mass="0.2" diaginertia="0.01 0.01 0.01" />
+    <body name="wooden_rack" pos="0 0 0" quat="1 0 0 0">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="wooden_rack_free" />
         <geom class="wooden_rack" type="mesh" mesh="wooden_rack_0" />
         <geom class="wooden_rack" type="mesh" mesh="wooden_rack_1" />
@@ -70,7 +70,5 @@
         <geom class="wooden_rack" type="mesh" mesh="wooden_rack_65" />
         <geom class="wooden_rack" type="mesh" mesh="wooden_rack_66" />
         <geom class="wooden_rack" type="mesh" mesh="wooden_rack_67" />
-        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_68" />
-        <geom class="wooden_rack" type="mesh" mesh="wooden_rack_69" />
     </body>
 </root>

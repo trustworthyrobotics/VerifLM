@@ -1,19 +1,19 @@
 <asset>
-    <mesh name="wooden_stick_toy_0" file="wooden_stick_toy_0.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_1" file="wooden_stick_toy_1.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_2" file="wooden_stick_toy_2.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_3" file="wooden_stick_toy_3.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_4" file="wooden_stick_toy_4.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_5" file="wooden_stick_toy_5.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_6" file="wooden_stick_toy_6.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_7" file="wooden_stick_toy_7.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_8" file="wooden_stick_toy_8.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_9" file="wooden_stick_toy_9.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_10" file="wooden_stick_toy_10.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_11" file="wooden_stick_toy_11.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_12" file="wooden_stick_toy_12.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_13" file="wooden_stick_toy_13.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_14" file="wooden_stick_toy_14.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_15" file="wooden_stick_toy_15.obj" scale="1 1 1"/>
-    <mesh name="wooden_stick_toy_16" file="wooden_stick_toy_16.obj" scale="1 1 1"/>
+    <mesh name="wooden_stick_toy_0" file="wooden_stick_toy_0.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_1" file="wooden_stick_toy_1.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_2" file="wooden_stick_toy_2.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_3" file="wooden_stick_toy_3.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_4" file="wooden_stick_toy_4.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_5" file="wooden_stick_toy_5.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_6" file="wooden_stick_toy_6.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_7" file="wooden_stick_toy_7.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_8" file="wooden_stick_toy_8.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_9" file="wooden_stick_toy_9.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_10" file="wooden_stick_toy_10.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_11" file="wooden_stick_toy_11.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_12" file="wooden_stick_toy_12.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_13" file="wooden_stick_toy_13.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_14" file="wooden_stick_toy_14.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_15" file="wooden_stick_toy_15.obj" scale="1 1 1" />
+    <mesh name="wooden_stick_toy_16" file="wooden_stick_toy_16.obj" scale="1 1 1" />
 </asset>

@@ -269,13 +269,13 @@ def main():
     # Place each object's lower face on the tabletop, assuming the catalog
     # dimensions are centered about the object's local origin.
     T_active_init = np.eye(4)
-    T_active_init[:3, 3] = [0.12, 0.00, table_surface_z]
+    T_active_init[:3, 3] = [0.12, 0.20, table_surface_z + active_catalog["dimensions"][2]/2]
 
     T_passive_init = np.eye(4)
-    T_passive_init[:3, 3] = [-0.08, 0.00, table_surface_z]
+    T_passive_init[:3, 3] = [-0.08, 0.20, table_surface_z + passive_catalog["dimensions"][2]/2]
 
     T_goal_init = np.eye(4)
-    T_goal_init[:3, 3] = [0.00, 0.15, table_surface_z]
+    T_goal_init[:3, 3] = [0.00, 0.25, table_surface_z + active_catalog["dimensions"][2]/2]
 
     scene_builder = SceneBuilder()
     teleop_scene = scene_builder.build(

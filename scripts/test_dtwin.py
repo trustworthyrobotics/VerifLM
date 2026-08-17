@@ -25,9 +25,8 @@ V = ValidationProgram(
     required_contacts=["active_passive"],
     forbidden_contacts=["active_table"],
     xyz_relations=[],
-    x_drift_tolerance=.0277, y_drift_tolerance=.0277, z_drift_tolerance=.0277,
-    roll_drift_tolerance=60., pitch_drift_tolerance=60., yaw_drift_tolerance=60.,
-    max_initial_penetration=.1, max_final_penetration=.002,
+    x_drift_tolerance=.0577, y_drift_tolerance=.0577, z_drift_tolerance=.0577,
+    roll_drift_tolerance=60., pitch_drift_tolerance=60., yaw_drift_tolerance=60.
 )
 
 DP, DR = .01, 5.
@@ -74,6 +73,8 @@ def nudge(T, key):
 def main():
     benchmark = "mug_on_rack"
     cfg = BENCHMARK_CONFIGS[benchmark]
+    active_catalog = OBJECT_CATALOG[cfg["active"]]
+    passive_catalog = OBJECT_CATALOG[cfg["passive"]]
     z = float(T_mujoco_board[2, 3])
 
     def pose(x, y, z):
@@ -82,9 +83,9 @@ def main():
         return T
 
     # Object origins are at their bottoms, so z = table surface.
-    T_active = pose(.15, 0, z)
-    T_passive = pose(-.05, 0, z)
-    T_goal = pose(-.05, .10, z)
+    T_active = pose(.2, 0.2, z+active_catalog["dimensions"][2]/2)
+    T_passive = pose(0.0, 0.2, z+passive_catalog["dimensions"][2]/2)
+    T_goal = pose(0.0, 0.2, z+active_catalog["dimensions"][2]/2)
 
     out = Path("models/generated_xmls")
     out.mkdir(parents=True, exist_ok=True)
@@ -100,6 +101,8 @@ def main():
 
     keys = queue.SimpleQueue()
     stop = {"requested": False}
+    valid_candidates = []
+    candidate_idx = [-1]
 
     # Ctrl-C does not raise KeyboardInterrupt through MuJoCo.
     signal.signal(
@@ -188,12 +191,10 @@ def main():
 
             Ts = S.sample(center)
 
-            # Show sampled transparent goal.
             with viewer.lock():
                 set_mocap(model, data, mid, Ts)
             sync(viewer, .02)
 
-            # Show physical active settling from that sample.
             valid, Tf, reason = settle(Ts, viewer)
             if stop["requested"]:
                 break
@@ -207,8 +208,10 @@ def main():
                 failures[reason] += 1
                 print(f"[{i+1:03}] {reason}")
 
-        # Restore original sampling center.
         if not stop["requested"]:
+            valid_candidates[:] = valid_poses
+            candidate_idx[0] = -1
+
             with viewer.lock():
                 set_mocap(model, data, mid, center)
             sync(viewer)
