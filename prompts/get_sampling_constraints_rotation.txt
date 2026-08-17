@@ -25,6 +25,10 @@ ASSESSMENTS
 TRANSLATION NOTE
 Translation should be handled separately in the translation prompt.
 
+Hints: 
+- Think about whether the object needs to be rotated so the intended contact can be established. For example, if the mug needs to contact the rack branch by the handle, and the mug's body rather than the handle is currently touching the branch, it probably suggests a large rotation by a certain axis/axes is needed.
+- For pouring tea into the mug, all that is required is for the spout to be above the cup's opening. If that's already the case then probably no large adjustment is needed.
+
 Return only JSON:
 {
   "rotation": {

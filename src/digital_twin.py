@@ -9,9 +9,9 @@ from typing import Literal
 from scipy.spatial.transform import Rotation
 from src.config import OBJECT_CATALOG, T_mujoco_board
 
-POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.5, "permissive": 1.0} # multiply by the active object's longest dimension
+POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.75, "permissive": 1.5} # multiply by the active object's longest dimension
 ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
-POSITION_CONSTRAINT_MAP = {"correct": 0.125, "normal_search": 0.5, "major_revision": 1.0} # multiply by the active object's longest dimension
+POSITION_CONSTRAINT_MAP = {"correct": 0.25, "normal_search": 0.75, "major_revision": 1.5} # multiply by the active object's longest dimension
 ORIENTATION_CONSTRAINT_MAP = {"correct": 15.0, "normal_search": 60.0, "major_revision": 120.0} 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to produce fully accurate meshes 
@@ -113,8 +113,8 @@ class ValidationProgram:
     roll_drift_tolerance: float
     pitch_drift_tolerance: float
     yaw_drift_tolerance: float
-    max_initial_penetration: float = 0.1
-    max_final_penetration: float = 0.002
+    max_initial_penetration: float = 0.03
+    max_final_penetration: float = 0.0008
 
 @dataclass
 class Scene:
@@ -190,13 +190,13 @@ class SceneBuilder:
 
         elif mjcf["type"] == "primitive":
             primitive = PRIMITIVES[mjcf["primitive"]]
+            z_offset = mjcf.get("z_offset", 0.0)
             body = ET.Element("body")
             for i, g in enumerate(primitive["geoms"]):
+                pos = (*g["pos"][:2], g["pos"][2] + z_offset)
                 ET.SubElement(body, "geom", {
-                    "name": f"{body_name}_geom_{i}",
-                    "type": g["type"],
-                    "pos": " ".join(map(str, g["pos"])),
-                    "size": " ".join(map(str, g["size"]))
+                    "name": f"{body_name}_geom_{i}", "type": g["type"],
+                    "pos": " ".join(map(str, pos)), "size": " ".join(map(str, g["size"]))
                 })
         else:
             raise ValueError(f"[digital-twin]: Unknown MJCF type: {mjcf['type']}")
@@ -254,7 +254,7 @@ class SceneBuilder:
                         f"[digital-twin]: {name} primitive requires mass and diaginertia"
                     )
                 body.insert(0, ET.Element("inertial", {
-                    "pos": " ".join(map(str, primitive["inertial_pos"])),
+                    "pos": " ".join(map(str, (*primitive["inertial_pos"][:2], primitive["inertial_pos"][2] + mjcf.get("z_offset", 0.0)))),
                     "mass": str(mass),
                     "diaginertia": " ".join(map(str, diaginertia)),
                 }))

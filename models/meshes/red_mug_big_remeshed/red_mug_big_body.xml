@@ -2,6 +2,7 @@
     <body name="red_mug_big" pos="0 0 0" quat="1 0 0 0">
         <inertial pos="0 0 0" mass="1" diaginertia="1 1 1" />
         <freejoint name="red_mug_big_free" />
+        <geom class="red_mug_big" type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01"/>
         <geom class="red_mug_big" type="mesh" mesh="red_mug_big_0" />
         <geom class="red_mug_big" type="mesh" mesh="red_mug_big_1" />
         <geom class="red_mug_big" type="mesh" mesh="red_mug_big_2" />

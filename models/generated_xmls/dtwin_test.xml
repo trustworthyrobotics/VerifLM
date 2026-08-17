@@ -19,7 +19,7 @@
     <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
     <model name="kuka_iiwa_model" file="../kuka_iiwa_7/iiwa7.xml" />
     <include file="../meshes/red_mug_big_remeshed/red_mug_big_asset.xml" />
-    <include file="../meshes/wooden_stick_toy_remeshed/wooden_stick_toy_asset.xml" />
+    <include file="../meshes/wooden_rack_remeshed/wooden_rack_asset.xml" />
   </asset>
   <worldbody>
     <light name="main_light" pos="0 0 2.5" dir="0 0 -1" />
@@ -37,6 +37,7 @@
     <body name="active_red_mug_big" pos="0.2 0.2 0.8331" quat="1.0 0.0 0.0 0.0">
       <freejoint name="active_red_mug_big_free" />
       <inertial pos="0 0 0" mass="0.2" diaginertia="0.0003325 0.0002567 0.0003334" />
+      <geom type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_0" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_1" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_2" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
@@ -294,26 +295,78 @@
       <geom type="mesh" mesh="red_mug_big_254" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_255" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
     </body>
-    <body name="passive_wooden_stick_toy" pos="0.0 0.2 0.8926499999999999" quat="1.0 0.0 0.0 0.0">
-      <geom type="mesh" mesh="wooden_stick_toy_0" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_1" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_2" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_3" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_4" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_5" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_6" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_7" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_8" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_9" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_10" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_11" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_12" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_13" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_14" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_15" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
-      <geom type="mesh" mesh="wooden_stick_toy_16" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+    <body name="passive_wooden_rack" pos="0.0 0.2 0.81685" quat="1.0 0.0 0.0 0.0">
+      <geom type="mesh" mesh="wooden_rack_0" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_1" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_2" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_3" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_4" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_5" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_6" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_7" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_8" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_9" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_10" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_11" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_12" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_13" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_14" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_15" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_16" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_17" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_18" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_19" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_20" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_21" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_22" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_23" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_24" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_25" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_26" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_27" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_28" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_29" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_30" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_31" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_32" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_33" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_34" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_35" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_36" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_37" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_38" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_39" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_40" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_41" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_42" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_43" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_44" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_45" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_46" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_47" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_48" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_49" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_50" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_51" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_52" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_53" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_54" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_55" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_56" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_57" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_58" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_59" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_60" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_61" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_62" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_63" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_64" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_65" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_66" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_67" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
     </body>
     <body name="goal_red_mug_big" pos="0.0 0.2 0.8331" quat="1.0 0.0 0.0 0.0" mocap="true">
+      <geom type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01" class="goal" />
       <geom type="mesh" mesh="red_mug_big_0" class="goal" />
       <geom type="mesh" mesh="red_mug_big_1" class="goal" />
       <geom type="mesh" mesh="red_mug_big_2" class="goal" />

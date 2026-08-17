@@ -1,0 +1,628 @@
+<mujoco model="lab_scene">
+  <compiler meshdir="/home/david/trl/VerifLM" />
+  <size nconmax="1000" njmax="2000" />
+  <default>
+    <default class="goal">
+      <geom rgba="0 1 0 0.3" conaffinity="0" contype="0" />
+    </default>
+  </default>
+  <statistic center="0 0 0.9" extent="2.5" />
+  <option gravity="0 0 -9.81" timestep="0.002" integrator="implicitfast" />
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0" />
+    <rgba haze="0.15 0.25 0.35 1" />
+    <global azimuth="-120" elevation="-20" />
+  </visual>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300" />
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
+    <model name="kuka_iiwa_model" file="../kuka_iiwa_7/iiwa7.xml" />
+    <include file="../meshes/red_mug_big_remeshed/red_mug_big_asset.xml" />
+    <include file="../meshes/wooden_rack_remeshed/wooden_rack_asset.xml" />
+  </asset>
+  <worldbody>
+    <light name="main_light" pos="0 0 2.5" dir="0 0 -1" />
+    <geom name="ground" type="plane" size="3 3 0.1" material="groundplane" />
+    <geom name="table" type="box" pos="0 0 0.39465" size="0.50 0.75 0.39465" rgba="0.75 0.75 0.75 1" friction="0.05 0.001 0.0001" condim="4" />
+    <geom name="arm1_plate" type="box" pos="0.40 0.65 0.75645" size="0.10 0.10 0.00645" rgba="0.3 0.3 0.3 1" />
+    <body name="arm1_mount" pos="0.40 0.65 0.7629" euler="0 0 180">
+      <attach model="kuka_iiwa_model" body="base" prefix="arm1_" />
+    </body>
+    <geom name="arm2_plate" type="box" pos="0.40 -0.65 0.75645" size="0.10 0.10 0.00645" rgba="0.3 0.3 0.3 1" />
+    <body name="arm2_mount" pos="0.40 -0.65 0.7629" euler="0 0 180">
+      <attach model="kuka_iiwa_model" body="base" prefix="arm2_" />
+    </body>
+    <camera name="ceiling_cam" mode="fixed" pos="0 0 3.0" xyaxes="1 0 0  0 1 0" />
+    <body name="active_red_mug_big" pos="0.2 0.2 0.8331" quat="1.0 0.0 0.0 0.0">
+      <freejoint name="active_red_mug_big_free" />
+      <inertial pos="0 0 0" mass="0.2" diaginertia="0.0003325 0.0002567 0.0003334" />
+      <geom type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_0" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_1" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_2" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_3" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_4" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_5" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_6" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_7" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_8" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_9" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_10" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_11" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_12" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_13" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_14" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_15" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_16" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_17" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_18" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_19" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_20" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_21" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_22" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_23" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_24" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_25" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_26" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_27" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_28" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_29" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_30" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_31" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_32" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_33" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_34" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_35" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_36" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_37" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_38" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_39" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_40" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_41" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_42" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_43" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_44" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_45" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_46" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_47" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_48" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_49" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_50" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_51" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_52" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_53" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_54" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_55" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_56" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_57" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_58" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_59" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_60" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_61" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_62" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_63" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_64" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_65" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_66" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_67" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_68" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_69" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_70" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_71" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_72" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_73" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_74" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_75" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_76" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_77" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_78" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_79" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_80" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_81" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_82" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_83" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_84" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_85" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_86" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_87" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_88" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_89" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_90" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_91" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_92" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_93" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_94" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_95" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_96" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_97" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_98" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_99" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_100" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_101" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_102" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_103" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_104" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_105" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_106" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_107" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_108" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_109" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_110" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_111" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_112" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_113" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_114" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_115" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_116" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_117" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_118" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_119" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_120" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_121" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_122" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_123" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_124" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_125" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_126" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_127" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_128" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_129" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_130" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_131" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_132" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_133" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_134" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_135" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_136" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_137" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_138" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_139" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_140" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_141" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_142" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_143" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_144" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_145" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_146" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_147" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_148" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_149" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_150" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_151" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_152" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_153" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_154" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_155" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_156" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_157" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_158" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_159" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_160" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_161" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_162" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_163" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_164" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_165" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_166" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_167" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_168" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_169" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_170" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_171" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_172" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_173" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_174" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_175" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_176" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_177" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_178" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_179" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_180" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_181" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_182" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_183" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_184" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_185" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_186" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_187" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_188" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_189" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_190" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_191" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_192" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_193" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_194" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_195" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_196" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_197" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_198" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_199" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_200" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_201" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_202" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_203" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_204" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_205" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_206" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_207" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_208" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_209" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_210" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_211" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_212" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_213" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_214" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_215" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_216" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_217" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_218" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_219" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_220" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_221" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_222" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_223" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_224" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_225" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_226" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_227" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_228" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_229" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_230" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_231" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_232" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_233" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_234" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_235" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_236" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_237" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_238" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_239" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_240" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_241" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_242" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_243" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_244" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_245" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_246" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_247" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_248" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_249" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_250" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_251" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_252" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_253" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_254" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="mesh" mesh="red_mug_big_255" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+    </body>
+    <body name="passive_wooden_rack" pos="0.0 0.2 0.81685" quat="1.0 0.0 0.0 0.0">
+      <geom type="mesh" mesh="wooden_rack_0" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_1" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_2" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_3" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_4" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_5" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_6" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_7" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_8" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_9" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_10" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_11" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_12" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_13" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_14" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_15" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_16" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_17" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_18" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_19" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_20" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_21" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_22" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_23" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_24" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_25" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_26" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_27" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_28" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_29" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_30" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_31" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_32" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_33" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_34" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_35" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_36" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_37" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_38" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_39" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_40" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_41" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_42" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_43" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_44" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_45" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_46" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_47" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_48" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_49" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_50" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_51" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_52" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_53" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_54" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_55" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_56" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_57" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_58" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_59" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_60" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_61" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_62" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_63" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_64" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_65" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_66" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+      <geom type="mesh" mesh="wooden_rack_67" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
+    </body>
+    <body name="goal_red_mug_big" pos="0.2 0.2 0.8331" quat="1.0 0.0 0.0 0.0" mocap="true">
+      <geom type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_0" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_1" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_2" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_3" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_4" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_5" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_6" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_7" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_8" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_9" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_10" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_11" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_12" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_13" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_14" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_15" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_16" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_17" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_18" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_19" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_20" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_21" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_22" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_23" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_24" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_25" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_26" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_27" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_28" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_29" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_30" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_31" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_32" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_33" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_34" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_35" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_36" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_37" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_38" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_39" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_40" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_41" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_42" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_43" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_44" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_45" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_46" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_47" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_48" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_49" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_50" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_51" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_52" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_53" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_54" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_55" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_56" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_57" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_58" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_59" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_60" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_61" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_62" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_63" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_64" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_65" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_66" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_67" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_68" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_69" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_70" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_71" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_72" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_73" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_74" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_75" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_76" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_77" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_78" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_79" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_80" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_81" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_82" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_83" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_84" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_85" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_86" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_87" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_88" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_89" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_90" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_91" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_92" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_93" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_94" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_95" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_96" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_97" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_98" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_99" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_100" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_101" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_102" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_103" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_104" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_105" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_106" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_107" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_108" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_109" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_110" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_111" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_112" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_113" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_114" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_115" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_116" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_117" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_118" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_119" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_120" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_121" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_122" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_123" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_124" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_125" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_126" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_127" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_128" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_129" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_130" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_131" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_132" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_133" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_134" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_135" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_136" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_137" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_138" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_139" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_140" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_141" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_142" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_143" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_144" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_145" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_146" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_147" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_148" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_149" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_150" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_151" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_152" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_153" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_154" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_155" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_156" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_157" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_158" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_159" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_160" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_161" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_162" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_163" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_164" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_165" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_166" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_167" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_168" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_169" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_170" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_171" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_172" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_173" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_174" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_175" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_176" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_177" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_178" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_179" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_180" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_181" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_182" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_183" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_184" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_185" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_186" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_187" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_188" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_189" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_190" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_191" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_192" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_193" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_194" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_195" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_196" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_197" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_198" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_199" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_200" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_201" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_202" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_203" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_204" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_205" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_206" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_207" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_208" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_209" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_210" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_211" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_212" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_213" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_214" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_215" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_216" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_217" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_218" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_219" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_220" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_221" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_222" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_223" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_224" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_225" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_226" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_227" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_228" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_229" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_230" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_231" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_232" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_233" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_234" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_235" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_236" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_237" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_238" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_239" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_240" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_241" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_242" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_243" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_244" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_245" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_246" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_247" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_248" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_249" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_250" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_251" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_252" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_253" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_254" class="goal" />
+      <geom type="mesh" mesh="red_mug_big_255" class="goal" />
+    </body>
+  </worldbody>
+</mujoco>

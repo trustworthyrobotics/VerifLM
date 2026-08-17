@@ -4,6 +4,7 @@ import mujoco
 import mujoco.viewer
 import json
 import time
+import signal, os, sys
 from dataclasses import dataclass
 from typing import Literal
 from src.digital_twin import Scene
@@ -157,7 +158,20 @@ class CollisionChecker:
                 return False
 
         return True
-            
+
+class StateValidityChecker(ob.StateValidityChecker):
+    def __init__(self, si, collision_checker, T_eef_active=None):
+        super().__init__(si)
+        self.collision_checker = collision_checker
+        self.T_eef_active = T_eef_active
+
+    def isValid(self, state):
+        q = np.array([state[i] for i in range(7)])
+        return self.collision_checker.check(
+            q,
+            self.T_eef_active,
+            allow_active_fingers=self.T_eef_active is not None,
+        )        
 
 class GraspPlanner:
     def __init__(self, object_catalog, K, anygrasp_checkpoint):
@@ -394,13 +408,17 @@ class TrajectoryPlanner:
         space.setBounds(bounds)
 
         setup = og.SimpleSetup(space)
-        checker_fn = lambda s: self.collision_checker.check(np.array([s[i] for i in range(7)]), T_eef_active, allow_active_fingers=T_eef_active is not None)
-        setup.setStateValidityChecker(ob.StateValidityCheckerFn(checker_fn))
+        setup.setStateValidityChecker(StateValidityChecker(setup.getSpaceInformation(), self.collision_checker, T_eef_active))
         setup.getSpaceInformation().setStateValidityCheckingResolution(0.005)
 
-        start, goal = ob.State(space), ob.State(space)
+        start = space.allocState()
+        goal = space.allocState()
+
         for i in range(7):
-            start[i], goal[i] = q_start[i], q_goal[i]
+            start[i] = q_start[i]
+            goal[i] = q_goal[i]
+
+        setup.setStartAndGoalStates(start, goal)
 
         setup.setStartAndGoalStates(start, goal)
         setup.setPlanner(og.RRTConnect(setup.getSpaceInformation()))
@@ -457,41 +475,88 @@ class TrajectoryPlanner:
 
     def replay_trajectory(self, trajectory: list[TrajectoryStage]):
         data = mujoco.MjData(self.model)
-        data.qpos[:] = self.scene.data.qpos
         active_qadr = self.collision_checker.active_qadr
         T_eef_object = np.linalg.inv(self.chosen_grasp.T_object_eef)
-        attached = False
 
-        with mujoco.viewer.launch_passive(self.model, data) as viewer:
-            for stage in trajectory:
-                if stage.type == "grasp":
-                    attached = True
-                    continue
-                if stage.type == "release":
-                    attached = False
-                    continue
+        stop = {"requested": False}
+        old_handler = signal.getsignal(signal.SIGINT)
+        signal.signal(
+            signal.SIGINT,
+            lambda *_: stop.__setitem__("requested", True),
+        )
 
-                t0 = time.monotonic()
-                for q, t in zip(stage.q_path, stage.time_from_start):
-                    t = t / 3.0 # speed up replay by a factor of 3
-                    while viewer.is_running() and time.monotonic() - t0 < t:
-                        viewer.sync()
-                        time.sleep(0.001)
-                    if not viewer.is_running():
-                        return
+        def move_gripper(target, viewer, duration=.5):
+            start = data.qpos[finger_qadrs].copy()
+            for a in np.linspace(0, 1, 30):
+                if stop["requested"] or not viewer.is_running():
+                    return
+                data.qpos[finger_qadrs] = (1-a)*start + a*target
+                mujoco.mj_forward(self.model, data)
+                viewer.sync()
+                time.sleep(duration/30)
 
-                    data.qpos[self.arm_qadrs] = q
+        try:
+            with mujoco.viewer.launch_passive(self.model, data) as viewer:
+                while viewer.is_running() and not stop["requested"]:
+                    data.qpos[:] = self.scene.data.qpos
+                    data.qvel[:] = 0
                     mujoco.mj_forward(self.model, data)
+                    attached = False
 
-                    if attached:
-                        eef = data.body(EEF_BODY_NAME)
-                        T_mujoco_eef = np.eye(4)
-                        T_mujoco_eef[:3, 3] = eef.xpos
-                        T_mujoco_eef[:3, :3] = eef.xmat.reshape(3,3)
-                        T_mujoco_object = T_mujoco_eef @ T_eef_object
-                        quat = Rotation.from_matrix(T_mujoco_object[:3, :3]).as_quat()
+                    for stage in trajectory:
+                        if stop["requested"] or not viewer.is_running():
+                            break
 
-                        data.qpos[active_qadr:active_qadr+3] = T_mujoco_object[:3,3]
-                        data.qpos[active_qadr+3:active_qadr+7] = quat[[3,0,1,2]]
-                        mujoco.mj_forward(self.model, data)
-                    viewer.sync()
+                        if stage.type == "grasp":
+                            move_gripper(0.04, viewer)
+                            attached = True
+                            continue
+
+                        if stage.type == "release":
+                            attached = False
+                            move_gripper(0.0, viewer)
+                            continue
+
+                        t0 = time.monotonic()
+                        for q, t in zip(stage.q_path, stage.time_from_start):
+                            if stop["requested"] or not viewer.is_running():
+                                break
+
+                            t /= 3.0
+                            while (
+                                not stop["requested"]
+                                and viewer.is_running()
+                                and time.monotonic() - t0 < t
+                            ):
+                                viewer.sync()
+                                time.sleep(0.001)
+
+                            if stop["requested"] or not viewer.is_running():
+                                break
+
+                            data.qpos[self.arm_qadrs] = q
+                            mujoco.mj_forward(self.model, data)
+
+                            if attached:
+                                eef = data.body(EEF_BODY_NAME)
+                                T_mujoco_eef = np.eye(4)
+                                T_mujoco_eef[:3, 3] = eef.xpos
+                                T_mujoco_eef[:3, :3] = eef.xmat.reshape(3, 3)
+
+                                T_mujoco_object = T_mujoco_eef @ T_eef_object
+                                quat = Rotation.from_matrix(
+                                    T_mujoco_object[:3, :3]
+                                ).as_quat()
+
+                                data.qpos[active_qadr:active_qadr+3] = T_mujoco_object[:3, 3]
+                                data.qpos[active_qadr+3:active_qadr+7] = quat[[3, 0, 1, 2]]
+                                mujoco.mj_forward(self.model, data)
+
+                            viewer.sync()
+
+        finally:
+            signal.signal(signal.SIGINT, old_handler)
+
+        print("[trajectory]: replay exited cleanly")
+        sys.stdout.flush()
+        os._exit(0)

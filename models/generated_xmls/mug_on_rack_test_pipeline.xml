@@ -34,10 +34,10 @@
       <attach model="kuka_iiwa_model" body="base" prefix="arm2_" />
     </body>
     <camera name="ceiling_cam" mode="fixed" pos="0 0 3.0" xyaxes="1 0 0  0 1 0" />
-    <body name="active_red_mug_big" pos="0.12 0.2 0.7893" quat="1.0 0.0 0.0 0.0">
+    <body name="active_red_mug_big" pos="0.12 0.2 0.8331" quat="1.0 0.0 0.0 0.0">
       <freejoint name="active_red_mug_big_free" />
       <inertial pos="0 0 0" mass="0.2" diaginertia="0.0003325 0.0002567 0.0003334" />
-      <geom type="cylinder" size="0.039 0.041" pos="0 -0.01 0.041" name="active_red_mug_big_red_mug_big_geom" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+      <geom type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_0" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_1" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_2" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
@@ -295,8 +295,7 @@
       <geom type="mesh" mesh="red_mug_big_254" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="red_mug_big_255" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
     </body>
-    <body name="passive_wooden_stick_toy" pos="-0.08 0.2 0.7893" quat="1.0 0.0 0.0 0.0">
-      <geom type="cylinder" size="0.015 0.085" pos="-0.018 -0.001 0.09" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
+    <body name="passive_wooden_stick_toy" pos="-0.08 0.2 0.8926499999999999" quat="1.0 0.0 0.0 0.0">
       <geom type="mesh" mesh="wooden_stick_toy_0" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="wooden_stick_toy_1" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="wooden_stick_toy_2" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
@@ -315,8 +314,8 @@
       <geom type="mesh" mesh="wooden_stick_toy_15" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
       <geom type="mesh" mesh="wooden_stick_toy_16" friction="0.8 0.02 0.001" contype="1" conaffinity="1" condim="6" />
     </body>
-    <body name="goal_red_mug_big" pos="0.0 0.17999999999999994 0.8993000000000001" quat="1.0 0.0 0.0 0.0" mocap="true">
-      <geom type="cylinder" size="0.039 0.041" pos="0 -0.01 0.041" name="goal_red_mug_big_red_mug_big_geom" class="goal" />
+    <body name="goal_red_mug_big" pos="0.0 0.18999999999999995 0.9431" quat="0.9848077530122081 0.17364817766693036 0.0 0.0" mocap="true">
+      <geom type="cylinder" pos="-0.0032 -0.01 -0.0273" size="0.0382 0.01" class="goal" />
       <geom type="mesh" mesh="red_mug_big_0" class="goal" />
       <geom type="mesh" mesh="red_mug_big_1" class="goal" />
       <geom type="mesh" mesh="red_mug_big_2" class="goal" />

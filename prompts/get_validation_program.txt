@@ -75,4 +75,5 @@ Return JSON only:
 
 7. Do not specify penetration thresholds, simulation duration, perturbations, or numeric tolerances. These are system-controlled.
 
-Hints: Think about whether the object can move by a lot while still settling at its intended goal pose. 
+Hints: 
+- Think about whether the object needs to wobble around while settling (like hangling a mug on a branch), and if so allow a higher drift tolerance.

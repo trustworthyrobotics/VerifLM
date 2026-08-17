@@ -9,6 +9,7 @@ import glfw
 import mujoco
 import mujoco.viewer
 import numpy as np
+import argparse
 from scipy.spatial.transform import Rotation
 
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
@@ -16,7 +17,7 @@ from src.digital_twin import DigitalTwin, SceneBuilder, SamplingConstraints, Val
 
 
 S = SamplingConstraints(
-    x=.05, y=.05, z=.05, roll=60., pitch=60., yaw=60.,
+    x=.05, y=.05, z=.05, roll=15., pitch=15., yaw=15.,
     x_bias="none", y_bias="none", z_bias="none",
 )
 
@@ -71,8 +72,10 @@ def nudge(T, key):
 
 
 def main():
-    benchmark = "mug_on_rack"
-    cfg = BENCHMARK_CONFIGS[benchmark]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("benchmark")
+    args = parser.parse_args()
+    cfg = BENCHMARK_CONFIGS[args.benchmark]
     active_catalog = OBJECT_CATALOG[cfg["active"]]
     passive_catalog = OBJECT_CATALOG[cfg["passive"]]
     z = float(T_mujoco_board[2, 3])
@@ -219,8 +222,21 @@ def main():
             print(f"\nvalid candidates: {len(valid_poses)}")
             for reason, count in failures.most_common(5):
                 print(f"{count:3}x  {reason}")
+    def show_next_candidate(viewer):
+        if not valid_candidates:
+            print("[test] no valid candidates; press S first")
+            return
 
-    print("""
+        candidate_idx[0] = (candidate_idx[0] + 1) % len(valid_candidates)
+        T = valid_candidates[candidate_idx[0]]
+
+        with viewer.lock():
+            set_mocap(model, data, mid, T)
+            dt.set_body_pose(data, dt.active_qadr, dt.active_dadr, T)
+
+        sync(viewer)
+        print(f"[test] candidate {candidate_idx[0]+1}/{len(valid_candidates)}")
+        print("""
 Goal-active digital-twin test
   Arrows : XY
   R/F    : +/- Z
@@ -232,33 +248,44 @@ Goal-active digital-twin test
   Q      : quit
   Ctrl-C : quit cleanly
 """)
+    stop = {"requested": False}
+    old_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(
+        signal.SIGINT,
+        lambda *_: stop.__setitem__("requested", True),
+    )
 
-    with mujoco.viewer.launch_passive(
-        model, data, key_callback=lambda key: keys.put(key)
-    ) as viewer:
+    try: 
+        with mujoco.viewer.launch_passive(
+            model, data, key_callback=lambda key: keys.put(key)
+        ) as viewer:
 
-        while viewer.is_running() and not stop["requested"]:
-            try:
-                key = keys.get_nowait()
-            except queue.Empty:
-                sync(viewer)
-                time.sleep(.01)
-                continue
+            while viewer.is_running() and not stop["requested"]:
+                try:
+                    key = keys.get_nowait()
+                except queue.Empty:
+                    sync(viewer)
+                    time.sleep(.01)
+                    continue
 
-            if key == glfw.KEY_Q:
-                stop["requested"] = True
-            elif key == glfw.KEY_V:
-                validate(viewer)
-            elif key == glfw.KEY_S:
-                sample(viewer)
-            elif key in TRANS or key in ROT:
-                with viewer.lock():
-                    set_mocap(model, data, mid, nudge(mocap_pose(data, mid), key))
-                sync(viewer)
+                if key == glfw.KEY_Q:
+                    stop["requested"] = True
+                elif key == glfw.KEY_V:
+                    validate(viewer)
+                elif key == glfw.KEY_S:
+                    sample(viewer)
+                elif key == glfw.KEY_C:
+                    show_next_candidate(viewer)
+                elif key in TRANS or key in ROT:
+                    with viewer.lock():
+                        set_mocap(model, data, mid, nudge(mocap_pose(data, mid), key))
+                    sync(viewer)
 
-    print("[test] exited cleanly")
-    sys.stdout.flush()
-    os._exit(0)
+        print("[test] exited cleanly")
+        sys.stdout.flush()
+        os._exit(0)
+    finally: 
+        signal.signal(signal.SIGINT, old_handler)
 
 
 if __name__ == "__main__":
