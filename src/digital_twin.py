@@ -7,14 +7,13 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Literal
 from scipy.spatial.transform import Rotation
-from config import OBJECT_CATALOG, T_mujoco_board
+from src.config import OBJECT_CATALOG, T_mujoco_board
 
-POSITION_TOLERANCE_MAP = {"strict": 0.10,"moderate": 0.25, "permissive": 0.50} # multiply by the active object's longest dimension
+POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.5, "permissive": 1.0} # multiply by the active object's longest dimension
 ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
 POSITION_CONSTRAINT_MAP = {"correct": 0.125, "normal_search": 0.5, "major_revision": 1.0} # multiply by the active object's longest dimension
 ORIENTATION_CONSTRAINT_MAP = {"correct": 15.0, "normal_search": 60.0, "major_revision": 120.0} 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MODELS_DIR = REPO_ROOT / "models"
 PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to produce fully accurate meshes 
     "small_dish": {
         "inertial_pos": (0, 0, 0.00418),
@@ -128,21 +127,27 @@ class Scene:
     xml_path: Path
 
 class SceneBuilder:
-    def __init__(self, lab_scene_path=MODELS_DIR / "lab_scene.xml"):
+    def __init__(self, lab_scene_path=REPO_ROOT / "models" / "lab_scene.xml"):
         self.lab_scene_path = Path(lab_scene_path).resolve()
-        self.models_dir = MODELS_DIR
 
     def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive, T_mujoco_active_goal, output_path) -> Scene: # OUTPUT_DIR = MODELS_DIR/"generated_xmls"
         root = ET.parse(self.lab_scene_path).getroot()
+        compiler = ET.Element("compiler")
+        root.insert(0, compiler)
+        compiler.set("meshdir", str(REPO_ROOT))
+
         asset = root.find("asset")
         worldbody = root.find("worldbody")
         if asset is None or worldbody is None:
             raise ValueError("[digital-twin]: lab_scene.xml misses asset or worldbody")
+        for model_asset in asset.findall("model"):
+            path = (self.lab_scene_path.parent / model_asset.get("file")).resolve()
+            model_asset.set("file", os.path.relpath(path, output_path.parent))
 
         for name in dict.fromkeys((active_name, passive_name)):
             mjcf = OBJECT_CATALOG[name]["mjcf"]
             if mjcf["type"] == "mesh":
-                path = self.models_dir / mjcf["asset_xml"]
+                path = REPO_ROOT / mjcf["asset_xml"]
                 relpath = Path(os.path.relpath(path, output_path.parent)).as_posix() # <include> locates file relative to the directory that contains the xml
                 ET.SubElement(asset, "include", {"file": relpath})
 
@@ -174,10 +179,14 @@ class SceneBuilder:
 
         # Build geometry
         if mjcf["type"] == "mesh":
-            root = ET.parse(self.models_dir / mjcf["body_xml"]).getroot()
+            root = ET.parse(REPO_ROOT / mjcf["body_xml"]).getroot()
             body = root if root.tag == "body" else root.find(".//body")
             if body is None:
-                raise ValueError(f"[digital-twin]: No <body> found in {mjcf["body_xml"]}")
+                raise ValueError(f"[digital-twin]: No <body> found in {mjcf['body_xml']}")
+
+            for elem in body.iter():
+                if elem is not body and elem.get("name"):
+                    elem.set("name", f"{body_name}_{elem.get('name')}")
 
         elif mjcf["type"] == "primitive":
             primitive = PRIMITIVES[mjcf["primitive"]]
@@ -190,7 +199,7 @@ class SceneBuilder:
                     "size": " ".join(map(str, g["size"]))
                 })
         else:
-            raise ValueError(f"[digital-twin]: Unknown MJCF type: {mjcf["type"]}")
+            raise ValueError(f"[digital-twin]: Unknown MJCF type: {mjcf['type']}")
 
         # Set body name and pose
         q = Rotation.from_matrix(T_mujoco[:3, :3]).as_quat()

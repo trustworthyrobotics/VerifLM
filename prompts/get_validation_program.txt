@@ -74,3 +74,5 @@ Return JSON only:
 6. For `geometric_only`, set both `position_drift_tolerance` and `orientation_drift_tolerance` to `null`.
 
 7. Do not specify penetration thresholds, simulation duration, perturbations, or numeric tolerances. These are system-controlled.
+
+Hints: Think about whether the object can move by a lot while still settling at its intended goal pose. 

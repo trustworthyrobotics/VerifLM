@@ -50,7 +50,7 @@ def render_for_vlm(active_path, passive_path, output_path, T_passive_active=None
         active_axes.transform(T_passive_active)
         vis.add_geometry(active_axes)
     elif rendered_frame == "world":
-        T_passive_world[0:3, 3] = np.array([-0.05, 0, 0.05])
+        T_passive_world[0:3, 3] = np.array([-0.05, 0.05, 0.05])
 
         world_axes = TriangleMesh.create_coordinate_frame(size=axis_size)
         world_axes.transform(T_passive_world)

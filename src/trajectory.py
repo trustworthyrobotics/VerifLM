@@ -6,7 +6,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Literal
-from digital_twin import Scene
+from src.digital_twin import Scene
 from scipy.spatial.transform import Rotation
 from ompl import base as ob
 from ompl import geometric as og

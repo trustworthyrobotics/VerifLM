@@ -36,6 +36,7 @@ XML_DIR = ROOT_DIR / "models" / "generated_xmls"
 for dir in [OUTPUT_ROOT_DIR, CAMERA_DIR, PERCEPTION_DIR, RENDER_DIR, VLM_DIR, TRAJECTORY_DIR, DTWIN_DIR, XML_DIR]:
     dir.mkdir(exist_ok=True, parents=True)
 
+MODELS_DIR = ROOT_DIR / "models"
 GROUNDING_DINO_DIR = ROOT_DIR.parent / "GroundingDINO"
 SAM2_DIR = ROOT_DIR.parent / "sam2"
 FP_DIR = ROOT_DIR.parent / "FoundationPose"
@@ -55,9 +56,12 @@ T_cam_board = camera.get_extrinsics()
 if T_cam_board is None:
     raise RuntimeError("Camera extrinsics unavailable")
 
+input("step 1 done. press enter to proceed:")
+
 # 2. Query VLM to edit the image
 # Output: edited image stored in VLM_DIR
 edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
+input("step 2 done. press enter to proceed:")
 
 # 3. VGGT depth estimation
 # Output: estimated depths stored in PERCEPTION_DIR
@@ -95,7 +99,7 @@ T_cam_active_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", 
 T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
                                             mask_path=PERCEPTION_DIR/"edited_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
                                             K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_passive_pose_cam.npy")
-
+input("step 3-5 done. press enter to proceed:")
 
 # Derive more transformations for later use
 T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
@@ -107,7 +111,7 @@ T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_activ
 # Output: axis-labeled pictures of objects in RENDER_DIR
 
 # First pair of renderings: world-axis-labeled renders for translational reasoning
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
+render_for_vlm(active_path=MODELS_DIR/ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
                T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
@@ -121,7 +125,7 @@ render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG[
 render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
                T_passive_active=T_passive_active_edited, rendered_frame="active",
                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-
+input("step 6 done. press enter to proceed:")
 
 # 7. Query VLM for validation program V and sampling constraints S
 # output: sampling constraints S and validation program V
@@ -149,7 +153,7 @@ if not candidates:
 candidate_image_paths = []
 for i, T_mujoco_active_goal_valid in enumerate(candidates):
     T_passive_active_valid = np.linalg.inv(T_mujoco_passive) @ T_mujoco_active_goal_valid
-    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}",
+    render_for_vlm(active_path=MODE/ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}",
                    T_passive_active=T_passive_active_valid, rendered_frame="active",
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
@@ -158,11 +162,13 @@ for i, T_mujoco_active_goal_valid in enumerate(candidates):
     cv2.putText(image, f"candidate_{i}", (20,75), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
     cv2.imwrite(str(image_path), image)
     candidate_image_paths.append(image_path)
+input("step 8 done. press enter to proceed:")
 
 # 9. Select best candidate
 best_index = select_best_candidate(CONFIG["instruction"], CONFIG["active"], CONFIG["passive"], 
                                    input_image_paths=candidate_image_paths, output_path=VLM_DIR/"best_candidate.json")
 T_mujoco_active_goal_selected = candidates[best_index]
+input("step 9 done. press enter to proceed:")
 
 # 10. Grasp Planning
 grasp_planner = GraspPlanner(ACTIVE_CATALOG, camera.get_intrinsics(), ANYGRASP_CHECKPOINT)

@@ -5,8 +5,8 @@ from typing import Literal
 from dotenv import load_dotenv
 from openai import OpenAI
 from google import genai
-from digital_twin import SamplingConstraints, ValidationProgram, XYZRelation
-from digital_twin import POSITION_TOLERANCE_MAP, POSITION_CONSTRAINT_MAP, ORIENTATION_TOLERANCE_MAP, ORIENTATION_CONSTRAINT_MAP
+from src.digital_twin import SamplingConstraints, ValidationProgram, XYZRelation
+from src.digital_twin import POSITION_TOLERANCE_MAP, POSITION_CONSTRAINT_MAP, ORIENTATION_TOLERANCE_MAP, ORIENTATION_CONSTRAINT_MAP
 
 load_dotenv()
 openai_client = OpenAI()
@@ -101,7 +101,7 @@ def get_validation_program(instruction, active_object, passive_object, active_di
     with open(output_path, "w") as file:
         json.dump(json_raw, file, indent=4)
 
-    xyz_relations = [XYZRelation(axis=item["xyz_relations"]["axis"], relation=item["xyz_relations"]["relation"]) for item in json_raw.get("xyz_relations", [])]
+    xyz_relations = [XYZRelation(axis=item["axis"], relation=item["relation"]) for item in json_raw.get("xyz_relations", [])]
     max_active_dim = max(active_dimensions)
     validation_mode = json_raw["validation_mode"]
 
