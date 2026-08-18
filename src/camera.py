@@ -6,14 +6,47 @@ import os
 import json
 
 class ArucoBoard:
-    def __init__(self, markers_x=2, markers_y=2, marker_length_m=0.115, marker_separation=0.015):
+    def __init__(self, markers_x=2, markers_y=2,
+                 marker_length_m=0.115, marker_separation=0.020):
         self.markers_x = markers_x
         self.markers_y = markers_y
         self.marker_length_m = marker_length_m
-        self.marker_separation=marker_separation
+        self.marker_separation = marker_separation
         self.dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        self.board = cv2.aruco.GridBoard((markers_x, markers_y), marker_length_m, marker_separation, self.dictionary)
+        self.board = cv2.aruco.GridBoard(
+            (markers_x, markers_y),
+            marker_length_m,
+            marker_separation,
+            self.dictionary
+        )
         self.detector = cv2.aruco.ArucoDetector(self.dictionary)
+
+    def save_pdf(self, path="aruco_board.pdf", dpi=600):
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A3
+        from reportlab.lib.units import mm
+        import tempfile
+
+        width_m = self.markers_x*self.marker_length_m + \
+                  (self.markers_x-1)*self.marker_separation
+        height_m = self.markers_y*self.marker_length_m + \
+                   (self.markers_y-1)*self.marker_separation
+
+        width_px = round(width_m / 0.0254 * dpi)
+        height_px = round(height_m / 0.0254 * dpi)
+        image = self.board.generateImage((width_px, height_px), marginSize=0)
+
+        with tempfile.NamedTemporaryFile(suffix=".png") as f:
+            cv2.imwrite(f.name, image)
+
+            page_w, page_h = A3
+            board_w, board_h = width_m*1000*mm, height_m*1000*mm
+            x = (page_w-board_w)/2
+            y = (page_h-board_h)/2
+
+            pdf = canvas.Canvas(path, pagesize=A3)
+            pdf.drawImage(f.name, x, y, board_w, board_h)
+            pdf.save()
 
     def detect(self, bgr): 
         corners, ids, _ = self.detector.detectMarkers(bgr)
@@ -86,7 +119,7 @@ class Camera():
             self.started = False
             print("[camera]: stopped")
 
-    def capture(self, render=False, save=False, calculate_extrinsics=False, out_dir=None, prefix="source"):
+    def capture(self, render=False, save=False, calculate_extrinsics=False, out_dir=None, extrinsics_path="artifacts/calibration/extrinsics.npy", prefix="source"):
         frames = None
         for _ in range(5):
             frames = self.pipeline.wait_for_frames(1000)
@@ -112,29 +145,34 @@ class Camera():
         if calculate_extrinsics:
             board = ArucoBoard()
             corners, ids = board.detect(bgr)
-            if ids is None or len(ids) == 0:
-                raise RuntimeError("[camera]: failed to detect arucoboard")
+            if ids is None or len(ids) != 4:
+                raise RuntimeError(
+                    f"[camera]: expected 4 markers, detected "
+                    f"{0 if ids is None else len(ids)}"
+                )
             self.T_cam_board = board.get_extrinsics(bgr, self.K, self.dist_coeffs, corners, ids)
 
-            if out_dir is not None:
-                extrinsics_path = out_dir/f"{prefix}_extrinsics.npy"
+            if extrinsics_path is not None:
                 np.save(extrinsics_path, self.T_cam_board)
         else:
-            extrinsics_path = out_dir/f"{prefix}_extrinsics.npy"
             self.T_cam_board = np.load(extrinsics_path) if extrinsics_path.exists() else None
 
         if render:
-            min_depth_m = 0.2
-            max_depth_m = 3.0
+            if self.T_cam_board is not None:
+                R = self.T_cam_board[:3, :3]
+                tvec = self.T_cam_board[:3, 3].reshape(3, 1)
+                rvec, _ = cv2.Rodrigues(R)
+                cv2.drawFrameAxes(bgr, self.K, self.dist_coeffs, rvec, tvec, 0.10, 3)
+
+            min_depth_m, max_depth_m = 0.2, 3.0
             valid = np.isfinite(depth_m)
             depth_scaled = np.zeros(depth_m.shape, dtype=np.uint8)
-            normalized = (255 * (max_depth_m - depth_m[valid]) / (max_depth_m - min_depth_m))
-            depth_scaled[valid] = np.clip(normalized, 0, 255).astype(np.uint8)
-            depth_vis = cv2.applyColorMap(depth_scaled,cv2.COLORMAP_TURBO) 
+            depth_scaled[valid] = np.clip(255 * (max_depth_m - depth_m[valid]) / (max_depth_m - min_depth_m), 0, 255).astype(np.uint8)
+            depth_vis = cv2.applyColorMap(depth_scaled, cv2.COLORMAP_TURBO)
 
-            combined = cv2.hconcat([bgr, depth_vis])
-            cv2.imshow("Camera", combined)
-            cv2.waitKey(1)
+            cv2.imshow("Camera", cv2.hconcat([bgr, depth_vis]))
+            cv2.waitKey(0)
+            cv2.destroyWindow("Camera")
         if save:
             out_dir = Path(out_dir)
             out_dir.mkdir(exist_ok=True, parents=True)

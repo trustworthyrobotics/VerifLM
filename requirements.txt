@@ -11,6 +11,7 @@ Pillow
 torch
 pyrealsense2
 ompl
+reportlab
 
 # The code also imports these from external repos or vendor SDK installs.
 # Install/configure them separately, then point the environment variables at them:
