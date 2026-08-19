@@ -383,10 +383,15 @@ BENCHMARK_CONFIGS = {
 
 # Transformations
 import numpy as np
-T_mujoco_board = np.array([ # arucoboard frame expressed in mujoco's origin frame
-    [1.0, 0.0, 0.0, -0.12],
-    [0.0, -1.0, 0.0, 0.0],
-    [0.0, 0.0, -1.0, 0.7893],
+# T_mujoco_board = np.array([ # arucoboard frame expressed in mujoco's origin frame
+#     [1.0, 0.0, 0.0, -0.12],
+#     [0.0, -1.0, 0.0, 0.0],
+#     [0.0, 0.0, -1.0, 0.7893],
+#     [0, 0, 0, 1]
+# ])
+T_mujoco_board = np.array([
+    [-1.0, 0.0, 0.0, 0.29],
+    [0.0, 1.0, 0.0, 0.525],
+    [0.0, 0.0, -1.0, 0.78],
     [0, 0, 0, 1]
 ])
-T_arm_board = np.eye(4)
