@@ -28,6 +28,7 @@ TRANSLATION DIRECTIONS
 Hints: 
 - Think about whether the object needs to be locally adjusted so that the intended contact can be made. For example, if the mug's handle needs to contact the rack peg, the mug might need to be translated by a large amount so the handle is touching the rack peg. 
 - For pouring tea into the mug, all that is required is for the spout to be above the cup's opening. If that's already the case then probably no large adjustment is needed.
+- For stacking cups, if the two cups are overlapping, the active object probably only need to be translated slightly upward.
 
 Return only JSON:
 {

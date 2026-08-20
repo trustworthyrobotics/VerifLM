@@ -113,7 +113,7 @@ class ValidationProgram:
     roll_drift_tolerance: float
     pitch_drift_tolerance: float
     yaw_drift_tolerance: float
-    max_initial_penetration: float = 0.03
+    max_initial_penetration: float = 0.05
     max_final_penetration: float = 0.0008
 
 @dataclass

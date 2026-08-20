@@ -47,11 +47,13 @@ class DepthEstimator:
         source_vggt_depth = np.load(source_depth_paths[1])
         edited_vggt_depth = np.load(edited_depth_path)
 
-        source_active_mask = cv2.imread(str(source_mask_paths[0]), cv2.IMREAD_GRAYSCALE) > 0 # converts into an array of booleans
-        source_passive_mask = cv2.imread(str(source_mask_paths[1]), cv2.IMREAD_GRAYSCALE) > 0
+        # source_active_mask = cv2.imread(str(source_mask_paths[0]), cv2.IMREAD_GRAYSCALE) > 0 # converts into an array of booleans
+        # source_passive_mask = cv2.imread(str(source_mask_paths[1]), cv2.IMREAD_GRAYSCALE) > 0
+        # valid = source_active_mask | source_passive_mask
+        valid = (source_true_depth >= 0.15) & (source_true_depth <= 2.0) & (source_vggt_depth > 0)
 
-        source_true_depth_filtered = source_true_depth[source_active_mask | source_passive_mask]
-        source_vggt_depth_filtered = source_vggt_depth[source_active_mask | source_passive_mask]
+        source_true_depth_filtered = source_true_depth[valid]
+        source_vggt_depth_filtered = source_vggt_depth[valid]
 
         valid = (np.isfinite(source_true_depth_filtered) & np.isfinite(source_vggt_depth_filtered) &
                  (source_true_depth_filtered > 0) & (source_vggt_depth_filtered > 0))

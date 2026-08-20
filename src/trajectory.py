@@ -35,6 +35,7 @@ ARM_JOINT_LIMITS = np.array([
 ])
 ROBOT_BODY_NAMES = tuple([ARM_PREFIX + name for name in ("base", "link1", "link2", "link3", "link4", "link5", "link6", "link7", "adapter_box", "box_gripper", "finger_1", "finger_2")])
 FINGER_BODY_NAMES = (ARM_PREFIX+"finger_1", ARM_PREFIX+"finger_2")
+FINGER_JOINT_NAMES = (ARM_PREFIX+"finger_1_slide", ARM_PREFIX+"finger_2_slide")
 EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
 TABLE_GEOM_NAMES = ("table", "table_base")
 ACTIVE_TABLE_TOLERANCE = 0.001
@@ -336,7 +337,10 @@ class TrajectoryPlanner:
         self.eef_body_id = self.model.body(EEF_BODY_NAME).id
         self.chosen_grasp = None
 
+        self.finger_qadrs = np.array([self.model.joint(name).qposadr[0] for name in FINGER_JOINT_NAMES])
+
     def plan(self, q_start, T_mujoco_object_src, T_mujoco_object_goal, grasps: list[Grasp], output_path=None):
+        print(f"T_mujoco_object_src:\n{T_mujoco_object_src}, T_mujoco_object_goal:\n{T_mujoco_object_goal}")
         # For every candidate grasp 
         stages = None
         for i, grasp in enumerate(grasps):
@@ -349,6 +353,20 @@ class TrajectoryPlanner:
             q_grasp = self.solve_ik(T_mujoco_eef_grasp, q_pregrasp) if q_pregrasp is not None else None
             q_goal = self.solve_ik(T_mujoco_eef_goal, q_grasp) if q_grasp is not None else None
 
+            # debug lines
+            self.ik_data.qpos[self.arm_qadrs] = q_goal
+            mujoco.mj_forward(self.model, self.ik_data)
+
+            eef = self.ik_data.body(EEF_BODY_NAME)
+            T_fk_eef = np.eye(4)
+            T_fk_eef[:3, 3] = eef.xpos
+            T_fk_eef[:3, :3] = eef.xmat.reshape(3, 3)
+
+            T_fk_object = T_fk_eef @ T_eef_object
+
+            print("desired object goal xyz:", T_mujoco_object_goal[:3, 3])
+            print("FK reconstructed xyz:   ", T_fk_object[:3, 3])
+            print("xyz error:               ", T_fk_object[:3, 3] - T_mujoco_object_goal[:3, 3])
             ## check (1) IK feasible source and goal (2) collision free at source and goal
             if q_pregrasp is None or q_grasp is None or q_goal is None:
                 print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK")
@@ -484,11 +502,11 @@ class TrajectoryPlanner:
         )
 
         def move_gripper(target, viewer, duration=.5):
-            start = data.qpos[finger_qadrs].copy()
+            start = data.qpos[self.finger_qadrs].copy()
             for a in np.linspace(0, 1, 30):
                 if stop["requested"] or not viewer.is_running():
                     return
-                data.qpos[finger_qadrs] = (1-a)*start + a*target
+                data.qpos[self.finger_qadrs] = (1-a)*start + a*target
                 mujoco.mj_forward(self.model, data)
                 viewer.sync()
                 time.sleep(duration/30)
@@ -506,7 +524,7 @@ class TrajectoryPlanner:
                             break
 
                         if stage.type == "grasp":
-                            move_gripper(0.04, viewer)
+                            move_gripper(0.025, viewer)
                             attached = True
                             continue
 

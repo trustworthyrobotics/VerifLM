@@ -18,6 +18,7 @@ parser.add_argument("benchmark")
 parser.add_argument("--reuse-extrinsics", action="store_true", default=False)
 parser.add_argument("--reuse-source", action="store_true", default=False)
 parser.add_argument("--reuse-edited", action="store_true", default=False)
+parser.add_argument("--reuse-VS", action="store_true", default=False)
 args = parser.parse_args()
 
 # Load benchmark config
@@ -139,7 +140,8 @@ while True: # FP frequently fails on the edited image, so we allow the user to r
     T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
     T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
     T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
-    T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_edited
+    # T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_edited
+    T_mujoco_active_goal = T_mujoco_passive @ T_passive_active_edited # We extract a SE3 transform between passive and active objects from the goal image, then apply this SE3 to passive pose to obtain active goal pose
 
     # 6. Render poses
     # Output: axis-labeled pictures of objects in RENDER_DIR
@@ -166,16 +168,21 @@ while True: # FP frequently fails on the edited image, so we allow the user to r
 
 # 7. Query VLM for validation program V and sampling constraints S
 # output: sampling constraints S and validation program V
-S = get_sampling_constraints(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
-                             active_dimensions=ACTIVE_CATALOG["dimensions"], 
-                             translation_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
-                             rotation_image_paths=[RENDER_DIR/"rotation_0.png", RENDER_DIR/"rotation_1.png"],
-                             translation_output_path=VLM_DIR/"translation_constraints.json",
-                             rotation_output_path=VLM_DIR/"rotation_constraints.json")
-V = get_validation_program(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
-                           active_dimensions=ACTIVE_CATALOG["dimensions"], passive_dimensions=PASSIVE_CATALOG["dimensions"],
-                           input_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
-                           output_path=VLM_DIR/"validation_program.json")
+if not args.reuse_VS:
+    while True:
+        S = get_sampling_constraints(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
+                                    active_dimensions=ACTIVE_CATALOG["dimensions"], 
+                                    translation_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
+                                    rotation_image_paths=[RENDER_DIR/"rotation_0.png", RENDER_DIR/"rotation_1.png"],
+                                    translation_output_path=VLM_DIR/"translation_constraints.json",
+                                    rotation_output_path=VLM_DIR/"rotation_constraints.json")
+        V = get_validation_program(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
+                                active_dimensions=ACTIVE_CATALOG["dimensions"], passive_dimensions=PASSIVE_CATALOG["dimensions"],
+                                input_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
+                                output_path=VLM_DIR/"validation_program.json")
+        i = input("Enter R to re-query VLM for V and S. Enter anything else to proceed to sampling in Mujoco: ")
+        if i.lower() != "r":
+            break
 
 # 8. Sample in Mujoco + render successful candidates
 scene_builder = SceneBuilder()
@@ -218,7 +225,7 @@ candidate_grasps = grasp_planner.plan(T_cam_object=T_cam_active_source,
 # 11. Trajectory planning
 q_start = np.zeros((7,))
 trajectory_planner = TrajectoryPlanner(scene)
-stages = trajectory_planner.plan(
+trajectory = trajectory_planner.plan(
     q_start=q_start,
     T_mujoco_object_src=T_mujoco_active,
     T_mujoco_object_goal=T_mujoco_active_goal_selected,
@@ -226,4 +233,8 @@ stages = trajectory_planner.plan(
     output_path=TRAJECTORY_DIR/"trajectory.json",
 )
 
+if not trajectory:
+    raise RuntimeError("No valid trajectory found.")
 print(f"[main]: Trajectory saved to {TRAJECTORY_DIR}/trajectory.json")
+
+trajectory_planner.replay_trajectory(trajectory)
