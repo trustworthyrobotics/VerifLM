@@ -36,9 +36,9 @@ ARM_JOINT_LIMITS = np.array([
 ROBOT_BODY_NAMES = tuple([ARM_PREFIX + name for name in ("base", "link1", "link2", "link3", "link4", "link5", "link6", "link7", "adapter_box", "box_gripper", "finger_1", "finger_2")])
 FINGER_BODY_NAMES = (ARM_PREFIX+"finger_1", ARM_PREFIX+"finger_2")
 EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
-TABLE_GEOM_NAME = "table"
-ACTIVE_TABLE_TOLERANCE = 0.002
-ACTIVE_PASSIVE_TOLERANCE = 0.002
+TABLE_GEOM_NAMES = ("table", "table_base")
+ACTIVE_TABLE_TOLERANCE = 0.001
+ACTIVE_PASSIVE_TOLERANCE = 0.001
 
 @dataclass(frozen=True)
 class Grasp:
@@ -65,8 +65,7 @@ class CollisionChecker:
         self.data = mujoco.MjData(self.model)
 
         # Arm joint addresses
-        arm_joint_ids = [self.model.joint(name).id for name in ARM_JOINT_NAMES]
-        self.arm_qadrs = np.array([self.model.jnt_qposadr[jid] for jid in arm_joint_ids])
+        self.arm_qadrs = np.array([self.model.joint(name).qposadr[0] for name in ARM_JOINT_NAMES])
 
         # Active object freejoint address
         active_joint_id = int(self.model.body_jntadr[scene.active_body_id])
@@ -87,7 +86,7 @@ class CollisionChecker:
         self.active_geom_ids = {gid for gid in range(self.model.ngeom) if int(self.model.geom_bodyid[gid]) == scene.active_body_id}
         self.passive_geom_ids = {gid for gid in range(self.model.ngeom) if int(self.model.geom_bodyid[gid]) == scene.passive_body_id}
 
-        self.table_geom_id = self.model.geom(TABLE_GEOM_NAME).id
+        self.table_geom_ids = {self.model.geom(name).id for name in TABLE_GEOM_NAMES}
         self.eef_body_id = self.model.body(EEF_BODY_NAME).id
 
     def check(self, q, T_eef_active=None, allow_active_fingers=False):
@@ -113,14 +112,13 @@ class CollisionChecker:
             mujoco.mj_forward(self.model, self.data)
 
         # Check contacts
-        for i in range(self.data.ncon):
-            contact = self.data.contact[i]
+        for contact in self.data.contact:
             g1, g2 = int(contact.geom1), int(contact.geom2)
 
             r1, r2 = g1 in self.robot_geom_ids, g2 in self.robot_geom_ids
             a1, a2 = g1 in self.active_geom_ids, g2 in self.active_geom_ids
             p1, p2 = g1 in self.passive_geom_ids, g2 in self.passive_geom_ids
-            t1, t2 = g1 == self.table_geom_id, g2 == self.table_geom_id
+            t1, t2 = g1 in self.table_geom_ids, g2 in self.table_geom_ids
             if contact.dist >= 0:
                 continue
 

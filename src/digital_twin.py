@@ -123,7 +123,7 @@ class Scene:
     active_body_id: int
     passive_body_id: int
     goal_mocap_id: int
-    table_geom_id: int
+    table_geom_ids: set[int]
     xml_path: Path
 
 class SceneBuilder:
@@ -160,16 +160,15 @@ class SceneBuilder:
 
         model = mujoco.MjModel.from_xml_path(str(output_path))
         data = mujoco.MjData(model)
-        active_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"active_{active_name}")
-        passive_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"passive_{passive_name}")
-        goal_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"goal_{active_name}")
-        goal_mocap_id = int(model.body_mocapid[goal_body_id])
-        table_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "table")
-        if any(id is None or id < 0 for id in (active_body_id, passive_body_id, goal_body_id, goal_mocap_id, table_geom_id)):
-            raise ValueError("[digital-twin]: failed to retrieve certain ids")
+        active_body_id = model.body(f"active_{active_name}").id
+        passive_body_id = model.body(f"passive_{passive_name}").id
+        goal_mocap_id = int(model.body(f"goal_{active_name}").mocapid[0])
+        table_geom_ids = {model.geom(name).id for name in ("table", "table_base")}
+        if goal_mocap_id < 0:
+            raise ValueError(f"[digital-twin]: {goal_body.name} is not a mocap body")
 
         mujoco.mj_forward(model, data)
-        return Scene(model, data, active_body_id, passive_body_id, goal_mocap_id, table_geom_id, output_path)
+        return Scene(model, data, active_body_id, passive_body_id, goal_mocap_id, table_geom_ids, output_path)
 
     def make_body(self, name, T_mujoco, role):
         spec = OBJECT_CATALOG[name]
@@ -409,8 +408,8 @@ class DigitalTwin:
 
             if {body_id1, body_id2} == scene_body_ids:
                 contacts.add("active_passive")
-            if ((body_id1 == self.scene.active_body_id and geom2 == self.scene.table_geom_id) or
-                (body_id2 == self.scene.active_body_id and geom1 == self.scene.table_geom_id)):
+            if ((body_id1 == self.scene.active_body_id and geom2 in self.scene.table_geom_ids) or
+                (body_id2 == self.scene.active_body_id and geom1 in self.scene.table_geom_ids)):
                 contacts.add("active_table")
 
         forbidden = set(self.V.forbidden_contacts) & contacts
@@ -428,8 +427,8 @@ class DigitalTwin:
 
             if {body1, body2} == {self.scene.active_body_id, self.scene.passive_body_id}:
                 contacts.add("active_passive")
-            if ((body1 == self.scene.active_body_id and geom2 == self.scene.table_geom_id) or
-                (body2 == self.scene.active_body_id and geom1 == self.scene.table_geom_id)):
+            if ((body1 == self.scene.active_body_id and geom2 in self.scene.table_geom_ids) or
+                (body2 == self.scene.active_body_id and geom1 in self.scene.table_geom_ids)):
                 contacts.add("active_table")
 
         missing = set(self.V.required_contacts) - contacts
