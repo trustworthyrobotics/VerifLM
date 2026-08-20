@@ -119,7 +119,7 @@ class Camera():
             self.started = False
             print("[camera]: stopped")
 
-    def capture(self, render=False, save=False, calculate_extrinsics=False, out_dir=None, extrinsics_path="artifacts/calibration/extrinsics.npy", prefix="source"):
+    def capture(self, render=False, save=False, reuse_extrinsics=False, out_dir=None, extrinsics_path="artifacts/calibration/extrinsics.npy", prefix="source"):
         frames = None
         for _ in range(5):
             frames = self.pipeline.wait_for_frames(1000)
@@ -142,7 +142,9 @@ class Camera():
         depth_m[(depth_m <= 0) | (~np.isfinite(depth_m))] = np.nan
 
         # try to detect aruco board
-        if calculate_extrinsics:
+        if reuse_extrinsics:
+            self.T_cam_board = np.load(extrinsics_path) if Path(extrinsics_path).exists() else None
+        else:
             board = ArucoBoard()
             corners, ids = board.detect(bgr)
             if ids is None or len(ids) != 4:
@@ -154,9 +156,7 @@ class Camera():
 
             if extrinsics_path is not None:
                 np.save(extrinsics_path, self.T_cam_board)
-        else:
-            self.T_cam_board = np.load(extrinsics_path) if extrinsics_path.exists() else None
-
+                
         if render:
             if self.T_cam_board is not None:
                 R = self.T_cam_board[:3, :3]

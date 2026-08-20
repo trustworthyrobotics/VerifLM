@@ -1,4 +1,5 @@
 import argparse
+import json
 import numpy as np
 import cv2
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
@@ -14,7 +15,9 @@ from src.trajectory import GraspPlanner, TrajectoryPlanner
 # Read user args
 parser = argparse.ArgumentParser()
 parser.add_argument("benchmark")
-parser.add_argument("--calc-extrinsics", action="store_true", default=False)
+parser.add_argument("--reuse-extrinsics", action="store_true", default=False)
+parser.add_argument("--reuse-source", action="store_true", default=False)
+parser.add_argument("--reuse-edited", action="store_true", default=False)
 args = parser.parse_args()
 
 # Load benchmark config
@@ -24,7 +27,7 @@ ACTIVE_CATALOG = OBJECT_CATALOG[CONFIG["active"]]
 PASSIVE_CATALOG = OBJECT_CATALOG[CONFIG["passive"]]
 
 # Define directories
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT_DIR = ROOT_DIR / "artifacts" / BENCHMARK_NAME
 CAMERA_DIR = OUTPUT_ROOT_DIR / "camera"
 PERCEPTION_DIR = OUTPUT_ROOT_DIR / "perception"
@@ -42,17 +45,42 @@ SAM2_DIR = ROOT_DIR.parent / "sam2"
 FP_DIR = ROOT_DIR.parent / "FoundationPose"
 ANYGRASP_DIR = ROOT_DIR.parent / "anygrasp_sdk" / "grasp_detection"
 ANYGRASP_CHECKPOINT = ANYGRASP_DIR / "checkpoints" / "checkpoint_detection.tar"
+EXTRINSICS_PATH = ROOT_DIR / "artifacts" / "calibration" / "extrinsics.npy"
 
 # 1. Camera capture RGBD
 # Output: rgbd observations stored in CAMERA_DIR
 camera = Camera()
-camera.start()
-try: 
-    camera.capture(render=True, save=True, calculate_extrinsics=args.calc_extrinsics, out_dir=CAMERA_DIR)
-finally:
-    camera.stop()
+if args.reuse_source:
+    rgb_path = CAMERA_DIR / "source_rgb.png"
+    depth_path = CAMERA_DIR / "source_depth_m.npy"
+    meta_path = CAMERA_DIR / "source_camera_meta.json"
 
-T_cam_board = camera.get_extrinsics()
+    required = [rgb_path, depth_path, meta_path, EXTRINSICS_PATH]
+    missing = [str(path) for path in required if not path.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Cannot reuse source; missing:\n" + "\n".join(missing)
+        )
+
+    metadata = json.loads(meta_path.read_text())
+    camera.K = np.asarray(metadata["K"], dtype=np.float64)
+    camera.dist_coeffs = np.asarray(metadata["dist_coeffs"], dtype=np.float64)
+    T_cam_board = np.load(EXTRINSICS_PATH)
+else:
+    camera.start()
+    try:
+        camera.capture(
+            render=True,
+            save=True,
+            reuse_extrinsics=args.reuse_extrinsics,
+            extrinsics_path=EXTRINSICS_PATH,
+            out_dir=CAMERA_DIR,
+        )
+    finally:
+        camera.stop()
+
+    T_cam_board = camera.get_extrinsics()
+
 if T_cam_board is None:
     raise RuntimeError("Camera extrinsics unavailable")
 
@@ -60,7 +88,12 @@ input("step 1 done. press enter to proceed:")
 
 # 2. Query VLM to edit the image
 # Output: edited image stored in VLM_DIR
-edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
+edited_path = VLM_DIR / "edited_rgb.png"
+if args.reuse_edited:
+    if not edited_path.exists():
+        raise FileNotFoundError(f"Cannot reuse edited image; missing {edited_path}")
+else:
+    edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
 input("step 2 done. press enter to proceed:")
 
 # 3. VGGT depth estimation
@@ -82,6 +115,7 @@ depth_estimator.correct(source_depth_paths=[CAMERA_DIR/"source_depth_m.npy", PER
                         source_mask_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png"],
                         edited_depth_path=PERCEPTION_DIR/"edited_vggt_depth_raw.npy",
                         output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy")
+input("step 3-4 done. press enter to proceed:")
 
 # 5. FP pose estimation 
 # Output: estimated object poses in camera frame in PERCEPTION_DIR
@@ -93,39 +127,42 @@ T_cam_passive_source = pose_estimator.predict(rgb_path=CAMERA_DIR/"source_rgb.pn
                                             mask_path=PERCEPTION_DIR/"source_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
                                             K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="source_passive_pose_cam.npy")
 
-T_cam_active_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
-                                            mask_path=PERCEPTION_DIR/"edited_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
-                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_active_pose_cam.npy")
-T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
-                                            mask_path=PERCEPTION_DIR/"edited_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
-                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_passive_pose_cam.npy")
-input("step 3-5 done. press enter to proceed:")
+while True: # FP frequently fails on the edited image, so we allow the user to re-estimate if necessary
+    T_cam_active_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
+                                                mask_path=PERCEPTION_DIR/"edited_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
+                                                K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_active_pose_cam.npy")
+    T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
+                                                mask_path=PERCEPTION_DIR/"edited_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
+                                                K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_passive_pose_cam.npy")
 
-# Derive more transformations for later use
-T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
-T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
-T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
-T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_edited
+    # Derive more transformations for later use
+    T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
+    T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
+    T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
+    T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_edited
 
-# 6. Render poses
-# Output: axis-labeled pictures of objects in RENDER_DIR
+    # 6. Render poses
+    # Output: axis-labeled pictures of objects in RENDER_DIR
 
-# First pair of renderings: world-axis-labeled renders for translational reasoning
-render_for_vlm(active_path=MODELS_DIR/ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
-               T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
-               lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
-               T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
-               lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+    # First pair of renderings: world-axis-labeled renders for translational reasoning
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
+                T_passive_active=T_passive_active_edited, T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
+                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
+                T_passive_active=T_passive_active_edited,T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
+                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
-# Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
-               T_passive_active=T_passive_active_edited, rendered_frame="active",
-               lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
-               T_passive_active=T_passive_active_edited, rendered_frame="active",
-               lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-input("step 6 done. press enter to proceed:")
+    # Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
+                T_passive_active=T_passive_active_edited, rendered_frame="active",
+                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
+                T_passive_active=T_passive_active_edited, rendered_frame="active",
+                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+    i = input("Enter R to re-estimate poses in the edited image. Enter anything else to proceed to querying VLM for V and S: ")
+
+    if i.lower() != "r":
+        break
 
 # 7. Query VLM for validation program V and sampling constraints S
 # output: sampling constraints S and validation program V
@@ -153,7 +190,7 @@ if not candidates:
 candidate_image_paths = []
 for i, T_mujoco_active_goal_valid in enumerate(candidates):
     T_passive_active_valid = np.linalg.inv(T_mujoco_passive) @ T_mujoco_active_goal_valid
-    render_for_vlm(active_path=MODE/ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}",
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}.png",
                    T_passive_active=T_passive_active_valid, rendered_frame="active",
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 

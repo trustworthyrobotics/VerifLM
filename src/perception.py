@@ -1,3 +1,5 @@
+import threading
+import signal
 import torch
 import time
 import subprocess
@@ -23,10 +25,16 @@ class DepthEstimator:
         with torch.no_grad():
             pred = self.model(images) # torch.Size([1,N,H,W,1])
         depth_raw = pred["depth"].squeeze(0).squeeze(-1).float().cpu().numpy()  # torch.Size([N,H,W])
+        depth_raw_resized = []
+
+        for i in range(len(depth_raw)):
+            images = cv2.imread(str(input_paths[i]))
+            depth = cv2.resize(depth_raw[i], (images.shape[1], images.shape[0]), interpolation=cv2.INTER_LINEAR)
+            depth_raw_resized.append(depth)
 
         if output_paths:
             for i in range(len(output_paths)):
-                np.save(output_paths[i], depth_raw[i])
+                np.save(output_paths[i], depth_raw_resized[i])
         return depth_raw
 
     def correct(self, source_depth_paths, source_mask_paths, edited_depth_path, output_path):
@@ -88,15 +96,35 @@ class BBoxer:
             Path(output_path).write_text(json.dumps(bbox_list, indent=4))
 
         return bbox_list
+    
+    @staticmethod
+    def _prompt_choice():
+        box = [None]
+        done = threading.Event()
+
+        def _read():
+            try:
+                box[0] = input("\nRedraw box [1-4], or Enter to accept: ").strip()
+            except (KeyboardInterrupt, EOFError):
+                box[0] = ""
+            done.set()
+
+        threading.Thread(target=_read, daemon=True).start()
+        old = signal.signal(signal.SIGINT, signal.SIG_DFL)
+        try:
+            while not done.wait(0.05):
+                cv2.waitKey(1)
+        finally:
+            signal.signal(signal.SIGINT, old)
+
+        return box[0] or ""
 
     def review(self, input_paths, bbox_list):
-        # Wait for user to redraw bboxes 
-
         while True:
             panels = []
             failed = False
 
-            for i, (path, bbox) in enumerate(zip(input_paths, bbox_list)):
+            for i, path in enumerate(input_paths):
                 image = cv2.imread(str(path))
                 bbox = bbox_list[i]
 
@@ -107,14 +135,13 @@ class BBoxer:
                     failed = True
                     status = "DETECTION FAILED - redraw"
 
-                cv2.putText(image, f"{i+1}: {status}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
-                panels.append(cv2.resize(image, (640,360)))
+                cv2.putText(image, f"{i + 1}: {status}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                panels.append(cv2.resize(image, (640, 360)))
 
-            preview = np.vstack([np.hstack(panels[0:2]), np.hstack(panels[2:])])
+            preview = np.vstack([np.hstack(panels[:2]), np.hstack(panels[2:])])
             cv2.imshow("BBoxes", preview)
-            cv2.waitKey(1)
 
-            choice = input("Redraw box [1-4], or Enter to accept: ").strip()
+            choice = self._prompt_choice()
             if not choice:
                 if failed:
                     print("[perception]: please redraw failed detections!")
@@ -133,6 +160,7 @@ class BBoxer:
                 bbox_list[choice_i] = (x, y, x+w, y+h)
 
         cv2.destroyAllWindows()
+
             
 class Segmenter:
     def __init__(self, repo_path):
@@ -161,6 +189,9 @@ class PoseEstimator:
     def __init__(self, repo_path, container="foundationpose_realsense"):
         self.repo_path = Path(repo_path)
         self.container = container
+        r = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", self.container], capture_output=True, text=True)
+        if r.returncode != 0: raise RuntimeError(f"[perception]: container '{container}' does not exist")
+        if r.stdout.strip() != "true": subprocess.run(["docker", "start", container], check=True, stdout=subprocess.DEVNULL)
 
     def _cleanup(self, timeout=5):
         subprocess.run(
@@ -203,6 +234,7 @@ class PoseEstimator:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         finally:
             self._cleanup()
+            print("[perception]: FP finished")
 
         if result.returncode != 0:
             error = "\n".join(result.stdout.decode(errors="replace").splitlines()[-8:])

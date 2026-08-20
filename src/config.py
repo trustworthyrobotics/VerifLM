@@ -205,7 +205,7 @@ BENCHMARK_CONFIGS = {
     'mug_on_rack': {
         'active': 'red_mug_big',
         'passive': 'wooden_stick_toy',
-        'instruction': 'Hang the red mug on the wooden rack by its handle',
+        'instruction': 'Hang the red mug on the top branch of the wooden rack by its handle.',
         'default_validation_program': {
             'validation_mode': 'settling',
             'initial_max_pen': 0.015,

@@ -2,6 +2,8 @@ import base64
 import json
 from pathlib import Path
 from typing import Literal
+
+import cv2
 from dotenv import load_dotenv
 from openai import OpenAI
 from google import genai
@@ -65,6 +67,11 @@ def edit_image(instruction, active_object, passive_object, input_image_path, out
     png_bytes = query(prompt, [input_image_path], "gemini", "image")
     with open(output_image_path, "wb") as f:
         f.write(png_bytes)
+
+    source = cv2.imread(str(input_image_path))
+    edited = cv2.imread(str(output_image_path))
+    edited = cv2.resize(edited, (source.shape[1], source.shape[0]), interpolation=cv2.INTER_LINEAR)
+    cv2.imwrite(output_image_path, edited)
 
 def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path) -> SamplingConstraints:
     translation_prompt = load_prompt('prompts/get_sampling_constraints_translation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
