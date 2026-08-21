@@ -73,24 +73,13 @@ def edit_image(instruction, active_object, passive_object, input_image_path, out
     edited = cv2.resize(edited, (source.shape[1], source.shape[0]), interpolation=cv2.INTER_LINEAR)
     cv2.imwrite(output_image_path, edited)
 
-def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path) -> SamplingConstraints:
-    translation_prompt = load_prompt('prompts/get_sampling_constraints_translation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
-    rotation_prompt = load_prompt('prompts/get_sampling_constraints_rotation.txt', instruction=instruction, active_object=active_object, passive_object=passive_object)
-
-    json_t = query(translation_prompt, translation_image_paths, "openai", "json")
-    json_r = query(rotation_prompt, rotation_image_paths, "openai", "json")
-
-    with open(translation_output_path, "w") as file:
-        json.dump(json_t, file, indent=4)
-
-    with open(rotation_output_path, "w") as file:
-        json.dump(json_r, file, indent=4)
-
+def sampling_constraints_from_json(json_t, json_r, active_dimensions) -> SamplingConstraints:
     max_active_dim = max(active_dimensions)
-    S = SamplingConstraints(
-        x=POSITION_CONSTRAINT_MAP[json_t["translation"]["x"]["assessment"]]*max_active_dim,
-        y=POSITION_CONSTRAINT_MAP[json_t["translation"]["y"]["assessment"]]*max_active_dim,
-        z=POSITION_CONSTRAINT_MAP[json_t["translation"]["z"]["assessment"]]*max_active_dim,
+
+    return SamplingConstraints(
+        x=POSITION_CONSTRAINT_MAP[json_t["translation"]["x"]["assessment"]] * max_active_dim,
+        y=POSITION_CONSTRAINT_MAP[json_t["translation"]["y"]["assessment"]] * max_active_dim,
+        z=POSITION_CONSTRAINT_MAP[json_t["translation"]["z"]["assessment"]] * max_active_dim,
         x_bias=json_t["translation"]["x"]["direction"],
         y_bias=json_t["translation"]["y"]["direction"],
         z_bias=json_t["translation"]["z"]["direction"],
@@ -98,37 +87,23 @@ def get_sampling_constraints(instruction, active_object, passive_object, active_
         pitch=ORIENTATION_CONSTRAINT_MAP[json_r["rotation"]["pitch"]["assessment"]],
         yaw=ORIENTATION_CONSTRAINT_MAP[json_r["rotation"]["yaw"]["assessment"]],
     )
-    return S
 
-def get_validation_program(instruction, active_object, passive_object, active_dimensions, passive_dimensions, input_image_paths, output_path) -> ValidationProgram:
-    prompt = load_prompt("prompts/get_validation_program.txt", instruction=instruction, active_object=active_object, passive_object=passive_object, 
-                         active_dimensions=active_dimensions, passive_dimensions=passive_dimensions)
-    json_raw = query(prompt, input_image_paths, "openai", "json")
 
-    with open(output_path, "w") as file:
-        json.dump(json_raw, file, indent=4)
-
+def validation_program_from_json(json_raw, active_dimensions) -> ValidationProgram:
     xyz_relations = [XYZRelation(axis=item["axis"], relation=item["relation"]) for item in json_raw.get("xyz_relations", [])]
-    max_active_dim = max(active_dimensions)
     validation_mode = json_raw["validation_mode"]
 
     if validation_mode == "geometric_only":
-        # Drift is not evaluated in geometric_only mode.
-        x_drift = 0.0
-        y_drift = 0.0
-        z_drift = 0.0
-        roll_drift = 0.0
-        pitch_drift = 0.0
-        yaw_drift = 0.0
-
+        x_drift = y_drift = z_drift = 0.0
+        roll_drift = pitch_drift = yaw_drift = 0.0
     else:
+        max_active_dim = max(active_dimensions)
         position = json_raw["position_drift_tolerance"]
         orientation = json_raw["orientation_drift_tolerance"]
-        x_drift = (POSITION_TOLERANCE_MAP[position["x"]] * max_active_dim)
-        y_drift = (POSITION_TOLERANCE_MAP[position["y"]] * max_active_dim)
-        z_drift = (POSITION_TOLERANCE_MAP[position["z"]] * max_active_dim)
 
-        # Current prompt calls rotation axes x/y/z.
+        x_drift = POSITION_TOLERANCE_MAP[position["x"]] * max_active_dim
+        y_drift = POSITION_TOLERANCE_MAP[position["y"]] * max_active_dim
+        z_drift = POSITION_TOLERANCE_MAP[position["z"]] * max_active_dim
         roll_drift = ORIENTATION_TOLERANCE_MAP[orientation["roll"]]
         pitch_drift = ORIENTATION_TOLERANCE_MAP[orientation["pitch"]]
         yaw_drift = ORIENTATION_TOLERANCE_MAP[orientation["yaw"]]
@@ -145,6 +120,55 @@ def get_validation_program(instruction, active_object, passive_object, active_di
         pitch_drift_tolerance=pitch_drift,
         yaw_drift_tolerance=yaw_drift,
     )
+
+
+def load_sampling_constraints(translation_path, rotation_path, active_dimensions) -> SamplingConstraints:
+    json_t = json.loads(Path(translation_path).read_text())
+    json_r = json.loads(Path(rotation_path).read_text())
+    return sampling_constraints_from_json(json_t, json_r, active_dimensions)
+
+
+def load_validation_program(path, active_dimensions) -> ValidationProgram:
+    json_raw = json.loads(Path(path).read_text())
+    return validation_program_from_json(json_raw, active_dimensions)
+
+
+def get_sampling_constraints(instruction, active_object, passive_object, active_dimensions, translation_image_paths, rotation_image_paths, translation_output_path, rotation_output_path) -> SamplingConstraints:
+    translation_prompt = load_prompt(
+        "prompts/get_sampling_constraints_translation.txt",
+        instruction=instruction,
+        active_object=active_object,
+        passive_object=passive_object,
+    )
+    rotation_prompt = load_prompt(
+        "prompts/get_sampling_constraints_rotation.txt",
+        instruction=instruction,
+        active_object=active_object,
+        passive_object=passive_object,
+    )
+
+    json_t = query(translation_prompt, translation_image_paths, "openai", "json")
+    json_r = query(rotation_prompt, rotation_image_paths, "openai", "json")
+
+    Path(translation_output_path).write_text(json.dumps(json_t, indent=4))
+    Path(rotation_output_path).write_text(json.dumps(json_r, indent=4))
+
+    return sampling_constraints_from_json(json_t, json_r, active_dimensions)
+
+
+def get_validation_program(instruction, active_object, passive_object, active_dimensions, passive_dimensions, input_image_paths, output_path) -> ValidationProgram:
+    prompt = load_prompt(
+        "prompts/get_validation_program.txt",
+        instruction=instruction,
+        active_object=active_object,
+        passive_object=passive_object,
+        active_dimensions=active_dimensions,
+        passive_dimensions=passive_dimensions,
+    )
+    json_raw = query(prompt, input_image_paths, "openai", "json")
+    Path(output_path).write_text(json.dumps(json_raw, indent=4))
+
+    return validation_program_from_json(json_raw, active_dimensions)
 
 def select_best_candidate(instruction, active_object, passive_object, input_image_paths, output_path):
     prompt = load_prompt("prompts/select_best_candidate.txt", instruction=instruction, active_object=active_object, passive_object=passive_object)

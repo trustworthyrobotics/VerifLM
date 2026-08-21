@@ -84,7 +84,7 @@ class SamplingConstraints:
             return np.random.uniform(-r, 0)
         return np.random.uniform(-r, r)
     
-    def sample(self, T_goal): # assumes T_goal in the world frame
+    def sample(self, T_goal, T_passive): # assumes T_goal and T_passive are in the same frame
         dx = self.sample_dt(self.x, self.x_bias)
         dy = self.sample_dt(self.y, self.y_bias)
         dz = self.sample_dt(self.z, self.z_bias)
@@ -92,12 +92,12 @@ class SamplingConstraints:
         dp = np.random.uniform(-self.pitch, self.pitch)
         dyaw = np.random.uniform(-self.yaw, self.yaw)
 
-        p_delta = [dx, dy, dz]
-        R_delta = Rotation.from_euler("xyz", [dr, dp, dyaw], degrees=True).as_matrix()
+        p_delta = T_passive[:3, :3] @ np.array([dx, dy, dz]) # apply translation in passive object's frame
+        R_delta = Rotation.from_euler("xyz", [dr, dp, dyaw], degrees=True).as_matrix() # R_delta applied in object's own frame
 
         T_goal_new = T_goal.copy()
-        T_goal_new[0:3, 3] += p_delta # p_delta applied in world frame
-        T_goal_new[0:3, 0:3] = T_goal[0:3, 0:3] @ R_delta # R_delta applied in object's own frame
+        T_goal_new[0:3, 3] += p_delta 
+        T_goal_new[0:3, 0:3] = T_goal[0:3, 0:3] @ R_delta 
 
         return T_goal_new
 
@@ -289,6 +289,7 @@ class DigitalTwin:
         self.active_dadr = self.model.jnt_dofadr[active_freejoint_id]
 
         self.T_goal = self.get_mocap_pose(scene.data, scene.goal_mocap_id)
+        self.T_passive = self.get_body_pose(scene.data, scene.passive_body_id)
         self.viewer_data = None
         self.viewer = None
 
@@ -318,7 +319,7 @@ class DigitalTwin:
         candidates = []
 
         for i in range(n_samples):
-            T_goal_sample = self.T_goal if i == 0 else self.S.sample(self.T_goal)
+            T_goal_sample = self.T_goal if i == 0 else self.S.sample(self.T_goal, self.T_passive)
             if visualize:
                 self.set_mocap_pose(self.viewer_data, self.scene.goal_mocap_id, T_goal_sample)
                 self.viewer.sync()

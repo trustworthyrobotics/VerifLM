@@ -5,7 +5,7 @@ import cv2
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
 from pathlib import Path
 from src.camera import Camera
-from src.vlm import edit_image, get_sampling_constraints, get_validation_program, select_best_candidate
+from src.vlm import edit_image, get_sampling_constraints, get_validation_program, load_sampling_constraints, load_validation_program, select_best_candidate
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
 from src.render import render_for_vlm
 from src.digital_twin import DigitalTwin, SceneBuilder
@@ -19,6 +19,8 @@ parser.add_argument("--reuse-extrinsics", action="store_true", default=False)
 parser.add_argument("--reuse-source", action="store_true", default=False)
 parser.add_argument("--reuse-edited", action="store_true", default=False)
 parser.add_argument("--reuse-VS", action="store_true", default=False)
+parser.add_argument("--reuse-perception", action="store_true", default=False)
+parser.add_argument("--skip-candidate-selection", action="store_true", default=False)
 args = parser.parse_args()
 
 # Load benchmark config
@@ -96,79 +98,150 @@ if args.reuse_edited:
 else:
     edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
 input("step 2 done. press enter to proceed:")
+# 3-5. Perception
+pose_paths = {
+    "source_active": PERCEPTION_DIR/"source_active_pose_cam.npy",
+    "source_passive": PERCEPTION_DIR/"source_passive_pose_cam.npy",
+    "edited_active": PERCEPTION_DIR/"edited_active_pose_cam.npy",
+    "edited_passive": PERCEPTION_DIR/"edited_passive_pose_cam.npy",
+}
 
-# 3. VGGT depth estimation
-# Output: estimated depths stored in PERCEPTION_DIR
-depth_estimator = DepthEstimator()
-depth_estimator.predict(input_paths=[CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png"], output_paths=[PERCEPTION_DIR/"source_vggt_depth_raw.npy", PERCEPTION_DIR/"edited_vggt_depth_raw.npy"])
+if args.reuse_perception:
+    required = [
+        PERCEPTION_DIR/"source_vggt_depth_raw.npy",
+        PERCEPTION_DIR/"edited_vggt_depth_raw.npy",
+        PERCEPTION_DIR/"edited_vggt_depth_m.npy",
+        PERCEPTION_DIR/"bboxes.json",
+        PERCEPTION_DIR/"source_active_mask.png",
+        PERCEPTION_DIR/"source_passive_mask.png",
+        PERCEPTION_DIR/"edited_active_mask.png",
+        PERCEPTION_DIR/"edited_passive_mask.png",
+        *pose_paths.values(),
+    ]
+    missing = [str(path) for path in required if not path.exists()]
+    if missing:
+        raise FileNotFoundError("Cannot reuse perception; missing:\n" + "\n".join(missing))
 
-# 4. GroundingDINO + SAM2 loop (user provides bbox if necessary) + depth correction
-# Output: bboxes and masks stored in PERCEPTION_DIR
-bboxer = BBoxer(GROUNDING_DINO_DIR)
-bbox_list = bboxer.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"], 
-                            prompts=[ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"], ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"]],
-                            output_path=PERCEPTION_DIR/"bboxes.json", loop=True)
-segmenter = Segmenter(SAM2_DIR)
-segmenter.predict(input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"],
-                  bboxes=bbox_list, 
-                  output_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png", PERCEPTION_DIR/"edited_active_mask.png", PERCEPTION_DIR/"edited_passive_mask.png"])
-depth_estimator.correct(source_depth_paths=[CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_vggt_depth_raw.npy"], 
-                        source_mask_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png"],
-                        edited_depth_path=PERCEPTION_DIR/"edited_vggt_depth_raw.npy",
-                        output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy")
-input("step 3-4 done. press enter to proceed:")
+    T_cam_active_source = np.load(pose_paths["source_active"])
+    T_cam_passive_source = np.load(pose_paths["source_passive"])
+    T_cam_active_edited = np.load(pose_paths["edited_active"])
+    T_cam_passive_edited = np.load(pose_paths["edited_passive"])
+    input("steps 3-5 done with cached result. press enter to proceed:")
 
-# 5. FP pose estimation 
-# Output: estimated object poses in camera frame in PERCEPTION_DIR
-pose_estimator = PoseEstimator(repo_path=FP_DIR)
-T_cam_active_source = pose_estimator.predict(rgb_path=CAMERA_DIR/"source_rgb.png", depth_path=CAMERA_DIR/"source_depth_m.npy", 
-                                            mask_path=PERCEPTION_DIR/"source_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
-                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="source_active_pose_cam.npy")
-T_cam_passive_source = pose_estimator.predict(rgb_path=CAMERA_DIR/"source_rgb.png", depth_path=CAMERA_DIR/"source_depth_m.npy", 
-                                            mask_path=PERCEPTION_DIR/"source_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
-                                            K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="source_passive_pose_cam.npy")
+else:
+    # 3. VGGT depth estimation
+    # Output: estimated depths stored in PERCEPTION_DIR
+    depth_estimator = DepthEstimator()
+    depth_estimator.predict(
+        input_paths=[CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png"],
+        output_paths=[PERCEPTION_DIR/"source_vggt_depth_raw.npy", PERCEPTION_DIR/"edited_vggt_depth_raw.npy"],
+    )
 
-while True: # FP frequently fails on the edited image, so we allow the user to re-estimate if necessary
-    T_cam_active_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
-                                                mask_path=PERCEPTION_DIR/"edited_active_mask.png", mesh_path=ACTIVE_CATALOG["mesh"],
-                                                K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_active_pose_cam.npy")
-    T_cam_passive_edited = pose_estimator.predict(rgb_path=VLM_DIR/"edited_rgb.png", depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy", 
-                                                mask_path=PERCEPTION_DIR/"edited_passive_mask.png", mesh_path=PASSIVE_CATALOG["mesh"],
-                                                K=camera.get_intrinsics(), output_dir=PERCEPTION_DIR, output_name="edited_passive_pose_cam.npy")
+    # 4. GroundingDINO + SAM2 + depth correction
+    # Output: bboxes and masks stored in PERCEPTION_DIR
+    bboxer = BBoxer(GROUNDING_DINO_DIR)
+    bbox_list = bboxer.predict(
+        input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"],
+        prompts=[ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"], ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"]],
+        output_path=PERCEPTION_DIR/"bboxes.json",
+        loop=True,
+    )
 
-    # Derive more transformations for later use
-    T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
-    T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
-    T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
-    # T_mujoco_active_goal = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_edited
-    T_mujoco_active_goal = T_mujoco_passive @ T_passive_active_edited # We extract a SE3 transform between passive and active objects from the goal image, then apply this SE3 to passive pose to obtain active goal pose
+    segmenter = Segmenter(SAM2_DIR)
+    segmenter.predict(
+        input_paths=[CAMERA_DIR/"source_rgb.png", CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png", VLM_DIR/"edited_rgb.png"],
+        bboxes=bbox_list,
+        output_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png", PERCEPTION_DIR/"edited_active_mask.png", PERCEPTION_DIR/"edited_passive_mask.png"],
+    )
 
-    # 6. Render poses
-    # Output: axis-labeled pictures of objects in RENDER_DIR
+    depth_estimator.correct(
+        source_depth_paths=[CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_vggt_depth_raw.npy"],
+        source_mask_paths=[PERCEPTION_DIR/"source_active_mask.png", PERCEPTION_DIR/"source_passive_mask.png"],
+        edited_depth_path=PERCEPTION_DIR/"edited_vggt_depth_raw.npy",
+        output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy",
+    )
 
-    # First pair of renderings: world-axis-labeled renders for translational reasoning
-    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
-                T_passive_active=T_passive_active_edited, T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
-                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
-    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
-                T_passive_active=T_passive_active_edited,T_passive_board=np.linalg.inv(T_mujoco_passive), rendered_frame="world",
-                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+    input("step 3-4 done. press enter to proceed:")
 
-    # Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
-    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
-                T_passive_active=T_passive_active_edited, rendered_frame="active",
-                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
-    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
-                T_passive_active=T_passive_active_edited, rendered_frame="active",
-                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-    i = input("Enter R to re-estimate poses in the edited image. Enter anything else to proceed to querying VLM for V and S: ")
+    # 5. FoundationPose pose estimation
+    # Output: estimated object poses in camera frame stored in PERCEPTION_DIR
+    pose_estimator = PoseEstimator(repo_path=FP_DIR)
 
-    if i.lower() != "r":
-        break
+    T_cam_active_source = pose_estimator.predict(
+        rgb_path=CAMERA_DIR/"source_rgb.png",
+        depth_path=CAMERA_DIR/"source_depth_m.npy",
+        mask_path=PERCEPTION_DIR/"source_active_mask.png",
+        mesh_path=ACTIVE_CATALOG["mesh"],
+        K=camera.get_intrinsics(),
+        output_dir=PERCEPTION_DIR,
+        output_name="source_active_pose_cam.npy",
+    )
+
+    T_cam_passive_source = pose_estimator.predict(
+        rgb_path=CAMERA_DIR/"source_rgb.png",
+        depth_path=CAMERA_DIR/"source_depth_m.npy",
+        mask_path=PERCEPTION_DIR/"source_passive_mask.png",
+        mesh_path=PASSIVE_CATALOG["mesh"],
+        K=camera.get_intrinsics(),
+        output_dir=PERCEPTION_DIR,
+        output_name="source_passive_pose_cam.npy",
+    )
+
+    T_cam_active_edited = pose_estimator.predict(
+        rgb_path=VLM_DIR/"edited_rgb.png",
+        depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy",
+        mask_path=PERCEPTION_DIR/"edited_active_mask.png",
+        mesh_path=ACTIVE_CATALOG["mesh"],
+        K=camera.get_intrinsics(),
+        output_dir=PERCEPTION_DIR,
+        output_name="edited_active_pose_cam.npy",
+    )
+
+    T_cam_passive_edited = pose_estimator.predict(
+        rgb_path=VLM_DIR/"edited_rgb.png",
+        depth_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy",
+        mask_path=PERCEPTION_DIR/"edited_passive_mask.png",
+        mesh_path=PASSIVE_CATALOG["mesh"],
+        K=camera.get_intrinsics(),
+        output_dir=PERCEPTION_DIR,
+        output_name="edited_passive_pose_cam.npy",
+    )
+
+# Derive transformations for later use
+T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
+T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
+T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
+T_mujoco_active_goal = T_mujoco_passive @ T_passive_active_edited
+
+
+
+# 6. Render poses
+# Output: axis-labeled pictures of objects in RENDER_DIR
+
+# First pair of renderings: world-axis-labeled renders for translational reasoning
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
+            T_passive_active=T_passive_active_edited, rendered_frame="passive",
+            lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
+            T_passive_active=T_passive_active_edited, rendered_frame="passive",
+            lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+
+# Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
+            T_passive_active=T_passive_active_edited, rendered_frame="active",
+            lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
+            T_passive_active=T_passive_active_edited, rendered_frame="active",
+            lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+i = input("Hit Enter to proceed to querying VLM for V and S: ")
+
 
 # 7. Query VLM for validation program V and sampling constraints S
 # output: sampling constraints S and validation program V
-if not args.reuse_VS:
+if args.reuse_VS:
+    S = load_sampling_constraints(VLM_DIR/"translation_constraints.json", VLM_DIR/"rotation_constraints.json", ACTIVE_CATALOG["dimensions"])
+    V = load_validation_program(VLM_DIR/"validation_program.json", ACTIVE_CATALOG["dimensions"])
+else:
     while True:
         S = get_sampling_constraints(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
                                     active_dimensions=ACTIVE_CATALOG["dimensions"], 
@@ -209,8 +282,12 @@ for i, T_mujoco_active_goal_valid in enumerate(candidates):
 input("step 8 done. press enter to proceed:")
 
 # 9. Select best candidate
-best_index = select_best_candidate(CONFIG["instruction"], CONFIG["active"], CONFIG["passive"], 
-                                   input_image_paths=candidate_image_paths, output_path=VLM_DIR/"best_candidate.json")
+if args.skip_candidate_selection:
+    best_index = input("Enter the index of the best candidate (0 to {}): ".format(len(candidates)-1))
+    best_index = int(best_index)
+else:
+    best_index = select_best_candidate(CONFIG["instruction"], CONFIG["active"], CONFIG["passive"], 
+                                       input_image_paths=candidate_image_paths, output_path=VLM_DIR/"best_candidate.json")
 T_mujoco_active_goal_selected = candidates[best_index]
 input("step 9 done. press enter to proceed:")
 

@@ -158,11 +158,12 @@ class Camera():
                 np.save(extrinsics_path, self.T_cam_board)
                 
         if render:
+            bgr_copy = bgr.copy()
             if self.T_cam_board is not None:
                 R = self.T_cam_board[:3, :3]
                 tvec = self.T_cam_board[:3, 3].reshape(3, 1)
                 rvec, _ = cv2.Rodrigues(R)
-                cv2.drawFrameAxes(bgr, self.K, self.dist_coeffs, rvec, tvec, 0.10, 3)
+                cv2.drawFrameAxes(bgr_copy, self.K, self.dist_coeffs, rvec, tvec, 0.10, 3)
 
             min_depth_m, max_depth_m = 0.2, 3.0
             valid = np.isfinite(depth_m)
@@ -170,7 +171,7 @@ class Camera():
             depth_scaled[valid] = np.clip(255 * (max_depth_m - depth_m[valid]) / (max_depth_m - min_depth_m), 0, 255).astype(np.uint8)
             depth_vis = cv2.applyColorMap(depth_scaled, cv2.COLORMAP_TURBO)
 
-            cv2.imshow("Camera", cv2.hconcat([bgr, depth_vis]))
+            cv2.imshow("Camera", cv2.hconcat([bgr_copy, depth_vis]))
             cv2.waitKey(0)
             cv2.destroyWindow("Camera")
         if save:

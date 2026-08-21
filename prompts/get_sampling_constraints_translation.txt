@@ -8,13 +8,13 @@ Passive object: {passive_object}
 IMAGES AND FRAME
 The images show the same scene from two different viewpoins.. Use both to judge 3D position, overlap, and contact.
 
-The displayed frame is the world frame at the passive object origin:
+The displayed frame is the passive object frame.
 * red: +X
 * green: +Y
 * blue: +Z
 
 REASONING TASK
-This is a separate prompt for translation only. Do not reason about rotation here. Reason about how the object needs to be moved, if at all, in the world frame so that it'll be placed in a secure location, rather than near the edge.
+This is a separate prompt for translation only. Do not reason about rotation here. Reason about how the object needs to be moved, if at all, in the passive object frame so that it'll be placed in a secure location, rather than near the edge.
 For plate stacking, pay close attention to if the plate that's supposed to go on top is occluded by the plate that's supposed to be stacked on. If so, the plate probably needs to be adjusted in the z direction.
 
 * normal_search: ordinary local adjustment or uncertainty.
