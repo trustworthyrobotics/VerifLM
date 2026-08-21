@@ -15,43 +15,43 @@
           biasprm="0 -2000 -200"/>
 
       <default class="joint1">
-        <joint range="-2.96706 2.96706"/>
+        <joint range="-2.79253 2.79253"/>
         <general ctrlrange="-2.96706 2.96706"
                 forcerange="-176 176"/>
       </default>
 
       <default class="joint2">
-        <joint range="-2.09440 2.09440"/>
+        <joint range="-1.91986 1.91986"/>
         <general ctrlrange="-2.09440 2.09440"
                 forcerange="-176 176"/>
       </default>
 
       <default class="joint3_mid">
-        <joint range="-2.96706 2.96706"/>
+        <joint range="-2.79253 2.79253"/>
         <general ctrlrange="-2.96706 2.96706"
                 forcerange="-110 110"/>
       </default>
 
       <default class="joint4_mid">
-        <joint range="-2.09440 2.09440"/>
+        <joint range="-1.91986 1.91986"/>
         <general ctrlrange="-2.09440 2.09440"
                 forcerange="-110 110"/>
       </default>
 
       <default class="joint5_mid">
-        <joint range="-2.96706 2.96706"/>
+        <joint range="-2.79253 2.79253"/>
         <general ctrlrange="-2.96706 2.96706"
                 forcerange="-110 110"/>
       </default>
 
       <default class="joint6_distal">
-        <joint range="-2.09440 2.09440"/>
+        <joint range="-1.91986 1.91986"/>
         <general ctrlrange="-2.09440 2.09440"
                 forcerange="-40 40"/>
       </default>
 
       <default class="joint7_distal">
-        <joint range="-3.05433 3.05433"/>
+        <joint range="-2.87979 2.87979"/>
         <general ctrlrange="-3.05433 3.05433"
                 forcerange="-40 40"/>
       </default>

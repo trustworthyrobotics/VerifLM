@@ -24,15 +24,6 @@ ANYGRASP_EEF_ROTATION = np.array([
 
 ARM_PREFIX = "arm1_"
 ARM_JOINT_NAMES = tuple(f"{ARM_PREFIX}joint{i}" for i in range(1, 8))
-ARM_JOINT_LIMITS = np.array([
-    [-2.96706,  2.96706],
-    [-2.09440,  2.09440],
-    [-2.96706,  2.96706],
-    [-2.09440,  2.09440],
-    [-2.96706,  2.96706],
-    [-2.09440,  2.09440],
-    [-3.05433,  3.05433],
-])
 ROBOT_BODY_NAMES = tuple([ARM_PREFIX + name for name in ("base", "link1", "link2", "link3", "link4", "link5", "link6", "link7", "adapter_box", "box_gripper", "finger_1", "finger_2")])
 FINGER_BODY_NAMES = (ARM_PREFIX+"finger_1", ARM_PREFIX+"finger_2")
 FINGER_JOINT_NAMES = (ARM_PREFIX+"finger_1_slide", ARM_PREFIX+"finger_2_slide")
@@ -331,6 +322,7 @@ class TrajectoryPlanner:
         self.ik_data = mujoco.MjData(self.model)
         self.max_joint_vel = max_joint_vel
         self.collision_checker = CollisionChecker(scene)
+        self.arm_joint_limits = np.array([self.model.joint(name).range for name in ARM_JOINT_NAMES])
 
         self.arm_qadrs = np.array([self.model.joint(name).qposadr[0] for name in ARM_JOINT_NAMES])
         self.arm_dadrs = np.array([self.model.joint(name).dofadr[0] for name in ARM_JOINT_NAMES])
@@ -418,7 +410,7 @@ class TrajectoryPlanner:
     def plan_trajectory(self, q_start, q_goal, T_eef_active=None, solve_time=5.0):
         space = ob.RealVectorStateSpace(7)
         bounds = ob.RealVectorBounds(7)
-        for i, (low, high) in enumerate(ARM_JOINT_LIMITS):
+        for i, (low, high) in enumerate(self.arm_joint_limits):
             bounds.setLow(i, low)
             bounds.setHigh(i, high)
         space.setBounds(bounds)
@@ -471,7 +463,7 @@ class TrajectoryPlanner:
         q = self.ik_data.qpos[self.arm_qadrs].copy() if q_init is None else np.asarray(q_init).copy()
 
         for _ in range(max_iters):
-            q = np.clip(q, ARM_JOINT_LIMITS[:,0], ARM_JOINT_LIMITS[:,1])
+            q = np.clip(q, self.arm_joint_limits[:,0], self.arm_joint_limits[:,1])
             self.ik_data.qpos[self.arm_qadrs] = q
             mujoco.mj_forward(self.model, self.ik_data)
 
