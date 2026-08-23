@@ -21,8 +21,8 @@ For plate stacking, pay close attention to if the plate that's supposed to go on
 * major_revision: the translation is substantially wrong and needs broad exploration.
 
 TRANSLATION DIRECTIONS
-* positive: move along the displayed positive axis.
-* negative: move opposite the displayed positive axis.
+* positive: move along the displayed positive axis. only choose it when it is clear that the object needs to be moved in that direction.
+* negative: move opposite the displayed positive axis. only choose it when it is clear that the object needs to be moved in that direction.
 * none: no clear directional correction, or the axis is correct.
 
 Hints: 

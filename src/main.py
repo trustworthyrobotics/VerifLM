@@ -206,6 +206,7 @@ else:
         output_dir=PERCEPTION_DIR,
         output_name="edited_passive_pose_cam.npy",
     )
+    T_cam_passive_edited[:3,:3] = T_cam_passive_source[:3,:3]  # optionally keep passive object orientation unchanged, can comment out
 
 # Derive transformations for later use
 T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
@@ -263,7 +264,7 @@ scene = scene_builder.build(active_name=CONFIG["active"], passive_name=CONFIG["p
                     T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_active_goal=T_mujoco_active_goal,
                     output_path=XML_DIR/f"{BENCHMARK_NAME}.xml")
 digital_twin = DigitalTwin(scene, V, S)
-candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True) # returns a list of valid T_mujoco_active_goal
+candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True, video_path=DTWIN_DIR/f"sampling.mp4") # returns a list of valid T_mujoco_active_goal
 if not candidates:
     raise RuntimeError("No physically valid goal candidates found.")
 

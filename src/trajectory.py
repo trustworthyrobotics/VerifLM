@@ -29,7 +29,7 @@ FINGER_BODY_NAMES = (ARM_PREFIX+"finger_1", ARM_PREFIX+"finger_2")
 FINGER_JOINT_NAMES = (ARM_PREFIX+"finger_1_slide", ARM_PREFIX+"finger_2_slide")
 EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
 TABLE_GEOM_NAMES = ("table", "table_base")
-ACTIVE_TABLE_TOLERANCE = 0.001
+ACTIVE_TABLE_TOLERANCE = 0.01
 ACTIVE_PASSIVE_TOLERANCE = 0.001
 
 @dataclass(frozen=True)
@@ -103,32 +103,39 @@ class CollisionChecker:
 
             mujoco.mj_forward(self.model, self.data)
 
+        def reject(reason, g1, g2, dist):
+            n1 = self.model.geom(g1).name
+            n2 = self.model.geom(g2).name
+            print(f"[collision] {reason}: {n1} <-> {n2} ({dist:.4f} m)")
+            return False
+
         # Check contacts
         for contact in self.data.contact:
             g1, g2 = int(contact.geom1), int(contact.geom2)
+
+            if contact.dist >= 0:
+                continue
 
             r1, r2 = g1 in self.robot_geom_ids, g2 in self.robot_geom_ids
             a1, a2 = g1 in self.active_geom_ids, g2 in self.active_geom_ids
             p1, p2 = g1 in self.passive_geom_ids, g2 in self.passive_geom_ids
             t1, t2 = g1 in self.table_geom_ids, g2 in self.table_geom_ids
-            if contact.dist >= 0:
-                continue
 
             # Small active-table penetration is tolerated
             if (a1 and t2) or (a2 and t1):
                 if contact.dist >= -ACTIVE_TABLE_TOLERANCE:
                     continue
-                return False
+                return reject("active-table", g1, g2, contact.dist)
 
             # Small active-passive penetration is tolerated
             if (a1 and p2) or (a2 and p1):
                 if contact.dist >= -ACTIVE_PASSIVE_TOLERANCE:
                     continue
-                return False
+                return reject("active-passive", g1, g2, contact.dist)
 
             # Robot self-collision
             if r1 and r2:
-                return False
+                return reject("self", g1, g2, contact.dist)
 
             # Active object may contact fingers only during grasp/transfer stages
             if (a1 and r2) or (a2 and r1):
@@ -137,15 +144,15 @@ class CollisionChecker:
                 if allow_active_fingers and robot_geom in self.finger_geom_ids:
                     continue
 
-                return False
+                return reject("robot-active", g1, g2, contact.dist)
 
             # Robot-environment collision
             if r1 or r2:
-                return False
+                return reject("robot-env", g1, g2, contact.dist)
 
             # Attached active object hitting anything else
             if T_eef_active is not None and (a1 or a2):
-                return False
+                return reject("attached-active", g1, g2, contact.dist)
 
         return True
 
@@ -356,9 +363,7 @@ class TrajectoryPlanner:
 
             T_fk_object = T_fk_eef @ T_eef_object
 
-            print("desired object goal xyz:", T_mujoco_object_goal[:3, 3])
-            print("FK reconstructed xyz:   ", T_fk_object[:3, 3])
-            print("xyz error:               ", T_fk_object[:3, 3] - T_mujoco_object_goal[:3, 3])
+
             ## check (1) IK feasible source and goal (2) collision free at source and goal
             if q_pregrasp is None:
                 print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_pregrasp")
@@ -409,7 +414,7 @@ class TrajectoryPlanner:
             
         return stages
 
-    def plan_trajectory(self, q_start, q_goal, T_eef_active=None, solve_time=5.0):
+    def plan_trajectory(self, q_start, q_goal, T_eef_active=None, solve_time=10.0):
         space = ob.RealVectorStateSpace(7)
         bounds = ob.RealVectorBounds(7)
         for i, (low, high) in enumerate(self.arm_joint_limits):

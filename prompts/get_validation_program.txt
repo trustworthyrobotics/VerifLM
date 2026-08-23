@@ -63,7 +63,7 @@ Return JSON only:
 
 3. A required contact must exist in the validated state. A forbidden contact must not exist. Use an empty list when no contact is clearly required or forbidden.
 
-4. XYZ relations compare the active object's MuJoCo body-frame origin against the passive object's origin in the world frame. Add a relation only when the task clearly implies it; otherwise use an empty list.
+4. XYZ relations compare the active object's center against the passive object's center. Add a relation only when the task clearly implies it. For example when placing a mug on a dish, the mug's center clearly should have a higher z. But when hangling a mug on a rack, the mug's center might not be clearly higher than the rack's center.
 
 5. For `settling`, select drift tolerance independently for each axis:
 

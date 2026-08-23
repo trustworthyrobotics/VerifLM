@@ -1,4 +1,5 @@
 import argparse
+import time
 from pathlib import Path
 
 import mujoco
@@ -25,24 +26,19 @@ PERCEPTION_DIR = ARTIFACT_DIR / "perception"
 VLM_DIR = ARTIFACT_DIR / "vlm"
 DTWIN_DIR = ARTIFACT_DIR / "dtwin"
 TRAJECTORY_DIR = ARTIFACT_DIR / "trajectory"
-
 DTWIN_DIR.mkdir(parents=True, exist_ok=True)
 TRAJECTORY_DIR.mkdir(parents=True, exist_ok=True)
 
 # Recover poses
 T_cam_board = np.load(ROOT / "artifacts/calibration/extrinsics.npy")
-T_cam_active = np.load(PERCEPTION_DIR / "source_active_pose_cam.npy")
-T_cam_passive = np.load(PERCEPTION_DIR / "source_passive_pose_cam.npy")
-T_cam_active_goal = np.load(PERCEPTION_DIR / "edited_active_pose_cam.npy")
-T_cam_passive_goal = np.load(PERCEPTION_DIR / "edited_passive_pose_cam.npy")
+Ta = np.load(PERCEPTION_DIR / "source_active_pose_cam.npy")
+Tp = np.load(PERCEPTION_DIR / "source_passive_pose_cam.npy")
+Ta_goal = np.load(PERCEPTION_DIR / "edited_active_pose_cam.npy")
+Tp_goal = np.load(PERCEPTION_DIR / "edited_passive_pose_cam.npy")
 
-T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active
-T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive
-T_mujoco_active_goal = (
-    T_mujoco_passive
-    @ np.linalg.inv(T_cam_passive_goal)
-    @ T_cam_active_goal
-)
+T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ Ta
+T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ Tp
+T_mujoco_active_goal = T_mujoco_passive @ np.linalg.inv(Tp_goal) @ Ta_goal
 
 # Recover V and S
 S = load_sampling_constraints(
@@ -57,22 +53,20 @@ V = load_validation_program(
 
 # Build digital twin
 scene = SceneBuilder().build(
-    CONFIG["active"],
-    CONFIG["passive"],
-    T_mujoco_active,
-    T_mujoco_passive,
-    T_mujoco_active_goal,
+    CONFIG["active"], CONFIG["passive"],
+    T_mujoco_active, T_mujoco_passive, T_mujoco_active_goal,
     ROOT / "models/generated_xmls" / f"{NAME}.xml",
 )
 digital_twin = DigitalTwin(scene, V, S)
 
+# Sampling viewer + recording
 input("Press Enter to start sampling...")
-
-candidates = digital_twin.sample(
+candidates = digital_twin.sample_and_validate(
     n_samples=1000,
     max_valid=5,
     sim_steps=500,
-    visualize=False,
+    visualize=True,
+    video_path=DTWIN_DIR / "test_sampling.mp4",
 )
 
 if not candidates:
@@ -81,37 +75,42 @@ if not candidates:
 for i, T in enumerate(candidates):
     np.save(DTWIN_DIR / f"valid_candidate_{i}.npy", T)
 
-# Browse candidates
+# Candidate-selection viewer: N/P cycle, Enter selects
 data = mujoco.MjData(scene.model)
+state = {"i": 0, "changed": True, "selected": False}
 
-with mujoco.viewer.launch_passive(scene.model, data) as viewer:
-    i = 0
 
-    while viewer.is_running():
-        data.qpos[:] = scene.data.qpos
-        digital_twin.set_body_pose(
-            data,
-            digital_twin.active_qadr,
-            digital_twin.active_dadr,
-            candidates[i],
-        )
+def key_callback(key):
+    if key == ord("N"):
+        state["i"] = (state["i"] + 1) % len(candidates)
+        state["changed"] = True
+    elif key == ord("P"):
+        state["i"] = (state["i"] - 1) % len(candidates)
+        state["changed"] = True
+    elif key in (257, 335):
+        state["selected"] = True
+
+
+with mujoco.viewer.launch_passive(scene.model, data, key_callback=key_callback) as viewer:
+    print("N = next, P = previous, Enter = select")
+
+    while viewer.is_running() and not state["selected"]:
+        if state["changed"]:
+            i = state["i"]
+            data.qpos[:] = scene.data.qpos
+            digital_twin.set_body_pose(
+                data, digital_twin.active_qadr, digital_twin.active_dadr, candidates[i]
+            )
+            print(f"Candidate {i + 1}/{len(candidates)}")
+            state["changed"] = False
+
         viewer.sync()
+        time.sleep(0.01)
 
-        choice = input(
-            f"Candidate {i + 1}/{len(candidates)} "
-            "[Enter]=select, n=next, p=previous: "
-        ).strip().lower()
+if not state["selected"]:
+    raise RuntimeError("Viewer closed before selection.")
 
-        if choice == "":
-            selected = candidates[i]
-            break
-        elif choice == "n":
-            i = (i + 1) % len(candidates)
-        elif choice == "p":
-            i = (i - 1) % len(candidates)
-    else:
-        raise RuntimeError("Viewer closed before selection.")
-
+selected = candidates[state["i"]]
 np.save(DTWIN_DIR / "selected_candidate.npy", selected)
 
 # Trajectory planning
@@ -123,7 +122,7 @@ trajectory = planner.plan(
     T_mujoco_object_src=T_mujoco_active,
     T_mujoco_object_goal=selected,
     grasps=grasps,
-    output_path=TRAJECTORY_DIR / "trajectory.json",
+    output_path=TRAJECTORY_DIR / "test_trajectory.json",
 )
 
 if not trajectory:

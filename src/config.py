@@ -35,10 +35,12 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.2, "diaginertia": (0.0003325, 0.0002567, 0.0003334), "friction": (0.8, 0.02, 0.001),
                     "contype": 1, "conaffinity": 1, "condim": 6},
         "grasps": [
+            {"offset_xyz": (-0.037, 0.037, -0.09), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.037, 0.037, -0.09), "offset_rpy_deg": (0, 0, -135), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.07, 0.08, -0.09), "offset_rpy_deg": (30, 0, 45), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.07, 0.08, -0.09), "offset_rpy_deg": (-30, 0, -135), "hover_offset_xyz": (0, 0, -0.02)},
             {"offset_xyz": (-0.039, 0.039, 0.12), "offset_rpy_deg": (180, 0, 45), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (-0.039, 0.039, 0.12), "offset_rpy_deg": (180, 0, -135), "hover_offset_xyz": (0, 0, 0.08)},
-            {"offset_xyz": (-0.037, 0.037, -0.09), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.1)},
-            {"offset_xyz": (-0.037, 0.037, -0.09), "offset_rpy_deg": (0, 0, -135), "hover_offset_xyz": (0, 0, -0.1)},
             {"offset_xyz": (-0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0, -0.041, 0.1262), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.08)},
@@ -226,7 +228,7 @@ BENCHMARK_CONFIGS = {
             {'lookat': (0.0, 0.0, 0.0), 'front': (4.0, 6.0, 6.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
         ),
     },
-    'plate_on_rack': {
+    'plate_on_stand': {
         'active': 'green_plate_small',
         'passive': 'wooden_rack',
         'instruction': 'Insert the green plate into a pair of opposing slots.',
@@ -250,10 +252,10 @@ BENCHMARK_CONFIGS = {
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.4, 0.4), 'up': (0.0, 0.0, 1.0), 'zoom': 0.8},
         ),
     },
-    'mug_on_rack_inverted': {
+    'mug_on_stand': {
             'active': 'red_mug_big',
             'passive': 'wooden_rack',
-            'instruction': "Place the red mug on the wooden rack's center inverted.",
+            'instruction': "Place the red mug on one side of the wooden rack inverted, with its rim covering at least two notches.",
             'default_validation_program': {
                 'validation_mode': 'settling',
                 'initial_max_pen': 0.2,

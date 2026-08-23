@@ -3,6 +3,7 @@ import mujoco
 import xml.etree.ElementTree as ET
 import os
 import time
+import cv2
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Literal
@@ -294,49 +295,89 @@ class DigitalTwin:
         self.viewer = None
 
 
-    def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=500, output_path=None):
-        if not visualize:
-            candidates = self.sample(n_samples, max_valid, sim_steps, visualize=False)
-        else:
-            import time
+    def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=500,
+                        output_path=None, video_path=None):
+        if visualize:
             import mujoco.viewer
-
             self.viewer_data = mujoco.MjData(self.model)
-
             with mujoco.viewer.launch_passive(self.model, self.viewer_data) as self.viewer:
-                return self.sample(n_samples, max_valid, sim_steps, visualize=True)
+                candidates = self.sample(n_samples, max_valid, sim_steps, True, video_path)
+        else:
+            candidates = self.sample(n_samples, max_valid, sim_steps, False, video_path)
 
         if output_path is not None:
-            output_path = Path(output_path)
-            if candidates:
-                candidates_array = np.stack(candidates)
-            else:
-                candidates_array = np.empty((0,4,4))
-            np.save(output_path, candidates_array)
+            arr = np.stack(candidates) if candidates else np.empty((0, 4, 4))
+            np.save(Path(output_path), arr)
+
         return candidates
 
-    def sample(self, n_samples, max_valid, sim_steps, visualize=False):
+
+    def sample(self, n_samples, max_valid, sim_steps, visualize=False, video_path=None):
         candidates = []
+        renderer = video = render_data = camera = None
 
-        for i in range(n_samples):
-            T_goal_sample = self.T_goal if i == 0 else self.S.sample(self.T_goal, self.T_passive)
-            if visualize:
-                self.set_mocap_pose(self.viewer_data, self.scene.goal_mocap_id, T_goal_sample)
-                self.viewer.sync()
-                time.sleep(0.005)
+        if video_path is not None:
+            w, h, fps, frames_per_sample = 640, 480, 30, 2
 
-            valid, T_final, reason = self.validate(T_goal_sample, sim_steps)
-            if not valid:
-                continue
+            render_data = mujoco.MjData(self.model)
+            render_data.qpos[:] = self.scene.data.qpos
+            render_data.qvel[:] = 0
+            mujoco.mj_forward(self.model, render_data)
 
-            candidates.append(T_final)
-            print(f"[digital-twin]: valid candidate {len(candidates)}/{max_valid} discovered as the {i+1} sample")
+            camera = mujoco.MjvCamera()
+            mujoco.mjv_defaultCamera(camera)
+            camera.type = mujoco.mjtCamera.mjCAMERA_FREE
+            camera.lookat[:] = render_data.xpos[self.scene.passive_body_id]
+            camera.distance, camera.azimuth, camera.elevation = 0.55, 135.0, -25.0
 
-            # TODO: pause after each valid candidate and wait for user input?
-            if len(candidates) >= max_valid: 
-                break
+            renderer = mujoco.Renderer(self.model, width=w, height=h)
+
+            video_path = Path(video_path)
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            video = cv2.VideoWriter(
+                str(video_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h)
+            )
+            if not video.isOpened():
+                renderer.close()
+                raise RuntimeError(f"[digital-twin]: failed to open video writer: {video_path}")
+
+        try:
+            for i in range(n_samples):
+                T_goal_sample = self.T_goal if i == 0 else self.S.sample(self.T_goal, self.T_passive)
+
+                if visualize:
+                    self.set_mocap_pose(self.viewer_data, self.scene.goal_mocap_id, T_goal_sample)
+                    self.viewer.sync()
+                    time.sleep(0.005)
+
+                if video is not None:
+                    self.set_mocap_pose(render_data, self.scene.goal_mocap_id, T_goal_sample)
+                    renderer.update_scene(render_data, camera=camera)
+                    bgr = cv2.cvtColor(renderer.render(), cv2.COLOR_RGB2BGR)
+                    for _ in range(frames_per_sample):
+                        video.write(bgr)
+
+                valid, T_final, reason = self.validate(T_goal_sample, sim_steps)
+                if not valid:
+                    continue
+
+                candidates.append(T_final)
+                print(f"[digital-twin]: valid candidate {len(candidates)}/{max_valid} discovered as the {i+1} sample")
+
+                if len(candidates) >= max_valid:
+                    break
+
+        finally:
+            if video is not None:
+                video.release()
+            if renderer is not None:
+                renderer.close()
+
+        if video_path is not None:
+            print(f"[digital-twin]: sampling video saved to {video_path}")
+
         return candidates
-            
+                
     
     def validate(self, T_goal_sample, sim_steps):
         data = mujoco.MjData(self.model)
