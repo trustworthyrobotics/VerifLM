@@ -274,11 +274,13 @@ for i, T_mujoco_active_goal_valid in enumerate(candidates):
                    T_passive_active=T_passive_active_valid, rendered_frame="active",
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
+    array_path = DTWIN_DIR / f"valid_candidate_{i}.npy"
     image_path = RENDER_DIR / f"valid_candidate_{i}.png"
     image = cv2.imread(str(image_path))
     cv2.putText(image, f"candidate_{i}", (20,75), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
     cv2.imwrite(str(image_path), image)
     candidate_image_paths.append(image_path)
+    np.save(array_path, T_mujoco_active_goal_valid)
 input("step 8 done. press enter to proceed:")
 
 # 9. Select best candidate
