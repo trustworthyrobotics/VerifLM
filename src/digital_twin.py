@@ -330,7 +330,7 @@ class DigitalTwin:
                 continue
 
             candidates.append(T_final)
-            print(f"[digital-twin]: valid candidate {len(candidates)}/{max_valid}")
+            print(f"[digital-twin]: valid candidate {len(candidates)}/{max_valid} discovered as the {i+1} sample")
 
             # TODO: pause after each valid candidate and wait for user input?
             if len(candidates) >= max_valid: 

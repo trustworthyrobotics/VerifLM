@@ -360,14 +360,16 @@ class TrajectoryPlanner:
             print("FK reconstructed xyz:   ", T_fk_object[:3, 3])
             print("xyz error:               ", T_fk_object[:3, 3] - T_mujoco_object_goal[:3, 3])
             ## check (1) IK feasible source and goal (2) collision free at source and goal
-            if q_pregrasp is None or q_grasp is None or q_goal is None:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK")
+            if q_pregrasp is None:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_pregrasp")
                 continue
-            # if (not self.collision_checker.check(q_start) or 
-            #    not self.collision_checker.check(q_goal, T_eef_object)):
-            #     print(f"[trajectory]: {i}/{len(grasps)} failed due to collision")
-            #     continue
-
+            if q_grasp is None:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_grasp")
+                continue
+            if q_goal is None:
+                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_goal")
+                continue
+            
             ## OMPL + simplify + interpolate paths
             traj_start_pregrasp = self.plan_trajectory(q_start, q_pregrasp)
             if not traj_start_pregrasp:
