@@ -30,7 +30,7 @@ FINGER_JOINT_NAMES = (ARM_PREFIX+"finger_1_slide", ARM_PREFIX+"finger_2_slide")
 EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
 TABLE_GEOM_NAMES = ("table", "table_base")
 ACTIVE_TABLE_TOLERANCE = 0.01
-ACTIVE_PASSIVE_TOLERANCE = 0.001
+ACTIVE_PASSIVE_TOLERANCE = 0.0005
 
 @dataclass(frozen=True)
 class Grasp:
@@ -106,7 +106,13 @@ class CollisionChecker:
         def reject(reason, g1, g2, dist):
             n1 = self.model.geom(g1).name
             n2 = self.model.geom(g2).name
-            print(f"[collision] {reason}: {n1} <-> {n2} ({dist:.4f} m)")
+            b1 = int(self.model.geom_bodyid[g1])
+            b2 = int(self.model.geom_bodyid[g2]) 
+            print(
+                f"[collision] {reason}: "
+                f"{self.model.body(b1).name} <-> {self.model.body(b2).name} "
+                f"({dist:.4f} m)"
+            )
             return False
 
         # Check contacts
@@ -338,83 +344,116 @@ class TrajectoryPlanner:
 
         self.finger_qadrs = np.array([self.model.joint(name).qposadr[0] for name in FINGER_JOINT_NAMES])
 
-    def plan(self, q_start, T_mujoco_object_src, T_mujoco_object_goal, grasps: list[Grasp], output_path=None):
+    def plan(self, q_start, T_mujoco_object_src, T_mujoco_object_goal, grasps: list[Grasp],
+         preinsertion_offset=None, output_path=None):
         print(f"T_mujoco_object_src:\n{T_mujoco_object_src}, T_mujoco_object_goal:\n{T_mujoco_object_goal}")
-        # For every candidate grasp 
+
+        offset = None if preinsertion_offset is None else np.asarray(preinsertion_offset, dtype=float)
+        if offset is not None and offset.shape != (3,):
+            raise ValueError("preinsertion_offset must contain exactly 3 floats")
+
         stages = None
         for i, grasp in enumerate(grasps):
             T_eef_object = np.linalg.inv(grasp.T_object_eef)
-            T_mujoco_eef_grasp = T_mujoco_object_src @ grasp.T_object_eef 
-            T_mujoco_eef_pregrasp = T_mujoco_object_src @ grasp.T_object_pregrasp_eef
-            T_mujoco_eef_goal = T_mujoco_object_goal @ grasp.T_object_eef
+            T_eef_grasp = T_mujoco_object_src @ grasp.T_object_eef
+            T_eef_pregrasp = T_mujoco_object_src @ grasp.T_object_pregrasp_eef
+            T_eef_goal = T_mujoco_object_goal @ grasp.T_object_eef
 
-            q_pregrasp = self.solve_ik(T_mujoco_eef_pregrasp)
-            q_grasp = self.solve_ik(T_mujoco_eef_grasp, q_pregrasp) if q_pregrasp is not None else None
-            q_goal = self.solve_ik(T_mujoco_eef_goal, q_grasp) if q_grasp is not None else None
+            T_object_preinsert = None
+            if offset is not None:
+                T_object_preinsert = T_mujoco_object_goal.copy()
+                T_object_preinsert[:3, 3] += offset       # world-frame displacement
+                T_eef_preinsert = T_object_preinsert @ grasp.T_object_eef
 
-            # debug lines
-            self.ik_data.qpos[self.arm_qadrs] = q_goal
-            mujoco.mj_forward(self.model, self.ik_data)
-
-            eef = self.ik_data.body(EEF_BODY_NAME)
-            T_fk_eef = np.eye(4)
-            T_fk_eef[:3, 3] = eef.xpos
-            T_fk_eef[:3, :3] = eef.xmat.reshape(3, 3)
-
-            T_fk_object = T_fk_eef @ T_eef_object
-
-
-            ## check (1) IK feasible source and goal (2) collision free at source and goal
+            q_pregrasp = self.solve_ik(T_eef_pregrasp)
             if q_pregrasp is None:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_pregrasp")
+                print(f"[trajectory]: {i}/{len(grasps)} failed IK for pregrasp")
                 continue
+
+            q_grasp = self.solve_ik(T_eef_grasp, q_pregrasp)
             if q_grasp is None:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_grasp")
+                print(f"[trajectory]: {i}/{len(grasps)} failed IK for grasp")
                 continue
+
+            q_preinsert = self.solve_ik(T_eef_preinsert, q_grasp) if offset is not None else None
+            if offset is not None and q_preinsert is None:
+                print(f"[trajectory]: {i}/{len(grasps)} failed IK for preinsertion")
+                continue
+
+            q_goal = self.solve_ik(T_eef_goal, q_preinsert if q_preinsert is not None else q_grasp)
             if q_goal is None:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan IK for q_goal")
-                continue
-            
-            ## OMPL + simplify + interpolate paths
-            traj_start_pregrasp = self.plan_trajectory(q_start, q_pregrasp)
-            if not traj_start_pregrasp:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan start to pregrasp path")
-                continue
-            traj_pregrasp_grasp = self.plan_grasp_approach(q_pregrasp, q_grasp)
-            if not traj_pregrasp_grasp:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan pregrasp to grasp path")
-                continue
-            traj_grasp_pregrasp = list(reversed(traj_pregrasp_grasp))
-
-            traj_pregrasp_goal = self.plan_trajectory(q_pregrasp, q_goal, T_eef_object)
-            if not traj_pregrasp_goal:
-                print(f"[trajectory]: {i}/{len(grasps)} failed to plan pregrasp to goal path")
+                print(f"[trajectory]: {i}/{len(grasps)} failed IK for goal")
                 continue
 
-            ## Create time-parametrized trajectory
+            # Home -> pregrasp -> grasp
+            p0 = self.plan_trajectory(q_start, q_pregrasp)
+            if not p0:
+                print(f"[trajectory]: {i}/{len(grasps)} failed start -> pregrasp")
+                continue
+
+            p1 = self.plan_grasp_approach(q_pregrasp, q_grasp)
+            if not p1:
+                print(f"[trajectory]: {i}/{len(grasps)} failed pregrasp -> grasp")
+                continue
+
+            p2 = list(reversed(p1))  # grasp -> source pregrasp
+
+            # Transfer attached object.
+            q_transfer_goal = q_preinsert if q_preinsert is not None else q_goal
+            p3 = self.plan_trajectory(q_pregrasp, q_transfer_goal, T_eef_object)
+            if not p3:
+                name = "preinsertion" if offset is not None else "goal"
+                print(f"[trajectory]: {i}/{len(grasps)} failed pregrasp -> {name}")
+                continue
+
+            # Optional constrained final insertion.
+            p4 = None
+            if offset is not None:
+                p4 = self.plan_insertion_approach(q_preinsert, q_goal, T_eef_object)
+                if not p4:
+                    print(f"[trajectory]: {i}/{len(grasps)} failed preinsertion -> goal")
+                    continue
+
+            paths = [p0, p1, p2, p3]
             stages = [
-                TrajectoryStage("move", q_path=traj_start_pregrasp, time_from_start=self.time_parametrize(traj_start_pregrasp)),
-                TrajectoryStage("move", q_path=traj_pregrasp_grasp, time_from_start=self.time_parametrize(traj_pregrasp_grasp)),
+                TrajectoryStage("move", q_path=p0, time_from_start=self.time_parametrize(p0)),
+                TrajectoryStage("move", q_path=p1, time_from_start=self.time_parametrize(p1)),
                 TrajectoryStage("grasp"),
-                TrajectoryStage("move", q_path=traj_grasp_pregrasp, time_from_start=self.time_parametrize(traj_grasp_pregrasp)),
-                TrajectoryStage("move", q_path=traj_pregrasp_goal, time_from_start=self.time_parametrize(traj_pregrasp_goal)),
-                TrajectoryStage("release")
+                TrajectoryStage("move", q_path=p2, time_from_start=self.time_parametrize(p2)),
+                TrajectoryStage("move", q_path=p3, time_from_start=self.time_parametrize(p3)),
             ]
+            if p4 is not None:
+                paths.append(p4)
+                stages.append(TrajectoryStage("move", q_path=p4, time_from_start=self.time_parametrize(p4)))
+            stages.append(TrajectoryStage("release"))
+
             self.chosen_grasp = grasp
             break
 
-        # write trajectory along with chosen_grasp
         if output_path is not None and stages is not None:
-            data = {"T_object_eef": self.chosen_grasp.T_object_eef.tolist(),
-                    "T_object_pregrasp_eef": self.chosen_grasp.T_object_pregrasp_eef.tolist(),
-                    "trajectory": [{"type": stage.type, 
-                                    "q_path": [q.tolist() for q in stage.q_path] if stage.q_path is not None else None, 
-                                    "time_from_start": stage.time_from_start if stage.time_from_start is not None else None} for stage in stages]}
-            Path(output_path).write_text(json.dumps(data, indent=2))
-            
+            result = {
+                "T_object_eef": self.chosen_grasp.T_object_eef.tolist(),
+                "T_object_pregrasp_eef": self.chosen_grasp.T_object_pregrasp_eef.tolist(),
+                "preinsertion_offset": offset.tolist() if offset is not None else None,
+                "trajectory": [{
+                    "type": s.type,
+                    "q_path": [q.tolist() for q in s.q_path] if s.q_path is not None else None,
+                    "time_from_start": s.time_from_start,
+                } for s in stages],
+            }
+            Path(output_path).write_text(json.dumps(result, indent=2))
+
         return stages
 
-    def plan_trajectory(self, q_start, q_goal, T_eef_active=None, solve_time=10.0):
+
+    def plan_insertion_approach(self, q_preinsertion, q_goal, T_eef_active, steps=30):
+        path = [(1-a)*q_preinsertion + a*q_goal for a in np.linspace(0, 1, steps)]
+        for q in path:
+            if not self.collision_checker.check(q, T_eef_active, allow_active_fingers=True):
+                return None
+        return path
+
+    def plan_trajectory(self, q_start, q_goal, T_eef_active=None, solve_time=5.0):
         space = ob.RealVectorStateSpace(7)
         bounds = ob.RealVectorBounds(7)
         for i, (low, high) in enumerate(self.arm_joint_limits):

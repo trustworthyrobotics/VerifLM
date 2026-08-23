@@ -192,76 +192,66 @@ def move_source(dp=None, axis=None, deg=0):
 # ---------------------------------------------------------------------
 # Show one grasp
 # ---------------------------------------------------------------------
-
-def show_grasp(index):
+def show_grasp(index, pose="pregrasp"):
     grasp = grasps[index]
 
-    T_mujoco_eef = (
-        state["source"]
-        @ grasp.T_object_eef
-    )
+    T_pregrasp = state["source"] @ grasp.T_object_pregrasp_eef
+    T_grasp = state["source"] @ grasp.T_object_eef
 
-    # Make planner's internal scene agree with edited source.
     planner.ik_data.qpos[:] = base_qpos
     set_active(planner.ik_data, state["source"])
     mujoco.mj_forward(model, planner.ik_data)
 
-    q = planner.solve_ik(T_mujoco_eef)
-
-    print("\n" + "=" * 70)
-    print(
-        f"[test]: GRASP {index + 1}/{len(grasps)}"
+    q_pregrasp = planner.solve_ik(T_pregrasp)
+    q_grasp = (
+        planner.solve_ik(T_grasp, q_pregrasp)
+        if q_pregrasp is not None
+        else None
     )
-    print("=" * 70)
 
-    print("source xyz:")
-    print(state["source"][:3, 3])
+    pregrasp_ok = q_pregrasp is not None
+    grasp_ok = q_grasp is not None
 
-    print("\nT_object_eef:")
-    print(grasp.T_object_eef)
-
-    print("\ntarget EEF xyz:")
-    print(T_mujoco_eef[:3, 3])
-
-    if q is None:
-        print("\n[test]: IK FAILED")
-
-        # Keep source visible, robot at home.
+    if not pregrasp_ok:
+        print(
+            f"[test] grasp {index + 1}/{len(grasps)} | "
+            f"pregrasp=FAIL | grasp=SKIP"
+        )
         reset_robot()
         return
 
-    print("\n[test]: IK OK")
-    print("q:")
-    print(q)
+    if not grasp_ok:
+        print(
+            f"[test] grasp {index + 1}/{len(grasps)} | "
+            f"pregrasp=OK | grasp=FAIL"
+        )
+        reset_robot()
+        return
 
-    # Preserve current source object pose.
+    if pose == "grasp":
+        q = q_grasp
+        finger_q = 0.025
+        label = "GRASP"
+    else:
+        q = q_pregrasp
+        finger_q = 0.0
+        label = "PREGRASP"
+
     data.qpos[:] = base_qpos
     data.qvel[:] = 0
 
     set_active(data, state["source"])
     set_goal(data, state["source"])
 
-    # Place robot directly at grasp configuration.
     data.qpos[planner.arm_qadrs] = q
-
-    # Close fingers for easier visual inspection.
-    data.qpos[planner.finger_qadrs] = 0.025
+    data.qpos[planner.finger_qadrs] = finger_q
 
     mujoco.mj_forward(model, data)
 
-    # FK check.
-    eef = data.body(EEF_BODY_NAME)
-
-    print("\nactual EEF xyz:")
-    print(eef.xpos)
-
     print(
-        "EEF position error:",
-        np.linalg.norm(
-            eef.xpos - T_mujoco_eef[:3, 3]
-        ),
+        f"[test] grasp {index + 1}/{len(grasps)} | "
+        f"pregrasp=OK | grasp=OK | showing={label}"
     )
-
 
 # ---------------------------------------------------------------------
 # Keyboard

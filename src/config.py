@@ -35,18 +35,18 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.2, "diaginertia": (0.0003325, 0.0002567, 0.0003334), "friction": (0.8, 0.02, 0.001),
                     "contype": 1, "conaffinity": 1, "condim": 6},
         "grasps": [
-            {"offset_xyz": (-0.037, 0.037, -0.09), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.02)},
-            {"offset_xyz": (-0.037, 0.037, -0.09), "offset_rpy_deg": (0, 0, -135), "hover_offset_xyz": (0, 0, -0.02)},
-            {"offset_xyz": (-0.07, 0.08, -0.09), "offset_rpy_deg": (30, 0, 45), "hover_offset_xyz": (0, 0, -0.02)},
-            {"offset_xyz": (-0.07, 0.08, -0.09), "offset_rpy_deg": (-30, 0, -135), "hover_offset_xyz": (0, 0, -0.02)},
-            {"offset_xyz": (-0.039, 0.039, 0.12), "offset_rpy_deg": (180, 0, 45), "hover_offset_xyz": (0, 0, 0.08)},
-            {"offset_xyz": (-0.039, 0.039, 0.12), "offset_rpy_deg": (180, 0, -135), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (-0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0, -0.041, 0.1262), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0, 0.041, 0.1262), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0, -0.041, 0.1262), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0, 0.041, 0.1262), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.08)},
+            {"offset_xyz": (-0.0375, 0.0375, -0.13), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.0375, 0.0375, -0.13), "offset_rpy_deg": (0, 0, -135), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.07, 0.08, -0.13), "offset_rpy_deg": (30, 0, 45), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.07, 0.08, -0.13), "offset_rpy_deg": (-30, 0, -135), "hover_offset_xyz": (0, 0, -0.02)},
+            {"offset_xyz": (-0.039, 0.039, 0.12), "offset_rpy_deg": (180, 0, 45), "hover_offset_xyz": (0, 0, 0.08)},
+            {"offset_xyz": (-0.039, 0.039, 0.12), "offset_rpy_deg": (180, 0, -135), "hover_offset_xyz": (0, 0, 0.08)},
         ],
     },
     "blue_mug_big": {
@@ -255,7 +255,7 @@ BENCHMARK_CONFIGS = {
     'mug_on_stand': {
             'active': 'red_mug_big',
             'passive': 'wooden_rack',
-            'instruction': "Place the red mug on one side of the wooden rack inverted, with its rim covering at least two notches.",
+            'instruction': "Place the red mug on the wooden rack inverted, with its bottom facing up and its rim fully supported by one side of the rack.",
             'default_validation_program': {
                 'validation_mode': 'settling',
                 'initial_max_pen': 0.2,
@@ -272,8 +272,8 @@ BENCHMARK_CONFIGS = {
                 'allowed_orientation_drift_deg': 22.0,
             },
             "render_config": (
+                {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.5, 0.2), 'up': (0.0, 0.0, 1.0), 'zoom': 0.9},
                 {'lookat': (0.0, 0.0, 0.0), 'front': (0.5, 0.0, 0.8), 'up': (0.0, 0.0, 1.0), 'zoom': 0.9},
-                {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.5, 0.8), 'up': (0.0, 0.0, 1.0), 'zoom': 0.8},
             ),
     },
     'pour_tea': {'active': 'teapot', 

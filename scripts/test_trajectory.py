@@ -14,7 +14,7 @@ from src.digital_twin import SceneBuilder
 from src.trajectory import GraspPlanner, TrajectoryPlanner, EEF_BODY_NAME
 
 
-POS_STEP = 0.005
+POS_STEP = 0.015
 ROT_STEP = 5.0
 
 parser = argparse.ArgumentParser()
@@ -203,6 +203,7 @@ try:
                     T_mujoco_object_goal=state["goal"],
                     grasps=grasps,
                     output_path=TRAJ / "test_trajectory.json",
+                    preinsertion_offset=[0.0, -0.05, 0]
                 )
 
                 if not trajectory:
@@ -248,6 +249,7 @@ try:
                         point_i = 0
 
                     elapsed = time.monotonic() - stage_start
+                    elapsed = elapsed * 3
 
                     while (
                         point_i < len(stage.q_path)
@@ -267,7 +269,7 @@ try:
 
             mujoco.mj_forward(scene.model, data)
             viewer.sync()
-            time.sleep(0.001)
+            time.sleep(0.0005)
 
 finally:
     signal.signal(signal.SIGINT, old_sigint)

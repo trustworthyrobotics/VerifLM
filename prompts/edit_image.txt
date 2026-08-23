@@ -1,4 +1,4 @@
-Move only the active object to satisfy the instruction. Do not change anything else. 
+Move only the active object to satisfy the instruction. Do not change anything else. Do NOT hallucinate and generate new objects.
 
 Instruction: {instruction}
 Active object (move this): {active_object}
