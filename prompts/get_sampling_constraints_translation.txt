@@ -1,4 +1,4 @@
-Analyze how {active_object} must translate to satisfy this manipulation goal.
+Analyze how {active_object} must translate to satisfy this manipulation goal. This is a separate prompt for translation only. Do not reason about rotation here. Reason about how the object needs to be moved, if at all, in the passive object frame so that it'll be placed in a secure location consistent with the instruction.
 
 CONTEXT
 Instruction: {instruction}
@@ -13,10 +13,7 @@ The displayed frame is the passive object frame.
 * green: +Y
 * blue: +Z
 
-REASONING TASK
-This is a separate prompt for translation only. Do not reason about rotation here. Reason about how the object needs to be moved, if at all, in the passive object frame so that it'll be placed in a secure location, rather than near the edge.
-For plate stacking, pay close attention to if the plate that's supposed to go on top is occluded by the plate that's supposed to be stacked on. If so, the plate probably needs to be adjusted in the z direction.
-
+* correct: the translation is correct; sample within a very narrow range (choose this when the axis of translation is correct or very close to correct).
 * normal_search: ordinary local adjustment or uncertainty.
 * major_revision: the translation is substantially wrong and needs broad exploration.
 
@@ -27,9 +24,10 @@ TRANSLATION DIRECTIONS
 
 Hints: 
 - Think about whether the object needs to be locally adjusted so that the intended contact can be made. For example, if the mug's handle needs to contact the rack peg, the mug might need to be translated by a large amount so the handle is touching the rack peg. 
-- For pouring tea into the mug, all that is required is for the spout to be above the cup's opening. If that's already the case then probably no large adjustment is needed.
-- For stacking cups, if the two cups are overlapping, the active object probably only need to be translated slightly upward.
-- For placing mug on stand, if the mug is already covering one rail of the stand, probably not much x and y adjustment is needed. If the mug rim is already close to rail
+- For pouring tea into the mug, all that is required is for the spout to be above the cup's opening at an angle. If that's already the case then probably no adjustment is needed.
+- For stacking cups, if the active cup is already slightly above the passive cup, then z position is probably correct.
+- For placing mug on stand, if the mug is already covering one rail of the stand, probably not much x and y adjustment is needed. If the mug rim is already close to rail.
+- When placing the lid on the teapot, if the lid is already visble above the teapot, make sure you don't mistakenly predict the lid needs to go downward, when it's already at the right height. Otherwise the lid might penetrate the teapot.
 
 Return only JSON:
 {
