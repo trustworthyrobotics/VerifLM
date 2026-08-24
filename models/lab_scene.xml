@@ -4,6 +4,9 @@
       <default class="goal">
             <geom rgba="0 1 0 0.3" conaffinity="0" contype="0" />
       </default>
+      <default class="refined_goal">
+            <geom rgba="1 1 0 0.3" conaffinity="0" contype="0" />
+      </default>
   </default>
 
   <statistic center="0 0 0.9" extent="2.5"/>

@@ -21,17 +21,21 @@ parser.add_argument("--reuse-edited", action="store_true", default=False)
 parser.add_argument("--reuse-VS", action="store_true", default=False)
 parser.add_argument("--reuse-perception", action="store_true", default=False)
 parser.add_argument("--skip-candidate-selection", action="store_true", default=False)
+parser.add_argument("--stage", type=int, default=0, help="stage number, zero-indexed")
 args = parser.parse_args()
 
 # Load benchmark config
 BENCHMARK_NAME = args.benchmark
 CONFIG = BENCHMARK_CONFIGS[BENCHMARK_NAME]
-ACTIVE_CATALOG = OBJECT_CATALOG[CONFIG["active"]]
-PASSIVE_CATALOG = OBJECT_CATALOG[CONFIG["passive"]]
+ACTIVE_NAME = CONFIG["active"][args.stage]
+PASSIVE_NAME = CONFIG["passive"][args.stage]
+INSTRUCTION = CONFIG["instruction"][args.stage]
+ACTIVE_CATALOG = OBJECT_CATALOG[ACTIVE_NAME]
+PASSIVE_CATALOG = OBJECT_CATALOG[PASSIVE_NAME]
 
 # Define directories
 ROOT_DIR = Path(__file__).resolve().parent.parent
-OUTPUT_ROOT_DIR = ROOT_DIR / "artifacts" / BENCHMARK_NAME
+OUTPUT_ROOT_DIR = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{args.stage}"
 CAMERA_DIR = OUTPUT_ROOT_DIR / "camera"
 PERCEPTION_DIR = OUTPUT_ROOT_DIR / "perception"
 RENDER_DIR = OUTPUT_ROOT_DIR / "render"
@@ -96,7 +100,7 @@ if args.reuse_edited:
     if not edited_path.exists():
         raise FileNotFoundError(f"Cannot reuse edited image; missing {edited_path}")
 else:
-    edit_image(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
+    edit_image(instruction=INSTRUCTION, active_object=ACTIVE_NAME, passive_object=PASSIVE_NAME, input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
 input("step 2 done. press enter to proceed:")
 # 3-5. Perception
 pose_paths = {
@@ -244,13 +248,13 @@ if args.reuse_VS:
     V = load_validation_program(VLM_DIR/"validation_program.json", ACTIVE_CATALOG["dimensions"])
 else:
     while True:
-        S = get_sampling_constraints(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
+        S = get_sampling_constraints(instruction=INSTRUCTION, active_object=ACTIVE_NAME, passive_object=PASSIVE_NAME, 
                                     active_dimensions=ACTIVE_CATALOG["dimensions"], 
                                     translation_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
                                     rotation_image_paths=[RENDER_DIR/"rotation_0.png", RENDER_DIR/"rotation_1.png"],
                                     translation_output_path=VLM_DIR/"translation_constraints.json",
                                     rotation_output_path=VLM_DIR/"rotation_constraints.json")
-        V = get_validation_program(instruction=CONFIG["instruction"], active_object=CONFIG["active"], passive_object=CONFIG["passive"], 
+        V = get_validation_program(instruction=INSTRUCTION, active_object=ACTIVE_NAME, passive_object=PASSIVE_NAME, 
                                 active_dimensions=ACTIVE_CATALOG["dimensions"], passive_dimensions=PASSIVE_CATALOG["dimensions"],
                                 input_image_paths=[RENDER_DIR/"translation_0.png", RENDER_DIR/"translation_1.png"],
                                 output_path=VLM_DIR/"validation_program.json")
@@ -260,9 +264,21 @@ else:
 
 # 8. Sample in Mujoco + render successful candidates
 scene_builder = SceneBuilder()
-scene = scene_builder.build(active_name=CONFIG["active"], passive_name=CONFIG["passive"], 
-                    T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_active_goal=T_mujoco_active_goal,
-                    output_path=XML_DIR/f"{BENCHMARK_NAME}.xml")
+obstacles = []
+if args.stage > 0:
+    # Iterate thru all previous stages and identify all active objects as possible obstacles
+    # Technically, what should be done instead is identifying all objects mentioned in the config and
+    # classify each one that's not relevant to the current task stage as obstacles.
+    for stage in range(args.stage): 
+        name = CONFIG["active"][stage]
+        if name in (ACTIVE_NAME, PASSIVE_NAME) or any(name == n for n, _ in obstacles):
+            continue
+        path = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{stage}" / "dtwin" / "T_mujoco_active_goal_selected.npy"
+        obstacles.append((name, np.load(path)))
+
+scene = scene_builder.build(active_name=ACTIVE_NAME, passive_name=PASSIVE_NAME, 
+                    T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_active_goal=T_mujoco_active_goal, obstacles=obstacles,
+                    output_path=XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}.xml")
 digital_twin = DigitalTwin(scene, V, S)
 candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True, video_path=DTWIN_DIR/f"sampling.mp4") # returns a list of valid T_mujoco_active_goal
 if not candidates:
@@ -289,9 +305,11 @@ if args.skip_candidate_selection:
     best_index = input("Enter the index of the best candidate (0 to {}): ".format(len(candidates)-1))
     best_index = int(best_index)
 else:
-    best_index = select_best_candidate(CONFIG["instruction"], CONFIG["active"], CONFIG["passive"], 
+    best_index = select_best_candidate(INSTRUCTION, ACTIVE_NAME, PASSIVE_NAME, 
                                        input_image_paths=candidate_image_paths, output_path=VLM_DIR/"best_candidate.json")
 T_mujoco_active_goal_selected = candidates[best_index]
+np.save(DTWIN_DIR/"T_mujoco_active_goal_selected.npy", T_mujoco_active_goal_selected)
+digital_twin.set_mocap_pose(scene.data, scene.refined_goal_mocap_id, T_mujoco_active_goal_selected)
 input("step 9 done. press enter to proceed:")
 
 # 10. Grasp Planning

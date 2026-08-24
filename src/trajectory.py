@@ -554,6 +554,8 @@ class TrajectoryPlanner:
                 while viewer.is_running() and not stop["requested"]:
                     data.qpos[:] = self.scene.data.qpos
                     data.qvel[:] = 0
+                    data.mocap_pos[:] = self.scene.data.mocap_pos
+                    data.mocap_quat[:] = self.scene.data.mocap_quat
                     mujoco.mj_forward(self.model, data)
                     attached = False
 

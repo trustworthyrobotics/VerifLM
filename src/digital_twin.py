@@ -123,7 +123,9 @@ class Scene:
     data: mujoco.MjData
     active_body_id: int
     passive_body_id: int
+    obstacle_body_ids: set[int]
     goal_mocap_id: int
+    refined_goal_mocap_id: int
     table_geom_ids: set[int]
     xml_path: Path
 
@@ -131,7 +133,7 @@ class SceneBuilder:
     def __init__(self, lab_scene_path=REPO_ROOT / "models" / "lab_scene.xml"):
         self.lab_scene_path = Path(lab_scene_path).resolve()
 
-    def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive, T_mujoco_active_goal, output_path) -> Scene: # OUTPUT_DIR = MODELS_DIR/"generated_xmls"
+    def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive, T_mujoco_active_goal, obstacles, output_path) -> Scene: # OUTPUT_DIR = MODELS_DIR/"generated_xmls"
         root = ET.parse(self.lab_scene_path).getroot()
         compiler = ET.Element("compiler")
         root.insert(0, compiler)
@@ -145,7 +147,7 @@ class SceneBuilder:
             path = (self.lab_scene_path.parent / model_asset.get("file")).resolve()
             model_asset.set("file", os.path.relpath(path, output_path.parent))
 
-        for name in dict.fromkeys((active_name, passive_name)):
+        for name in dict.fromkeys((active_name, passive_name, *(name for name in obstacles))):
             mjcf = OBJECT_CATALOG[name]["mjcf"]
             if mjcf["type"] == "mesh":
                 path = REPO_ROOT / mjcf["asset_xml"]
@@ -155,6 +157,9 @@ class SceneBuilder:
         worldbody.append(self.make_body(active_name, T_mujoco_active, "active"))
         worldbody.append(self.make_body(passive_name, T_mujoco_passive, "passive"))
         worldbody.append(self.make_body(active_name, T_mujoco_active_goal, "goal"))
+        worldbody.append(self.make_body(active_name, np.eye(4), "refined_goal"))
+        for name, T_mujoco in obstacles:
+            worldbody.append(self.make_body(name, T_mujoco, "obstacle"))
 
         ET.indent(root, space="  ")
         ET.ElementTree(root).write(output_path)
@@ -163,13 +168,12 @@ class SceneBuilder:
         data = mujoco.MjData(model)
         active_body_id = model.body(f"active_{active_name}").id
         passive_body_id = model.body(f"passive_{passive_name}").id
+        obstacle_body_ids = {model.body(f"obstacle_{name}").id for name, _ in obstacles}
         goal_mocap_id = int(model.body(f"goal_{active_name}").mocapid[0])
+        refined_goal_mocap_id = int(model.body(f"refined_goal_{active_name}").mocapid[0])
         table_geom_ids = {model.geom(name).id for name in ("table", "table_base")}
-        if goal_mocap_id < 0:
-            raise ValueError(f"[digital-twin]: {goal_body.name} is not a mocap body")
-
         mujoco.mj_forward(model, data)
-        return Scene(model, data, active_body_id, passive_body_id, goal_mocap_id, table_geom_ids, output_path)
+        return Scene(model, data, active_body_id, passive_body_id, obstacle_body_ids, goal_mocap_id, refined_goal_mocap_id, table_geom_ids, output_path)
 
     def make_body(self, name, T_mujoco, role):
         spec = OBJECT_CATALOG[name]
@@ -220,7 +224,7 @@ class SceneBuilder:
 
         ### Build bodies
         # Goal: visual-only mocap copy.
-        if role == "goal":
+        if role in {"goal", "refined_goal"}:
             body.set("mocap", "true")
 
             inertial = body.find("inertial")
@@ -228,12 +232,12 @@ class SceneBuilder:
                 body.remove(inertial)
 
             for geom in body.iter("geom"):
-                geom.set("class", "goal")
+                geom.set("class", role)
 
             return body
 
         # Passive is fixed, so its inertial is unnecessary.
-        if role == "passive":
+        if role in ("passive", "obstacle"):
             inertial = body.find("inertial")
             if inertial is not None:
                 body.remove(inertial)
@@ -342,11 +346,6 @@ class DigitalTwin:
                 raise RuntimeError(f"[digital-twin]: failed to open video writer: {video_path}")
 
         try:
-            valid, T_final, reason = self.validate(self.T_goal, sim_steps) # validate the original goal pose first
-            if valid:
-                candidates.append(T_final)
-                print(f"[digital-twin]: valid candidate 1/{max_valid} discovered as the initial goal pose")
-
             for i in range(n_samples):
                 T_goal_sample = self.T_goal if i == 0 else self.S.sample(self.T_goal, self.T_passive)
 
@@ -455,6 +454,9 @@ class DigitalTwin:
 
             if {body_id1, body_id2} == scene_body_ids:
                 contacts.add("active_passive")
+            if ((body_id1 == self.scene.active_body_id and body_id2 in self.scene.obstacle_body_ids) or
+               (body_id2 == self.scene.active_body_id and body_id1 in self.scene.obstacle_body_ids)):
+               return False, "active object contacts obstacle"
             if ((body_id1 == self.scene.active_body_id and geom2 in self.scene.table_geom_ids) or
                 (body_id2 == self.scene.active_body_id and geom1 in self.scene.table_geom_ids)):
                 contacts.add("active_table")
