@@ -126,8 +126,8 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.5, "diaginertia": (0.0007367, 0.0015552, 0.0015223), "friction": (0.15, 0.001, 0.0005),
                     "contype": 1, "conaffinity": 1, "condim": 6},
         "grasps": [
-            {"offset_xyz": (0.075, 0, 0.12195), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.1)},
-            {"offset_xyz": (0.075, 0, 0.12195), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.1)},
+            {"offset_xyz": (0.075, 0, 0.12195), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.03)},
+            {"offset_xyz": (0.075, 0, 0.12195), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.03)},
         ],
     },
     "yellow_cap": {
@@ -150,8 +150,14 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.25, "diaginertia": (0.0003557, 0.0003515, 0.0002166), "friction": (0.05, 0.001, 0.0001),
                     "contype": 1, "conaffinity": 1, "condim": 4},
         "grasps": [
-            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.08)},
-            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.08)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, -45), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, 90), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, -90), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, -0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, -0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
         ],
     },
     "green_cup": {
@@ -161,8 +167,14 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.25, "diaginertia": (0.0003719, 0.0003697, 0.0002236), "friction": (0.05, 0.001, 0.0001),
                     "contype": 1, "conaffinity": 1, "condim": 4},
         "grasps": [
-            {"offset_xyz": (0, 0.03, 0.16425), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.08)},
-            {"offset_xyz": (0, 0.03, 0.16425), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.08)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, -45), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, 90), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, -90), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, -0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, -0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
         ],
     },
     "blue_cup": {
@@ -172,8 +184,14 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.25, "diaginertia": (0.0003628, 0.0003643, 0.0002193), "friction": (0.05, 0.001, 0.0001),
                     "contype": 1, "conaffinity": 1, "condim": 4},
         "grasps": [
-            {"offset_xyz": (0, 0.03, 0.1648), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.08)},
-            {"offset_xyz": (0, 0.03, 0.1648), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.08)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, 45), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, -45), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, 90), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0, -0.14), "offset_rpy_deg": (0, 0, -90), "hover_offset_xyz": (0, 0, -0.05)},
+            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, 0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, -0.03, 0.16575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
+            {"offset_xyz": (0, -0.03, 0.16575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
         ],
     },
 }
@@ -278,7 +296,7 @@ BENCHMARK_CONFIGS = {
     },
     'pour_tea': {'active': 'teapot', 
                  'passive': 'red_mug_big',
-                 'instruction': 'Place the teapot at a pose where it can pour tea into the red mug. The spout needs to be above the mug and slightly tilted but not fully downward-facing.',
+                 'instruction': 'Place the teapot at a pose where it can pour tea into the red mug. The spout needs to be above the mug and tilted at an angle to pour.',
                  'default_validation_program': {
                              'validation_mode': 'settling',
                              'initial_max_pen': 0.2,
@@ -296,8 +314,8 @@ BENCHMARK_CONFIGS = {
                              'allowed_orientation_drift_deg': 20.0,
                     },
             'render_config': (
-                {'lookat': (0.0, 0.0, 0.0), 'front': (0.2, 0.2, 1.5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.0},
-                {'lookat': (0.0, 0.0, 0.0), 'front': (-0.2, -0.2, 1.5), 'up': (0.0, 0.0, 1.0), 'zoom': 1.0},
+                {'lookat': (0.0, 0.0, 0.0), 'front': (0.5, 0.5, 0.4), 'up': (0.0, 0.0, 1.0), 'zoom': 1.0},
+                {'lookat': (0.0, 0.0, 0.0), 'front': (-0.5, 0.5, 0.4), 'up': (0.0, 0.0, 1.0), 'zoom': 1.0},
             ),
     },
     'lid_on_teapot': {'active': 'yellow_cap', 
@@ -327,7 +345,7 @@ BENCHMARK_CONFIGS = {
     'stack_cup': {
             'active': 'red_cup',
             'passive': 'blue_cup',
-            'instruction': 'Place the red cup inside the blue cup.',
+            'instruction': 'Place the red cup on the blue cup inverted so that their rims touch and are aligned.',
             'default_validation_program': {
                 'validation_mode': 'settling',
                 'initial_max_pen': 0.2,
@@ -345,8 +363,8 @@ BENCHMARK_CONFIGS = {
                 'allowed_orientation_drift_deg': 20.0,
             },
             'render_config': (
-                {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -1.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
-                {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
+                {'lookat': (0.0, 0.0, 0.0), 'front': (0.0, -0.5, 10.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
+                {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 0.8), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
             ),
         },
     # Multi-stage tasks

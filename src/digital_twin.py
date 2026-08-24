@@ -342,6 +342,11 @@ class DigitalTwin:
                 raise RuntimeError(f"[digital-twin]: failed to open video writer: {video_path}")
 
         try:
+            valid, T_final, reason = self.validate(self.T_goal, sim_steps) # validate the original goal pose first
+            if valid:
+                candidates.append(T_final)
+                print(f"[digital-twin]: valid candidate 1/{max_valid} discovered as the initial goal pose")
+
             for i in range(n_samples):
                 T_goal_sample = self.T_goal if i == 0 else self.S.sample(self.T_goal, self.T_passive)
 

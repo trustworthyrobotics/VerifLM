@@ -20,7 +20,7 @@ from src.trajectory import (
 )
 
 
-POS_STEP = 0.005
+POS_STEP = 0.015
 ROT_STEP = 5.0
 
 
@@ -192,7 +192,7 @@ def move_source(dp=None, axis=None, deg=0):
 # ---------------------------------------------------------------------
 # Show one grasp
 # ---------------------------------------------------------------------
-def show_grasp(index, pose="pregrasp"):
+def show_grasp(index, pose="grasp"):
     grasp = grasps[index]
 
     T_pregrasp = state["source"] @ grasp.T_object_pregrasp_eef

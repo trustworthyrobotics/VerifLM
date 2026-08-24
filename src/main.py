@@ -218,23 +218,23 @@ T_mujoco_active_goal = T_mujoco_passive @ T_passive_active_edited
 
 # 6. Render poses
 # Output: axis-labeled pictures of objects in RENDER_DIR
+if not args.reuse_perception:
+    # First pair of renderings: world-axis-labeled renders for translational reasoning
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
+                T_passive_active=T_passive_active_edited, rendered_frame="passive",
+                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
+                T_passive_active=T_passive_active_edited, rendered_frame="passive",
+                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
-# First pair of renderings: world-axis-labeled renders for translational reasoning
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
-            T_passive_active=T_passive_active_edited, rendered_frame="passive",
-            lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
-            T_passive_active=T_passive_active_edited, rendered_frame="passive",
-            lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-
-# Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
-            T_passive_active=T_passive_active_edited, rendered_frame="active",
-            lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
-render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
-            T_passive_active=T_passive_active_edited, rendered_frame="active",
-            lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-i = input("Hit Enter to proceed to querying VLM for V and S: ")
+    # Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
+                T_passive_active=T_passive_active_edited, rendered_frame="active",
+                lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
+    render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
+                T_passive_active=T_passive_active_edited, rendered_frame="active",
+                lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+i = input("step 6 done. press enter to proceed: ")
 
 
 # 7. Query VLM for validation program V and sampling constraints S
