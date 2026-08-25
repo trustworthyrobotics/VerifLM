@@ -30,7 +30,7 @@ def query(prompt, input_image_paths=None, provider: Literal["openai", "gemini"]=
     if provider == "openai":
         content = [{"type": "input_text", "text": prompt}, 
                    *[{"type": "input_image", "image_url": f"data:image/png;base64,{png_to_b64(path)}"} for path in input_image_paths]]
-        kwargs = {"model": "gpt-5.6-sol", "input": [{"role": "user", "content": content}]}
+        kwargs = {"model": "gpt-5.6", "input": [{"role": "user", "content": content}]}
         if output == "json":
             kwargs["text"] = {"format": {"type": "json_object"}}
         elif output == "image":

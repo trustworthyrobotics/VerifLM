@@ -238,7 +238,7 @@ if not args.reuse_perception:
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
                 T_passive_active=T_passive_active_edited, rendered_frame="active",
                 lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-i = input("step 6 done. press enter to proceed: ")
+i = input("step 5-6 done. press enter to proceed: ")
 
 
 # 7. Query VLM for validation program V and sampling constraints S

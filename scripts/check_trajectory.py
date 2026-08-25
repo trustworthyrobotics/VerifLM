@@ -14,28 +14,45 @@ from src.trajectory import Grasp, TrajectoryStage, TrajectoryPlanner
 parser = argparse.ArgumentParser()
 parser.add_argument("benchmark")
 parser.add_argument("--test", action="store_true")
+parser.add_argument("--stage", type=int, default=0)
 args = parser.parse_args()
 
 root = Path(__file__).resolve().parent.parent
 benchmark = args.benchmark
 filename = "test_trajectory.json" if args.test else "trajectory.json"
-traj_path = root / "artifacts" / benchmark / "trajectory" / filename
-xml_path = root / "models" / "generated_xmls" / f"{benchmark}.xml"
+traj_path = root / "artifacts" / f"{benchmark}_stage{args.stage}" / "trajectory" / filename
+xml_path = root / "models" / "generated_xmls" / f"{benchmark}_stage{args.stage}.xml"
 
 raw = json.loads(traj_path.read_text())
 cfg = BENCHMARK_CONFIGS[benchmark]
+active_name = cfg["active"][args.stage]
+passive_name = cfg["passive"][args.stage]
+
 
 # Load generated MuJoCo scene.
 model = mujoco.MjModel.from_xml_path(str(xml_path))
 data = mujoco.MjData(model)
-active_body_id = model.body(f"active_{cfg['active']}").id
-passive_body_id = model.body(f"passive_{cfg['passive']}").id
+
+active_name = cfg["active"][args.stage]
+passive_name = cfg["passive"][args.stage]
+
+active_body_id = model.body(f"active_{active_name}").id
+passive_body_id = model.body(f"passive_{passive_name}").id
+
+obstacle_body_ids = {
+    model.body(i).id
+    for i in range(model.nbody)
+    if model.body(i).name.startswith("obstacle_")
+}
+
 scene = Scene(
     model=model,
     data=data,
     active_body_id=active_body_id,
     passive_body_id=passive_body_id,
-    goal_mocap_id=int(model.body(f"goal_{cfg['active']}").mocapid[0]),
+    obstacle_body_ids=obstacle_body_ids,
+    goal_mocap_id=int(model.body(f"goal_{active_name}").mocapid[0]),
+    refined_goal_mocap_id=int(model.body(f"refined_goal_{active_name}").mocapid[0]),
     table_geom_ids={model.geom(n).id for n in ("table", "table_base")},
     xml_path=xml_path,
 )

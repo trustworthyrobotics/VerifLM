@@ -100,4 +100,4 @@ planner = TrajectoryPlanner(scene)
 trajectory = planner.plan(np.zeros(7), T_active, selected, GraspPlanner(ACTIVE,None,None).load_hardcoded(),
     output_path=TRAJ/"test_trajectory.json")
 if not trajectory: raise RuntimeError("Trajectory planning failed.")
-planner.replay_trajectory(trajec
+planner.replay_trajectory(trajectory)

@@ -70,7 +70,7 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.25, "diaginertia": (0.0024010, 0.0024542, 0.0047261), "friction": (0.05, 0.001, 0.0001),
                     "contype": 1, "conaffinity": 1, "condim": 4},
         "grasps": [
-            {"offset_xyz": (0, 0.16, 0.0012), "offset_rpy_deg": (90, -90, 0),
+            {"offset_xyz": (0, 0.155, 0.0015), "offset_rpy_deg": (90, -90, 0),
              "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
         ],
     },
@@ -81,8 +81,8 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.25, "diaginertia": (0.0024885, 0.0024795, 0.0048330), "friction": (0.05, 0.001, 0.0001),
                     "contype": 1, "conaffinity": 1, "condim": 4},
         "grasps": [
-            {"offset_xyz": (0, 0.16, 0.001), "offset_rpy_deg": (90, -90, 0),
-             "hover_offset_xyz": (0, 0.05, 0), "z_rotation_samples": 12},
+            {"offset_xyz": (0, 0.155, 0.0015), "offset_rpy_deg": (90, -90, 0),
+             "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
         ],
     },
     "yellow_plate_small": {
@@ -92,8 +92,8 @@ OBJECT_CATALOG = {
         "physics": {"mass": 0.25, "diaginertia": (0.0024335, 0.0024246, 0.0047704), "friction": (0.05, 0.001, 0.0001),
                     "contype": 1, "conaffinity": 1, "condim": 4},
         "grasps": [
-            {"offset_xyz": (0, 0.16, 0.00275), "offset_rpy_deg": (90, 90, 0),
-             "hover_offset_xyz": (0, 0.05, 0), "z_rotation_samples": 12},
+            {"offset_xyz": (0, 0.155, 0.0015), "offset_rpy_deg": (90, -90, 0),
+             "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
         ],
     },
     "red_plate_big": {
@@ -231,7 +231,7 @@ BENCHMARK_CONFIGS = {
     'plate_on_stand': {
         'active': ('green_plate_small',),
         'passive': ('wooden_rack',),
-        'instruction': ('Insert the green plate into a pair of opposing slots.',),
+        'instruction': ('Place the green plate vertically so that its rim is inserted into the same corresponding slot on both opposing rails, with the rim passing through the pair of slots',),
         'default_validation_program': {
             'validation_mode': 'settling', 'initial_max_pen': 0.2, 'final_max_pen': 0.001,
             'required_contacts': ['active_passive'], 'forbidden_contacts': ['active_table'],
@@ -246,7 +246,7 @@ BENCHMARK_CONFIGS = {
     'mug_on_stand': {
         'active': ('red_mug_big',),
         'passive': ('wooden_rack',),
-        'instruction': ("Place the red mug on the wooden rack inverted, with its bottom facing up and its rim fully supported by one side of the rack.",),
+        'instruction': ("Place the red mug on the wooden rack. The mug should cover slots on one rail, not both rails.",),
         'default_validation_program': {
             'validation_mode': 'settling', 'initial_max_pen': 0.2, 'final_max_pen': 0.001,
             'required_contacts': ['active_passive'], 'forbidden_contacts': ['active_table'],
@@ -320,7 +320,7 @@ BENCHMARK_CONFIGS = {
             {'lookat': (0.0, 0.0, 0.0), 'front': (0.8, 0.0, 1.0), 'up': (0.0, 0.0, 1.0), 'zoom': 1.2},
         ),
     },
-    'plates_on_rack': {
+    'plates_on_stand': {
         'active': ('green_plate_small', 'pink_plate_small', 'yellow_plate_small'),
         'passive': ('wooden_rack', 'wooden_rack', 'wooden_rack'),
         'instruction': ('Insert the green plate into a pair of opposing slots.', 'Insert the pink plate into a different pair of opposing slots.', 'Insert the yellow plate into a different pair of opposing slots.'),

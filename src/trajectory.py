@@ -103,18 +103,6 @@ class CollisionChecker:
 
             mujoco.mj_forward(self.model, self.data)
 
-        def reject(reason, g1, g2, dist):
-            n1 = self.model.geom(g1).name
-            n2 = self.model.geom(g2).name
-            b1 = int(self.model.geom_bodyid[g1])
-            b2 = int(self.model.geom_bodyid[g2]) 
-            print(
-                f"[collision] {reason}: "
-                f"{self.model.body(b1).name} <-> {self.model.body(b2).name} "
-                f"({dist:.4f} m)"
-            )
-            return False
-
         # Check contacts
         for contact in self.data.contact:
             g1, g2 = int(contact.geom1), int(contact.geom2)
@@ -131,17 +119,17 @@ class CollisionChecker:
             if (a1 and t2) or (a2 and t1):
                 if contact.dist >= -ACTIVE_TABLE_TOLERANCE:
                     continue
-                return reject("active-table", g1, g2, contact.dist)
+                return False
 
             # Small active-passive penetration is tolerated
             if (a1 and p2) or (a2 and p1):
                 if contact.dist >= -ACTIVE_PASSIVE_TOLERANCE:
                     continue
-                return reject("active-passive", g1, g2, contact.dist)
+                return False
 
             # Robot self-collision
             if r1 and r2:
-                return reject("self", g1, g2, contact.dist)
+                return False
 
             # Active object may contact fingers only during grasp/transfer stages
             if (a1 and r2) or (a2 and r1):
@@ -150,15 +138,15 @@ class CollisionChecker:
                 if allow_active_fingers and robot_geom in self.finger_geom_ids:
                     continue
 
-                return reject("robot-active", g1, g2, contact.dist)
+                return False
 
             # Robot-environment collision
             if r1 or r2:
-                return reject("robot-env", g1, g2, contact.dist)
+                return False
 
             # Attached active object hitting anything else
             if T_eef_active is not None and (a1 or a2):
-                return reject("attached-active", g1, g2, contact.dist)
+                return False
 
         return True
 
