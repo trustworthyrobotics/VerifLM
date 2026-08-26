@@ -500,15 +500,21 @@ class DigitalTwin:
         return True, "valid"
 
     def check_xyz_relations(self, data):
-        active = data.xpos[self.scene.active_body_id]
-        passive = data.xpos[self.scene.passive_body_id]
+        p_world_active = data.xpos[self.scene.active_body_id]
+        p_world_passive = data.xpos[self.scene.passive_body_id]
+        R_world_passive = data.xmat[self.scene.passive_body_id].reshape(3, 3)
+
+        p_passive_active = (
+            R_world_passive.T @ (p_world_active - p_world_passive)
+        )
 
         for relation in self.V.xyz_relations:
-            a, p = active[self.AXIS[relation.axis]], passive[self.AXIS[relation.axis]]
-            if relation.relation == "greater_than" and a <= p:
-                return False, f"active {relation.axis} is not greater than passive {relation.axis}"
-            if relation.relation == "less_than" and a >= p:
-                return False, f"active {relation.axis} is not less than passive {relation.axis}"
+            a = p_passive_active[self.AXIS[relation.axis]]
+
+            if relation.relation == "greater_than" and a <= 0:
+                return False, f"active {relation.axis} <= passive origin"
+            if relation.relation == "less_than" and a >= 0:
+                return False, f"active {relation.axis} >= passive origin"
 
         return True, "valid"
 
