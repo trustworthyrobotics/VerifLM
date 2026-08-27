@@ -1,4 +1,4 @@
-import argparse, signal, time
+import argparse, time
 from collections import deque
 from pathlib import Path
 
@@ -49,7 +49,7 @@ data = mujoco.MjData(scene.model); base_qpos = scene.data.qpos.copy()
 active_joint = int(scene.model.body_jntadr[scene.active_body_id])
 active_qadr, active_dadr = int(scene.model.jnt_qposadr[active_joint]), int(scene.model.jnt_dofadr[active_joint])
 
-state = {"mode":"edit","target":"goal","source":T_active.copy(),"goal":T_active.copy(),"plan":False,"reset":False,"stop":False}
+state = {"mode":"edit","target":"goal","source":T_active.copy(),"goal":T_active.copy(),"plan":False,"reset":False}
 keys = deque(); planner = trajectory = None
 stage_i = point_i = 0; stage_start = None; attached = False
 
@@ -82,6 +82,7 @@ def move_target(dp=None,axis=None,deg=0):
     else: set_mocap(data,scene.refined_goal_mocap_id,T)
 
 def key_callback(key): keys.append(key)
+
 def handle_key(key):
     if key == ord("R"): state["reset"] = True; return
     if state["mode"] != "edit": return
@@ -97,47 +98,63 @@ def attach_object():
     eef = data.body(EEF_BODY_NAME); T = np.eye(4); T[:3,3],T[:3,:3] = eef.xpos,eef.xmat.reshape(3,3)
     set_active(data,T @ np.linalg.inv(planner.chosen_grasp.T_object_eef))
 
-old = signal.getsignal(signal.SIGINT); signal.signal(signal.SIGINT,lambda *_: state.__setitem__("stop",True))
-try:
-    with mujoco.viewer.launch_passive(scene.model,data,key_callback=key_callback) as viewer:
-        reset_view()
-        print("1=SOURCE | 2=GOAL | Arrows=XY | PgUp/PgDn=Z | Q/A W/S E/D=RPY | Enter=plan | R=reset/edit | Ctrl+C=exit")
-        print("[test]: green=source/unrefined goal, yellow=edited/refined goal")
-        while viewer.is_running() and not state["stop"]:
+with mujoco.viewer.launch_passive(scene.model,data,key_callback=key_callback) as viewer:
+    reset_view()
+    print("1=SOURCE | 2=GOAL | Arrows=XY | PgUp/PgDn=Z | Q/A W/S E/D=RPY | Enter=plan | R=reset/edit | Ctrl+C=exit")
+    print("[test]: green=source/unrefined goal, yellow=edited/refined goal")
+
+    try:
+        while viewer.is_running():
             while keys: handle_key(keys.popleft())
 
-            if state["reset"]:
-                state["reset"]=False; state["mode"]="edit"; trajectory=None; reset_view()
-                print(f"[test]: reset; editing {state['target'].upper()}")
+            try:
+                if state["reset"]:
+                    state["reset"]=False; state["mode"]="edit"; trajectory=None; reset_view()
+                    print(f"[test]: reset; editing {state['target'].upper()}")
 
-            if state["plan"]:
-                state["plan"]=False; reset_view(); prepare_planner(); planner=TrajectoryPlanner(scene)
-                trajectory = planner.plan(np.zeros(7),state["source"],state["goal"],grasps,
-                    output_path=TRAJ/"test_trajectory.json", preinsertion_offset=[0.0,-0.05,0])
-                if not trajectory:
-                    state["mode"]="edit"; reset_view(); print("[test]: planning failed; adjust poses and press Enter again.")
-                else:
-                    np.save(TRAJ/"test_source.npy",state["source"]); np.save(TRAJ/"test_goal.npy",state["goal"])
-                    state["mode"]="replay"; stage_i=point_i=0; stage_start=None; attached=False; reset_view()
-                    print("[test]: replaying continuously; R=reset/edit")
+                if state["plan"]:
+                    state["plan"]=False; reset_view(); prepare_planner(); planner=TrajectoryPlanner(scene)
+                    trajectory = planner.plan(np.zeros(7),state["source"],state["goal"],grasps,
+                        output_path=TRAJ/"test_trajectory.json")
+                    if not trajectory:
+                        state["mode"]="edit"; reset_view()
+                        print("[test]: planning failed; adjust poses and press Enter again.")
+                    else:
+                        np.save(TRAJ/"test_source.npy",state["source"]); np.save(TRAJ/"test_goal.npy",state["goal"])
+                        state["mode"]="replay"; stage_i=point_i=0; stage_start=None; attached=False; reset_view()
+                        print("[test]: replaying continuously; R=reset/edit")
 
-            if state["mode"]=="replay" and trajectory:
-                if stage_i >= len(trajectory):
-                    reset_view(); stage_i=point_i=0; stage_start=None; attached=False
-                stage = trajectory[stage_i]
-                if stage.type=="grasp":
-                    data.qpos[planner.finger_qadrs]=0.025; attached=True; stage_i+=1; stage_start=None
-                elif stage.type=="release":
-                    attached=False; data.qpos[planner.finger_qadrs]=0.0; stage_i+=1; stage_start=None
-                else:
-                    if stage_start is None: stage_start=time.monotonic(); point_i=0
-                    elapsed=(time.monotonic()-stage_start)*3
-                    while point_i < len(stage.q_path) and elapsed >= stage.time_from_start[point_i]:
-                        data.qpos[planner.arm_qadrs]=stage.q_path[point_i]; mujoco.mj_forward(scene.model,data)
-                        if attached: attach_object()
-                        point_i += 1
-                    if point_i >= len(stage.q_path): stage_i+=1; stage_start=None
+                if state["mode"]=="replay" and trajectory:
+                    if stage_i >= len(trajectory):
+                        reset_view(); stage_i=point_i=0; stage_start=None; attached=False
+                    stage = trajectory[stage_i]
+                    if stage.type=="grasp":
+                        data.qpos[planner.finger_qadrs]=0.025; attached=True; stage_i+=1; stage_start=None
+                    elif stage.type=="release":
+                        attached=False; data.qpos[planner.finger_qadrs]=0.0; stage_i+=1; stage_start=None
+                    else:
+                        if stage_start is None: stage_start=time.monotonic(); point_i=0
+                        elapsed=(time.monotonic()-stage_start)*3
+                        while point_i < len(stage.q_path) and elapsed >= stage.time_from_start[point_i]:
+                            data.qpos[planner.arm_qadrs]=stage.q_path[point_i]; mujoco.mj_forward(scene.model,data)
+                            if attached: attach_object()
+                            point_i += 1
+                        if point_i >= len(stage.q_path): stage_i+=1; stage_start=None
 
-            mujoco.mj_forward(scene.model,data); viewer.sync(); time.sleep(0.0005)
-finally: signal.signal(signal.SIGINT,old)
+                mujoco.mj_forward(scene.model,data)
+                viewer.sync()
+                time.sleep(1/120)
+
+            except Exception as e:
+                fatal_error = e
+                print(f"[test]: error: {e}")
+                break
+
+    except KeyboardInterrupt:
+        print("\n[test]: exiting...")
+
+# Viewer is closed before propagating errors.
+if fatal_error is not None:
+    raise fatal_error
+
 print("[test]: exited cleanly.")

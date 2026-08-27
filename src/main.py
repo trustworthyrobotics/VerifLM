@@ -165,7 +165,7 @@ else:
         output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy",
     )
 
-    input("step 3-4 done. press enter to proceed:")
+    input("steps 3-4 done. press enter to proceed:")
 
     # 5. FoundationPose pose estimation
     # Output: estimated object poses in camera frame stored in PERCEPTION_DIR
@@ -211,6 +211,7 @@ else:
         output_name="edited_passive_pose_cam.npy",
     )
     T_cam_passive_edited[:3,:3] = T_cam_passive_source[:3,:3]  # optionally keep passive object orientation unchanged, can comment out
+    np.save(PERCEPTION_DIR/"edited_passive_pose_cam.npy", T_cam_passive_edited)
 
 # Derive transformations for later use
 T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
@@ -238,7 +239,7 @@ if not args.reuse_perception:
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
                 T_passive_active=T_passive_active_edited, rendered_frame="active",
                 lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
-i = input("step 5-6 done. press enter to proceed: ")
+i = input("steps 5-6 done. press enter to proceed: ")
 
 
 # 7. Query VLM for validation program V and sampling constraints S

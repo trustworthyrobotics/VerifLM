@@ -12,7 +12,7 @@ OBJECT_CATALOG = {
         "dimensions": (0.1429, 0.1005, 0.2067),
         "mjcf": {"type": "mesh", "asset_xml": "models/meshes/wooden_stick_toy_remeshed/wooden_stick_toy_asset.xml",
                  "body_xml": "models/meshes/wooden_stick_toy_remeshed/wooden_stick_toy_body.xml"},
-        "physics": {"mass": 0.3, "diaginertia": (0.0013206, 0.0015786, 0.0007630), "friction": (0.8, 0.02, 0.001),
+        "physics": {"mass": 0.3, "diaginertia": (0.0013206, 0.0015786, 0.0007630), "friction": (0.3, 0.01, 0.001),
                     "contype": 1, "conaffinity": 1, "condim": 6},
     },
     "red_mug_small": {
@@ -32,7 +32,7 @@ OBJECT_CATALOG = {
         "dimensions": (0.0879, 0.1108, 0.0876),
         "mjcf": {"type": "mesh", "asset_xml": "models/meshes/red_mug_big_remeshed/red_mug_big_asset.xml",
                  "body_xml": "models/meshes/red_mug_big_remeshed/red_mug_big_body.xml"},
-        "physics": {"mass": 0.2, "diaginertia": (0.0003325, 0.0002567, 0.0003334), "friction": (0.8, 0.02, 0.001),
+        "physics": {"mass": 0.2, "diaginertia": (0.0003325, 0.0002567, 0.0003334), "friction": (0.3, 0.01, 0.001),
                     "contype": 1, "conaffinity": 1, "condim": 6},
         "grasps": [
             {"offset_xyz": (-0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
@@ -246,7 +246,7 @@ BENCHMARK_CONFIGS = {
     'mug_on_stand': {
         'active': ('red_mug_big',),
         'passive': ('wooden_rack',),
-        'instruction': ("Place the red mug on the wooden rack. The mug should cover slots on one rail, not both rails.",),
+        'instruction': ("Place the red mug on the wooden stand upside down on the stand's slots. The mug should cover slots on one rail, not both rails.",),
         'default_validation_program': {
             'validation_mode': 'settling', 'initial_max_pen': 0.2, 'final_max_pen': 0.001,
             'required_contacts': ['active_passive'], 'forbidden_contacts': ['active_table'],
@@ -291,7 +291,7 @@ BENCHMARK_CONFIGS = {
     'stack_cup': {
         'active': ('red_cup',),
         'passive': ('blue_cup',),
-        'instruction': ('Place the red cup on the blue cup inverted so that their rims touch and are aligned.',),
+        'instruction': ('Place the red cup inside the blue cup.',),
         'default_validation_program': {
             'validation_mode': 'settling', 'initial_max_pen': 0.08, 'final_max_pen': 0.001,
             'required_contacts': ['active_passive'], 'forbidden_contacts': ['active_table'],
