@@ -39,13 +39,13 @@
       <attach model="kuka_iiwa_model" body="base" prefix="arm2_" />
     </body>
     <camera name="ceiling_cam" mode="fixed" pos="0 0 3.0" xyaxes="1 0 0  0 1 0" />
-    <body name="active_green_plate_small" pos="-0.03624097642962165 0.4957269045905309 0.8725707581004366" quat="0.5976170616027193 -0.5292342194825191 -0.3467740829223434 0.49245580920873294">
+    <body name="active_green_plate_small" pos="0.026002076445722944 0.4915964162122051 0.8666056913938891" quat="0.3318501559260597 -0.5114757416753539 -0.12440296719601121 0.7828102844510441">
       <inertial pos="0 0 -0.004620000000000001" mass="0.25" diaginertia="0.002401 0.0024542 0.0047261" />
       <freejoint name="active_green_plate_small_free" />
       <geom name="active_green_plate_small_geom_0" type="cylinder" pos="0 0 -0.0054" size="0.035 0.0034" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
       <geom name="active_green_plate_small_geom_1" type="cylinder" pos="0 0 -0.0015000000000000005" size="0.05 0.0005" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
     </body>
-    <body name="passive_wooden_rack" pos="-0.11510949181245489 0.8609133208828841 0.8087761958233226" quat="0.8318583161714377 -0.006279322801062442 0.0077556161978802165 -0.554898335138043">
+    <body name="passive_wooden_rack" pos="-0.0827614657220721 0.8248126995685924 0.8088866362773676" quat="0.43777430903191333 0.0018456633038941518 -0.016154948887306574 0.898937854083945">
       <geom type="mesh" mesh="wooden_rack_0" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
       <geom type="mesh" mesh="wooden_rack_1" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
       <geom type="mesh" mesh="wooden_rack_2" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
@@ -115,7 +115,7 @@
       <geom type="mesh" mesh="wooden_rack_66" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
       <geom type="mesh" mesh="wooden_rack_67" friction="0.05 0.001 0.0001" contype="1" conaffinity="1" condim="4" />
     </body>
-    <body name="goal_green_plate_small" pos="-0.1452626917717208 0.8714435720868368 0.8912763086308425" quat="0.44270693024495594 0.10152014680839927 0.7301775130806406 -0.5104361204856682" mocap="true">
+    <body name="goal_green_plate_small" pos="-0.000999042705918038 0.7994364364698762 0.8879897044722335" quat="-0.5455871744475763 0.672997841960406 0.01680181656985996 -0.49912547395910284" mocap="true">
       <geom name="goal_green_plate_small_geom_0" type="cylinder" pos="0 0 -0.0054" size="0.035 0.0034" class="goal" />
       <geom name="goal_green_plate_small_geom_1" type="cylinder" pos="0 0 -0.0015000000000000005" size="0.05 0.0005" class="goal" />
     </body>
