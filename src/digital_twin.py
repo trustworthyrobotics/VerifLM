@@ -8,7 +8,6 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Literal
 from scipy.spatial.transform import Rotation
-from src.config import OBJECT_CATALOG, T_mujoco_board
 
 POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.75, "permissive": 1.5} # multiply by the active object's longest dimension
 ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
@@ -17,21 +16,18 @@ ORIENTATION_CONSTRAINT_MAP = {"correct": 15.0, "normal_search": 60.0, "major_rev
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to produce fully accurate meshes 
     "small_dish": {
-        "inertial_pos": (0, 0, 0.00418),
         "geoms": [
             {"type": "cylinder", "pos": (0, 0, 0.0034), "size": (0.035, 0.0034)},
             {"type": "cylinder", "pos": (0, 0, 0.0073), "size": (0.050, 0.0005)},
         ],
     },
     "big_dish": {
-        "inertial_pos": (0, 0, 0.00450),
         "geoms": [
             {"type": "cylinder", "pos": (0, 0, 0.0037), "size": (0.0425, 0.0037)},
             {"type": "cylinder", "pos": (0, 0, 0.0077), "size": (0.0635, 0.0003)},
         ],
     },
     "small_cup": {
-        "inertial_pos": (0, 0, 0.0636),
         "geoms": [
             {"type": "cylinder", "pos": (0, 0, 0.015), "size": (0.025, 0.015)},
             {"type": "box", "pos": (0, 0.0265, 0.069), "size": (0.028, 0.0015, 0.039)},
@@ -41,7 +37,6 @@ PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to pr
         ],
     },
     "cup": {
-        "inertial_pos": (0, 0, 0.0636),
         "geoms": [
             {"type": "cylinder", "pos": (0, 0, 0.015), "size": (0.029, 0.015)},
             {"type": "box", "pos": (0, 0.0305, 0.069), "size": (0.032, 0.0015, 0.039)},
@@ -51,7 +46,6 @@ PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to pr
         ],
     },
     "large_cup": {
-        "inertial_pos": (0, 0, 0.0636),
         "geoms": [
             {"type": "cylinder", "pos": (0, 0, 0.015), "size": (0.033, 0.015)},
             {"type": "box", "pos": (0, 0.0345, 0.069), "size": (0.036, 0.0015, 0.039)},
@@ -130,38 +124,64 @@ class Scene:
     xml_path: Path
 
 class SceneBuilder:
-    def __init__(self, lab_scene_path=REPO_ROOT / "models" / "lab_scene.xml"):
+    def __init__(self, object_catalog, lab_scene_path=REPO_ROOT / "models" / "lab_scene.xml"):
+        self.object_catalog = object_catalog
         self.lab_scene_path = Path(lab_scene_path).resolve()
 
-    def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive, T_mujoco_active_goal, obstacles, output_path) -> Scene: # OUTPUT_DIR = MODELS_DIR/"generated_xmls"
-        root = ET.parse(self.lab_scene_path).getroot()
-        compiler = ET.Element("compiler")
-        root.insert(0, compiler)
-        compiler.set("meshdir", str(REPO_ROOT))
+    @staticmethod
+    def _resolve(path):
+        path = Path(path)
+        return path if path.is_absolute() else REPO_ROOT / path
 
-        asset = root.find("asset")
-        worldbody = root.find("worldbody")
+    def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive,
+              T_mujoco_active_goal, obstacles, output_path) -> Scene:
+        output_path = Path(output_path)
+        root = ET.parse(self.lab_scene_path).getroot()
+        compiler = root.find("compiler")
+        if compiler is None:
+            compiler = ET.Element("compiler")
+            root.insert(0, compiler)
+        compiler.set("meshdir", str(REPO_ROOT))
+        compiler.set("inertiafromgeom", "true")
+
+        asset, worldbody = root.find("asset"), root.find("worldbody")
         if asset is None or worldbody is None:
             raise ValueError("[digital-twin]: lab_scene.xml misses asset or worldbody")
+
         for model_asset in asset.findall("model"):
             path = (self.lab_scene_path.parent / model_asset.get("file")).resolve()
             model_asset.set("file", os.path.relpath(path, output_path.parent))
 
-        for name in dict.fromkeys((active_name, passive_name, *(name for name in obstacles))):
-            mjcf = OBJECT_CATALOG[name]["mjcf"]
+        names = dict.fromkeys((active_name, passive_name, *(name for name, _ in obstacles)))
+        for name in names:
+            mjcf = self.object_catalog[name]["mjcf"]
             if mjcf["type"] == "mesh":
-                path = REPO_ROOT / mjcf["asset_xml"]
-                relpath = Path(os.path.relpath(path, output_path.parent)).as_posix() # <include> locates file relative to the directory that contains the xml
-                ET.SubElement(asset, "include", {"file": relpath})
+                path = self._resolve(mjcf["asset_xml"])
+                ET.SubElement(asset, "include", {
+                    "file": Path(os.path.relpath(path, output_path.parent)).as_posix()
+                })
 
-        worldbody.append(self.make_body(active_name, T_mujoco_active, "active"))
+        active_body = self.make_body(active_name, T_mujoco_active, "active")
+        worldbody.append(active_body)
         worldbody.append(self.make_body(passive_name, T_mujoco_passive, "passive"))
         worldbody.append(self.make_body(active_name, T_mujoco_active_goal, "goal"))
         worldbody.append(self.make_body(active_name, np.eye(4), "refined_goal"))
         for name, T_mujoco in obstacles:
             worldbody.append(self.make_body(name, T_mujoco, "obstacle"))
 
+        # Probe with density=1, then use one uniform density that gives the target mass.
         ET.indent(root, space="  ")
+        ET.ElementTree(root).write(output_path)
+        probe = mujoco.MjModel.from_xml_path(str(output_path))
+        active_body_id = probe.body(f"active_{active_name}").id
+        volume = float(probe.body_mass[active_body_id])
+        mass = float(self.object_catalog[active_name]["physics"]["mass"])
+        if volume <= 0 or mass <= 0:
+            raise ValueError(f"[digital-twin]: invalid inferred volume/mass for {active_name}")
+
+        density = mass / volume
+        for geom in active_body.iter("geom"):
+            geom.set("density", str(density))
         ET.ElementTree(root).write(output_path)
 
         model = mujoco.MjModel.from_xml_path(str(output_path))
@@ -173,25 +193,25 @@ class SceneBuilder:
         refined_goal_mocap_id = int(model.body(f"refined_goal_{active_name}").mocapid[0])
         table_geom_ids = {model.geom(name).id for name in ("table", "table_base")}
         mujoco.mj_forward(model, data)
-        return Scene(model, data, active_body_id, passive_body_id, obstacle_body_ids, goal_mocap_id, refined_goal_mocap_id, table_geom_ids, output_path)
+
+        print(f"[digital-twin]: {active_name}: mass={model.body_mass[active_body_id]:.3f} kg, "
+              f"density={density:.1f} kg/m^3")
+        return Scene(model, data, active_body_id, passive_body_id, obstacle_body_ids,
+                     goal_mocap_id, refined_goal_mocap_id, table_geom_ids, output_path)
 
     def make_body(self, name, T_mujoco, role):
-        spec = OBJECT_CATALOG[name]
-        mjcf = spec["mjcf"]
-        physics = spec["physics"]
+        spec = self.object_catalog[name]
+        mjcf, physics = spec["mjcf"], spec["physics"]
         body_name = f"{role}_{name}"
 
-        # Build geometry
         if mjcf["type"] == "mesh":
-            root = ET.parse(REPO_ROOT / mjcf["body_xml"]).getroot()
+            root = ET.parse(self._resolve(mjcf["body_xml"])).getroot()
             body = root if root.tag == "body" else root.find(".//body")
             if body is None:
-                raise ValueError(f"[digital-twin]: No <body> found in {mjcf['body_xml']}")
-
+                raise ValueError(f"[digital-twin]: no <body> in {mjcf['body_xml']}")
             for elem in body.iter():
                 if elem is not body and elem.get("name"):
                     elem.set("name", f"{body_name}_{elem.get('name')}")
-
         elif mjcf["type"] == "primitive":
             primitive = PRIMITIVES[mjcf["primitive"]]
             z_offset = mjcf.get("z_offset", 0.0)
@@ -203,84 +223,40 @@ class SceneBuilder:
                     "pos": " ".join(map(str, pos)), "size": " ".join(map(str, g["size"]))
                 })
         else:
-            raise ValueError(f"[digital-twin]: Unknown MJCF type: {mjcf['type']}")
+            raise ValueError(f"[digital-twin]: unknown MJCF type: {mjcf['type']}")
 
-        # Set body name and pose
         q = Rotation.from_matrix(T_mujoco[:3, :3]).as_quat()
         body.attrib.clear()
         body.set("name", body_name)
         body.set("pos", " ".join(map(str, T_mujoco[:3, 3])))
         body.set("quat", f"{q[3]} {q[0]} {q[1]} {q[2]}")
 
-        # Clean up existing body joints and geom attributes
         for parent in body.iter():
             for child in list(parent):
-                if child.tag in {"joint", "freejoint"}:
+                if child.tag in {"joint", "freejoint", "inertial"}:
                     parent.remove(child)
-
         for geom in body.iter("geom"):
-            for attr in ("class", "mass", "friction", "contype", "conaffinity", "condim"):
+            for attr in ("class", "mass", "density", "friction", "contype", "conaffinity", "condim"):
                 geom.attrib.pop(attr, None)
 
-        ### Build bodies
-        # Goal: visual-only mocap copy.
         if role in {"goal", "refined_goal"}:
             body.set("mocap", "true")
-
-            inertial = body.find("inertial")
-            if inertial is not None:
-                body.remove(inertial)
-
             for geom in body.iter("geom"):
                 geom.set("class", role)
-
             return body
 
-        # Passive is fixed, so its inertial is unnecessary.
-        if role in ("passive", "obstacle"):
-            inertial = body.find("inertial")
-            if inertial is not None:
-                body.remove(inertial)
-
-        # Active is free and needs inertia.
         if role == "active":
-            body.insert(0, ET.Element(
-                "freejoint",
-                {"name": f"{body_name}_free"},
-            ))
+            body.insert(0, ET.Element("freejoint", {"name": f"{body_name}_free"}))
+            for geom in body.iter("geom"):
+                geom.set("density", "1")
 
-            mass = physics.get("mass")
-            diaginertia = physics.get("diaginertia")
-
-            if mjcf["type"] == "primitive":
-                if mass is None or diaginertia is None:
-                    raise ValueError(
-                        f"[digital-twin]: {name} primitive requires mass and diaginertia"
-                    )
-                body.insert(0, ET.Element("inertial", {
-                    "pos": " ".join(map(str, (*primitive["inertial_pos"][:2], primitive["inertial_pos"][2] + mjcf.get("z_offset", 0.0)))),
-                    "mass": str(mass),
-                    "diaginertia": " ".join(map(str, diaginertia)),
-                }))
-            else:
-                inertial = body.find("inertial")
-                if inertial is None:
-                    raise ValueError(f"[digital-twin]: {name} body.xml has no <inertial>")
-                if mass is not None:
-                    inertial.set("mass", str(mass))
-                if diaginertia is not None:
-                    inertial.set("diaginertia", " ".join(map(str, diaginertia)))
-
-        # Physical active/passive geoms get catalog contact parameters.
+        mu = float(physics["friction"])
         for geom in body.iter("geom"):
-            if physics.get("friction") is not None:
-                geom.set("friction", " ".join(map(str, physics["friction"])))
-            for attr in ("contype", "conaffinity", "condim"):
-                if physics.get(attr) is not None:
-                    geom.set(attr, str(physics[attr]))
+            geom.set("friction", f"{mu} 0 0")
+            geom.set("condim", "3")
 
         return body
-                
+
 class DigitalTwin:
     AXIS = {"x": 0, "y": 1, "z": 2}
     def __init__(self, scene: Scene, V: ValidationProgram, S: SamplingConstraints):

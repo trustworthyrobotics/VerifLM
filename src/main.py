@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import numpy as np
 import cv2
@@ -21,6 +22,7 @@ parser.add_argument("--reuse-edited", action="store_true", default=False)
 parser.add_argument("--reuse-VS", action="store_true", default=False)
 parser.add_argument("--reuse-perception", action="store_true", default=False)
 parser.add_argument("--skip-candidate-selection", action="store_true", default=False)
+parser.add_argument("--estimate-objects", action="store_true", help="reconstruct meshes and estimate mass/friction online")
 parser.add_argument("--stage", type=int, default=0, help="stage number, zero-indexed")
 args = parser.parse_args()
 
@@ -30,8 +32,9 @@ CONFIG = BENCHMARK_CONFIGS[BENCHMARK_NAME]
 ACTIVE_NAME = CONFIG["active"][args.stage]
 PASSIVE_NAME = CONFIG["passive"][args.stage]
 INSTRUCTION = CONFIG["instruction"][args.stage]
-ACTIVE_CATALOG = OBJECT_CATALOG[ACTIVE_NAME]
-PASSIVE_CATALOG = OBJECT_CATALOG[PASSIVE_NAME]
+RUNTIME_CATALOG = copy.deepcopy(OBJECT_CATALOG)
+ACTIVE_CATALOG = RUNTIME_CATALOG[ACTIVE_NAME]
+PASSIVE_CATALOG = RUNTIME_CATALOG[PASSIVE_NAME]
 
 # Define directories
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -42,8 +45,9 @@ RENDER_DIR = OUTPUT_ROOT_DIR / "render"
 VLM_DIR = OUTPUT_ROOT_DIR / "vlm"
 TRAJECTORY_DIR = OUTPUT_ROOT_DIR / "trajectory"
 DTWIN_DIR = OUTPUT_ROOT_DIR / "dtwin"
+OBJECT_DIR = OUTPUT_ROOT_DIR / "objects"
 XML_DIR = ROOT_DIR / "models" / "generated_xmls"
-for dir in [OUTPUT_ROOT_DIR, CAMERA_DIR, PERCEPTION_DIR, RENDER_DIR, VLM_DIR, TRAJECTORY_DIR, DTWIN_DIR, XML_DIR]:
+for dir in [OUTPUT_ROOT_DIR, CAMERA_DIR, PERCEPTION_DIR, RENDER_DIR, VLM_DIR, TRAJECTORY_DIR, DTWIN_DIR, OBJECT_DIR, XML_DIR]:
     dir.mkdir(exist_ok=True, parents=True)
 
 MODELS_DIR = ROOT_DIR / "models"
@@ -122,9 +126,15 @@ if args.reuse_perception:
         PERCEPTION_DIR/"edited_passive_mask.png",
         *pose_paths.values(),
     ]
+    if args.estimate_objects:
+        required += [OBJECT_DIR/ACTIVE_NAME/"estimate.json", OBJECT_DIR/PASSIVE_NAME/"estimate.json"]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
         raise FileNotFoundError("Cannot reuse perception; missing:\n" + "\n".join(missing))
+
+    if args.estimate_objects:
+        ACTIVE_CATALOG.update(json.loads((OBJECT_DIR/ACTIVE_NAME/"estimate.json").read_text()))
+        PASSIVE_CATALOG.update(json.loads((OBJECT_DIR/PASSIVE_NAME/"estimate.json").read_text()))
 
     T_cam_active_source = np.load(pose_paths["source_active"])
     T_cam_passive_source = np.load(pose_paths["source_passive"])
@@ -164,6 +174,18 @@ else:
         edited_depth_path=PERCEPTION_DIR/"edited_vggt_depth_raw.npy",
         output_path=PERCEPTION_DIR/"edited_vggt_depth_m.npy",
     )
+
+    if args.estimate_objects:
+        from src.object_estimation import ObjectEstimator
+        estimator = ObjectEstimator(OBJECT_DIR)
+        ACTIVE_CATALOG.update(estimator.estimate(
+            ACTIVE_NAME, ACTIVE_CATALOG["prompt"], CAMERA_DIR/"source_rgb.png",
+            CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_active_mask.png", camera.get_intrinsics()
+        ))
+        PASSIVE_CATALOG.update(estimator.estimate(
+            PASSIVE_NAME, PASSIVE_CATALOG["prompt"], CAMERA_DIR/"source_rgb.png",
+            CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_passive_mask.png", camera.get_intrinsics()
+        ))
 
     input("steps 3-4 done. press enter to proceed:")
 
@@ -264,7 +286,7 @@ else:
             break
 
 # 8. Sample in Mujoco + render successful candidates
-scene_builder = SceneBuilder()
+scene_builder = SceneBuilder(RUNTIME_CATALOG)
 obstacles = []
 if args.stage > 0:
     # Iterate thru all previous stages and identify all active objects as possible obstacles
@@ -274,8 +296,14 @@ if args.stage > 0:
         name = CONFIG["active"][stage]
         if name in (ACTIVE_NAME, PASSIVE_NAME) or any(name == n for n, _ in obstacles):
             continue
-        path = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{stage}" / "dtwin" / "T_mujoco_active_goal_selected.npy"
-        obstacles.append((name, np.load(path)))
+        prev_dir = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{stage}"
+        if args.estimate_objects:
+            estimate_path = prev_dir / "objects" / name / "estimate.json"
+            if estimate_path.exists():
+                spec = dict(RUNTIME_CATALOG[name])
+                spec.update(json.loads(estimate_path.read_text()))
+                RUNTIME_CATALOG[name] = spec
+        obstacles.append((name, np.load(prev_dir / "dtwin" / "T_mujoco_active_goal_selected.npy")))
 
 scene = scene_builder.build(active_name=ACTIVE_NAME, passive_name=PASSIVE_NAME, 
                     T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_active_goal=T_mujoco_active_goal, obstacles=obstacles,
