@@ -210,7 +210,7 @@ BENCHMARK_CONFIGS = {
         },
         'render_config': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (-1, -1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
-            {'lookat': (0.0, 0.0, 0.0), 'front': (1, 1, 2), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
+            {'lookat': (0.0, 0.0, 0.0), 'front': (1, 1, 0.5), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
         ),
     },
     'mug_on_rack': {
