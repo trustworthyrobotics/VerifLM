@@ -2,7 +2,7 @@ import base64
 import json
 from pathlib import Path
 from typing import Literal
-
+import numpy as np
 import cv2
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -177,3 +177,20 @@ def select_best_candidate(instruction, active_object, passive_object, input_imag
         json.dump(json_raw, file, indent=4)
 
     return json_raw["best_index"]
+
+def estimate_physics(instruction, active_name, passive_name, active_dimensions, passive_dimensions, source_path, edited_path):
+    prompt = load_prompt(
+        "prompts/estimate_physics.txt",
+        active_object=active_name, passive_object=passive_name,
+        active_dimensions=np.round(active_dimensions, 4).tolist(),
+        passive_dimensions=np.round(passive_dimensions, 4).tolist())
+
+    out = query(prompt, [source_path, edited_path], provider="openai", output="json")
+    physics = {
+        "active": {"mass": float(out["active"]["mass"]), "friction": float(out["active"]["friction"])},
+        "passive": {"mass": float(out["passive"]["mass"]), "friction": float(out["passive"]["friction"])}
+    }
+
+    if physics["active"]["mass"] <= 0 or physics["passive"]["mass"] <= 0 or physics["active"]["friction"] < 0 or physics["passive"]["friction"] < 0:
+        raise ValueError(f"Invalid physics estimate: {out}")
+    return physics

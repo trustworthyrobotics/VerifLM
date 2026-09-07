@@ -1,17 +1,26 @@
-You are estimating physical parameters for a reconstructed rigid object used in MuJoCo.
+You are estimating physical parameters for two reconstructed rigid objects used in MuJoCo. For your reference the manipulation task is {instruction}.
 
-Object: {object_name}
-Reconstructed dimensions [x, y, z] in meters: {dimensions}
+Active object: {active_object}
+Dimensions [x,y,z] meters: {active_dimensions}
 
-The image is an Open3D rendering of the reconstructed object, colored from the observed RGB mask. Infer the most likely object/material and use the metric dimensions to estimate:
+Passive object: {passive_object}
+Dimensions [x,y,z] meters: {passive_dimensions}
 
-- `mass`: total object mass in kilograms.
-- `friction`: one effective sliding-friction coefficient for ordinary dry contact with rigid tabletop/object surfaces in this manipulation setting.
+The provided images are:
+1. Source RGB
+2. Edited goal RGB
 
-Assume the object has uniform density. Do not estimate center of mass or inertia; MuJoCo will infer them from the reconstructed geometry.
+Jointly estimate each object's:
+- mass: total mass in kg
+- friction: effective sliding friction coefficient
+
+Use object identity, material, construction, hollowness, and metric dimensions.
+Reason about both objects together so their estimates are physically consistent.
+Do not treat bounding-box dimensions as solid volume.
+The edited image changes object pose, not physical properties.
 
 Return JSON only:
 {
-  "mass": 0.0,
-  "friction": 0.0
+  "active": {"mass": 0.0, "friction": 0.0},
+  "passive": {"mass": 0.0, "friction": 0.0}
 }

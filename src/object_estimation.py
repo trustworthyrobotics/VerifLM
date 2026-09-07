@@ -1,5 +1,6 @@
 import json
 import shutil
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -13,9 +14,13 @@ from scipy.spatial.transform import Rotation
 from trimesh.exchange.obj import export_obj
 from trimesh.visual.material import SimpleMaterial
 from trimesh.visual.texture import TextureVisuals
-from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
-
 from src.vlm import load_prompt, query
+
+
+HUNYUAN_DIR = Path(__file__).resolve().parents[2] / "Hunyuan3D-2.1" / "hy3dshape"
+sys.path.insert(0, str(HUNYUAN_DIR))
+
+from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
 
 
 class MeshProcessor:
@@ -33,13 +38,21 @@ class MeshProcessor:
         mesh = mesh.copy()
         mesh.apply_translation(-mesh.bounds.mean(axis=0))
 
-        # Save colored visual mesh as OBJ + MTL.
-        mesh.visual = TextureVisuals(material=SimpleMaterial(diffuse=[*color, 255]))
-        obj_text, files = export_obj(mesh, return_texture=True, mtl_name=f"{name}.mtl")
+
+        # Save as a vertex-colored OBJ.
+        rgba = np.array([*color, 255], dtype=np.uint8)
+
+        mesh.visual = trimesh.visual.ColorVisuals(mesh=mesh, vertex_colors=np.tile(rgba, (len(mesh.vertices), 1)))
+
         mesh_path = mesh_dir / f"{name}.obj"
+
+        obj_text = export_obj(
+            mesh,
+            include_color=True,
+            include_texture=False,
+        )
+
         mesh_path.write_text(obj_text)
-        for filename, data in files.items():
-            (mesh_dir / filename).write_bytes(data if isinstance(data, bytes) else data.encode())
 
         # Convex collision decomposition.
         parts = coacd.run_coacd(
@@ -77,9 +90,11 @@ class MeshProcessor:
         )
         o3d_mesh.paint_uniform_color(np.asarray(color) / 255.0)
         o3d_mesh.compute_vertex_normals()
+        
 
         vis = o3d.visualization.Visualizer()
-        vis.create_window(width=640, height=640, visible=False)
+        if not vis.create_window(width=640, height=640, visible=True):
+            raise RuntimeError("[object-estimation]: Open3D failed to create window")
         vis.add_geometry(o3d_mesh)
         vis.get_render_option().background_color = np.ones(3)
         vis.get_render_option().mesh_show_back_face = True
@@ -126,7 +141,7 @@ class ObjectEstimator:
         pts -= np.median(pts, axis=0)
         _, _, vt = np.linalg.svd(pts, full_matrices=False)
         pts = pts @ vt.T
-        return np.percentile(pts, 75, axis=0) - np.percentile(pts, 25, axis=0)
+        return np.percentile(pts, 99, axis=0) - np.percentile(pts, 1, axis=0)
 
     @staticmethod
     def _to_trimesh(mesh):
@@ -168,11 +183,10 @@ class ObjectEstimator:
         crop.save(obj_dir / "observation.png")
 
         mesh = self._to_trimesh(self._get_pipeline()(image=crop)[0])
-        mesh.apply_scale(self._observed_extents(depth, mask, K).max() /
-                         mesh.bounding_box.extents.max())
+        mesh.apply_scale(self._observed_extents(depth, mask, K).max() / mesh.bounding_box.extents.max()) # new_mesh = old_mesh * (longest point cloud extent / bounding box extent)
 
         T = np.eye(4)
-        T[:3, :3] = Rotation.from_euler("xyz", [90, 0, 180], degrees=True).as_matrix()
+        T[:3, :3] = Rotation.from_euler("xyz", [90, 0, 0], degrees=True).as_matrix()
         mesh.apply_transform(T)
 
         color = np.median(rgb[mask], axis=0).astype(np.uint8)
@@ -184,19 +198,13 @@ class ObjectEstimator:
         self.processor.render(mesh, color, render_path)
 
         dimensions = mesh.bounding_box.extents.astype(float)
-        mass, friction = self._estimate_physics(prompt, dimensions, render_path)
 
         result = {
             "prompt": prompt,
             "mesh": str(mesh_path),
             "dimensions": tuple(map(float, dimensions)),
-            "mjcf": {
-                "type": "mesh",
-                "asset_xml": str(asset_xml),
-                "body_xml": str(body_xml),
-            },
-            "physics": {"mass": mass, "friction": friction},
+            "mjcf": {"type": "mesh", "asset_xml": str(asset_xml), "body_xml": str(body_xml)}
         }
+
         (obj_dir / "estimate.json").write_text(json.dumps(result, indent=2))
-        print(f"[object-estimation]: {name}: mass={mass:.3f} kg, friction={friction:.3f}")
         return result

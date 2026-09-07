@@ -6,7 +6,7 @@ import cv2
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
 from pathlib import Path
 from src.camera import Camera
-from src.vlm import edit_image, get_sampling_constraints, get_validation_program, load_sampling_constraints, load_validation_program, select_best_candidate
+from src.vlm import edit_image, estimate_physics, get_sampling_constraints, get_validation_program, load_sampling_constraints, load_validation_program, select_best_candidate
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
 from src.render import render_for_vlm
 from src.digital_twin import DigitalTwin, SceneBuilder
@@ -22,7 +22,7 @@ parser.add_argument("--reuse-edited", action="store_true", default=False)
 parser.add_argument("--reuse-VS", action="store_true", default=False)
 parser.add_argument("--reuse-perception", action="store_true", default=False)
 parser.add_argument("--skip-candidate-selection", action="store_true", default=False)
-parser.add_argument("--estimate-objects", action="store_true", help="reconstruct meshes and estimate mass/friction online")
+parser.add_argument("--estimate-objects", action="store_true", help="use shared cached object estimates, reconstructing missing meshes and estimating mass/friction online")
 parser.add_argument("--stage", type=int, default=0, help="stage number, zero-indexed")
 args = parser.parse_args()
 
@@ -45,9 +45,9 @@ RENDER_DIR = OUTPUT_ROOT_DIR / "render"
 VLM_DIR = OUTPUT_ROOT_DIR / "vlm"
 TRAJECTORY_DIR = OUTPUT_ROOT_DIR / "trajectory"
 DTWIN_DIR = OUTPUT_ROOT_DIR / "dtwin"
-OBJECT_DIR = OUTPUT_ROOT_DIR / "objects"
+OBJECT_ESTIMATION_DIR = ROOT_DIR / "artifacts" / "object_estimation"
 XML_DIR = ROOT_DIR / "models" / "generated_xmls"
-for dir in [OUTPUT_ROOT_DIR, CAMERA_DIR, PERCEPTION_DIR, RENDER_DIR, VLM_DIR, TRAJECTORY_DIR, DTWIN_DIR, OBJECT_DIR, XML_DIR]:
+for dir in [OUTPUT_ROOT_DIR, CAMERA_DIR, PERCEPTION_DIR, RENDER_DIR, VLM_DIR, TRAJECTORY_DIR, DTWIN_DIR, OBJECT_ESTIMATION_DIR, XML_DIR]:
     dir.mkdir(exist_ok=True, parents=True)
 
 MODELS_DIR = ROOT_DIR / "models"
@@ -57,6 +57,19 @@ FP_DIR = ROOT_DIR.parent / "FoundationPose"
 ANYGRASP_DIR = ROOT_DIR.parent / "anygrasp_sdk" / "grasp_detection"
 ANYGRASP_CHECKPOINT = ANYGRASP_DIR / "checkpoints" / "checkpoint_detection.tar"
 EXTRINSICS_PATH = ROOT_DIR / "artifacts" / "calibration" / "extrinsics.npy"
+
+
+def object_estimate_path(name):
+    return OBJECT_ESTIMATION_DIR / name / "estimate.json"
+
+
+def load_cached_object_estimate(name):
+    path = object_estimate_path(name)
+    if not path.exists():
+        return None
+    print(f"[main]: reusing shared object estimate for {name}: {path}")
+    return json.loads(path.read_text())
+
 
 # 1. Camera capture RGBD
 # Output: rgbd observations stored in CAMERA_DIR
@@ -106,6 +119,7 @@ if args.reuse_edited:
 else:
     edit_image(instruction=INSTRUCTION, active_object=ACTIVE_NAME, passive_object=PASSIVE_NAME, input_image_path=CAMERA_DIR/"source_rgb.png", output_image_path=VLM_DIR/"edited_rgb.png")
 input("step 2 done. press enter to proceed:")
+
 # 3-5. Perception
 pose_paths = {
     "source_active": PERCEPTION_DIR/"source_active_pose_cam.npy",
@@ -127,14 +141,14 @@ if args.reuse_perception:
         *pose_paths.values(),
     ]
     if args.estimate_objects:
-        required += [OBJECT_DIR/ACTIVE_NAME/"estimate.json", OBJECT_DIR/PASSIVE_NAME/"estimate.json"]
+        required += [object_estimate_path(ACTIVE_NAME), object_estimate_path(PASSIVE_NAME)]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
         raise FileNotFoundError("Cannot reuse perception; missing:\n" + "\n".join(missing))
 
     if args.estimate_objects:
-        ACTIVE_CATALOG.update(json.loads((OBJECT_DIR/ACTIVE_NAME/"estimate.json").read_text()))
-        PASSIVE_CATALOG.update(json.loads((OBJECT_DIR/PASSIVE_NAME/"estimate.json").read_text()))
+        ACTIVE_CATALOG.update(json.loads(object_estimate_path(ACTIVE_NAME).read_text()))
+        PASSIVE_CATALOG.update(json.loads(object_estimate_path(PASSIVE_NAME).read_text()))
 
     T_cam_active_source = np.load(pose_paths["source_active"])
     T_cam_passive_source = np.load(pose_paths["source_passive"])
@@ -177,15 +191,37 @@ else:
 
     if args.estimate_objects:
         from src.object_estimation import ObjectEstimator
-        estimator = ObjectEstimator(OBJECT_DIR)
-        ACTIVE_CATALOG.update(estimator.estimate(
-            ACTIVE_NAME, ACTIVE_CATALOG["prompt"], CAMERA_DIR/"source_rgb.png",
-            CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_active_mask.png", camera.get_intrinsics()
-        ))
-        PASSIVE_CATALOG.update(estimator.estimate(
-            PASSIVE_NAME, PASSIVE_CATALOG["prompt"], CAMERA_DIR/"source_rgb.png",
-            CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_passive_mask.png", camera.get_intrinsics()
-        ))
+        estimator = ObjectEstimator(OBJECT_ESTIMATION_DIR)
+
+        active_estimate = load_cached_object_estimate(ACTIVE_NAME)
+        if active_estimate is None:
+            active_estimate = estimator.estimate(
+                ACTIVE_NAME, ACTIVE_CATALOG["prompt"], CAMERA_DIR/"source_rgb.png",
+                CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_active_mask.png", camera.get_intrinsics()
+            )
+        ACTIVE_CATALOG.update(active_estimate)
+
+        passive_estimate = load_cached_object_estimate(PASSIVE_NAME)
+        if passive_estimate is None:
+            passive_estimate = estimator.estimate(
+                PASSIVE_NAME, PASSIVE_CATALOG["prompt"], CAMERA_DIR/"source_rgb.png",
+                CAMERA_DIR/"source_depth_m.npy", PERCEPTION_DIR/"source_passive_mask.png", camera.get_intrinsics()
+            )
+        PASSIVE_CATALOG.update(passive_estimate)
+
+        physics = estimate_physics(
+            INSTRUCTION, ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"],
+            active_estimate["dimensions"], passive_estimate["dimensions"],
+            CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png")
+
+        active_estimate["physics"] = physics["active"]
+        passive_estimate["physics"] = physics["passive"]
+
+        object_estimate_path(ACTIVE_NAME).write_text(json.dumps(active_estimate, indent=2))
+        object_estimate_path(PASSIVE_NAME).write_text(json.dumps(passive_estimate, indent=2))
+
+        ACTIVE_CATALOG.update(active_estimate)
+        PASSIVE_CATALOG.update(passive_estimate)
 
     input("steps 3-4 done. press enter to proceed:")
 
@@ -298,7 +334,7 @@ if args.stage > 0:
             continue
         prev_dir = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{stage}"
         if args.estimate_objects:
-            estimate_path = prev_dir / "objects" / name / "estimate.json"
+            estimate_path = object_estimate_path(name)
             if estimate_path.exists():
                 spec = dict(RUNTIME_CATALOG[name])
                 spec.update(json.loads(estimate_path.read_text()))
