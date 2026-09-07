@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import open3d as o3d
 import trimesh
+import fast_simplification
 from PIL import Image
 from scipy.spatial.transform import Rotation
 from trimesh.exchange.obj import export_obj
@@ -183,6 +184,15 @@ class ObjectEstimator:
         crop.save(obj_dir / "observation.png")
 
         mesh = self._to_trimesh(self._get_pipeline()(image=crop)[0])
+
+        raw_faces = len(mesh.faces)
+
+        if raw_faces > 40_000:
+            mesh = mesh.simplify_quadric_decimation(
+                face_count=40_000,
+                aggression=5,
+            )
+            print(f"[object-estimation]: simplified mesh {raw_faces:,} -> {len(mesh.faces):,} faces")
         mesh.apply_scale(self._observed_extents(depth, mask, K).max() / mesh.bounding_box.extents.max()) # new_mesh = old_mesh * (longest point cloud extent / bounding box extent)
 
         T = np.eye(4)

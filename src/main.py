@@ -3,6 +3,8 @@ import copy
 import json
 import numpy as np
 import cv2
+import gc
+import torch
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
 from pathlib import Path
 from src.camera import Camera
@@ -223,6 +225,36 @@ else:
         ACTIVE_CATALOG.update(active_estimate)
         PASSIVE_CATALOG.update(passive_estimate)
 
+    def log_gpu_memory(label):
+        if not torch.cuda.is_available():
+            return
+
+        free, total = torch.cuda.mem_get_info()
+        allocated = torch.cuda.memory_allocated()
+        reserved = torch.cuda.memory_reserved()
+
+        gib = 1024**3
+        print(
+            f"[main]: GPU {label}: "
+            f"allocated={allocated/gib:.2f} GiB, "
+            f"reserved={reserved/gib:.2f} GiB, "
+            f"free={free/gib:.2f}/{total/gib:.2f} GiB"
+        )
+
+
+    def clear_gpu_memory():
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    log_gpu_memory("before perception cleanup")
+
+    del depth_estimator, bboxer, segmenter
+    if args.estimate_objects:
+        del estimator
+
+    clear_gpu_memory()
+    log_gpu_memory("after perception cleanup")
     input("steps 3-4 done. press enter to proceed:")
 
     # 5. FoundationPose pose estimation

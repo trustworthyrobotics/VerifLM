@@ -15,6 +15,7 @@ google-genai
 pydantic>=2,<3
 python-dotenv
 reportlab
+fast-simplification
 
 # External repos / vendor SDKs; install separately:
 #   VGGT          -> provides vggt
