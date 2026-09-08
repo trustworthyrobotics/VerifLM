@@ -4,6 +4,8 @@ import json
 import numpy as np
 import cv2
 import gc
+import hashlib
+from itertools import product
 import torch
 from src.config import OBJECT_CATALOG, BENCHMARK_CONFIGS, T_mujoco_board
 from pathlib import Path
@@ -26,6 +28,7 @@ parser.add_argument("--reuse-perception", action="store_true", default=False)
 parser.add_argument("--skip-candidate-selection", action="store_true", default=False)
 parser.add_argument("--estimate-objects", action="store_true", help="use shared cached object estimates, reconstructing missing meshes and estimating mass/friction online")
 parser.add_argument("--stage", type=int, default=0, help="stage number, zero-indexed")
+parser.add_argument("--clear-gpu", action="store_true", default=False, help="Clear GPU memory after steps 4")
 args = parser.parse_args()
 
 # Load benchmark config
@@ -42,6 +45,8 @@ PASSIVE_CATALOG = RUNTIME_CATALOG[PASSIVE_NAME]
 ROOT_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT_DIR = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{args.stage}"
 CAMERA_DIR = OUTPUT_ROOT_DIR / "camera"
+if args.estimate_objects:
+    OUTPUT_ROOT_DIR = OUTPUT_ROOT_DIR / "estimated"
 PERCEPTION_DIR = OUTPUT_ROOT_DIR / "perception"
 RENDER_DIR = OUTPUT_ROOT_DIR / "render"
 VLM_DIR = OUTPUT_ROOT_DIR / "vlm"
@@ -211,17 +216,6 @@ else:
             )
         PASSIVE_CATALOG.update(passive_estimate)
 
-        physics = estimate_physics(
-            INSTRUCTION, ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"],
-            active_estimate["dimensions"], passive_estimate["dimensions"],
-            CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png")
-
-        active_estimate["physics"] = physics["active"]
-        passive_estimate["physics"] = physics["passive"]
-
-        object_estimate_path(ACTIVE_NAME).write_text(json.dumps(active_estimate, indent=2))
-        object_estimate_path(PASSIVE_NAME).write_text(json.dumps(passive_estimate, indent=2))
-
         ACTIVE_CATALOG.update(active_estimate)
         PASSIVE_CATALOG.update(passive_estimate)
 
@@ -247,14 +241,16 @@ else:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    log_gpu_memory("before perception cleanup")
+    if args.clear_gpu:
+        log_gpu_memory("before perception cleanup")
 
-    del depth_estimator, bboxer, segmenter
-    if args.estimate_objects:
-        del estimator
+        del depth_estimator, bboxer, segmenter
+        if args.estimate_objects:
+            del estimator
 
-    clear_gpu_memory()
-    log_gpu_memory("after perception cleanup")
+        clear_gpu_memory()
+        log_gpu_memory("after perception cleanup")
+
     input("steps 3-4 done. press enter to proceed:")
 
     # 5. FoundationPose pose estimation
@@ -353,6 +349,23 @@ else:
         if i.lower() != "r":
             break
 
+# Joint physics belongs to this scene, not the shared mesh cache.
+if args.estimate_objects:
+    physics_path = VLM_DIR / "physics_hypotheses.json"
+    digest = hashlib.sha256()
+    digest.update(json.dumps([INSTRUCTION, ACTIVE_NAME, PASSIVE_NAME, ACTIVE_CATALOG["dimensions"], PASSIVE_CATALOG["dimensions"]]).encode())
+    for path in (CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png"):
+        digest.update(path.read_bytes())
+    physics_key = digest.hexdigest()
+    cached = json.loads(physics_path.read_text()) if physics_path.exists() else {}
+    hypotheses = cached.get("hypotheses", []) if cached.get("key") == physics_key else []
+    if len(hypotheses) != 4:
+        hypotheses = estimate_physics(INSTRUCTION, ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"],
+            ACTIVE_CATALOG["dimensions"], PASSIVE_CATALOG["dimensions"], CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png")
+        physics_path.write_text(json.dumps({"key": physics_key, "hypotheses": hypotheses}, indent=2))
+    for role, catalog in (("active", ACTIVE_CATALOG), ("passive", PASSIVE_CATALOG)):
+        catalog["physics"] = hypotheses[0][role].copy()
+
 # 8. Sample in Mujoco + render successful candidates
 scene_builder = SceneBuilder(RUNTIME_CATALOG)
 obstacles = []
@@ -365,6 +378,7 @@ if args.stage > 0:
         if name in (ACTIVE_NAME, PASSIVE_NAME) or any(name == n for n, _ in obstacles):
             continue
         prev_dir = ROOT_DIR / "artifacts" / f"{BENCHMARK_NAME}_stage{stage}"
+        if args.estimate_objects: prev_dir = prev_dir / "estimated"
         if args.estimate_objects:
             estimate_path = object_estimate_path(name)
             if estimate_path.exists():
@@ -375,9 +389,22 @@ if args.stage > 0:
 
 scene = scene_builder.build(active_name=ACTIVE_NAME, passive_name=PASSIVE_NAME, 
                     T_mujoco_active=T_mujoco_active, T_mujoco_passive=T_mujoco_passive, T_mujoco_active_goal=T_mujoco_active_goal, obstacles=obstacles,
-                    output_path=XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}.xml")
+                    output_path=XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}{'_estimated' if args.estimate_objects else ''}.xml")
 digital_twin = DigitalTwin(scene, V, S)
-candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True, video_path=DTWIN_DIR/f"sampling.mp4") # returns a list of valid T_mujoco_active_goal
+if args.estimate_objects:
+    worlds, world_specs = [], []
+    scales = (0.9, 0.95, 1.0, 1.05, 1.1)
+    for i, (sa, sp, h) in enumerate(product(scales, scales, range(4))):
+        overrides = {ACTIVE_NAME: {"mesh_scale": sa, "physics": hypotheses[h]["active"]},
+                     PASSIVE_NAME: {"mesh_scale": sp, "physics": hypotheses[h]["passive"]}}
+        variant = scene_builder.build(ACTIVE_NAME, PASSIVE_NAME, T_mujoco_active, T_mujoco_passive,
+            T_mujoco_active_goal, obstacles, XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}_estimated_world_{i}.xml", overrides)
+        worlds.append(DigitalTwin(variant, V, S))
+        world_specs.append({"active_scale": sa, "passive_scale": sp, "hypothesis": h})
+    (DTWIN_DIR/"worlds.json").write_text(json.dumps({"hypotheses": hypotheses, "worlds": world_specs}, indent=2))
+    candidates = digital_twin.rank_ensemble(worlds, n_samples=200, max_candidates=5, sim_steps=500, output_path=DTWIN_DIR/"ensemble_scores.npz")
+else:
+    candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True, video_path=DTWIN_DIR/f"sampling.mp4")
 if not candidates:
     raise RuntimeError("No physically valid goal candidates found.")
 

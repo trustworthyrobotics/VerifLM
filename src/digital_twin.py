@@ -2,6 +2,7 @@ import numpy as np
 import mujoco
 import xml.etree.ElementTree as ET
 import os
+import copy
 import time
 import cv2
 from pathlib import Path
@@ -134,7 +135,13 @@ class SceneBuilder:
         return path if path.is_absolute() else REPO_ROOT / path
 
     def build(self, active_name, passive_name, T_mujoco_active, T_mujoco_passive,
-              T_mujoco_active_goal, obstacles, output_path) -> Scene:
+              T_mujoco_active_goal, obstacles, output_path, overrides=None) -> Scene:
+        if overrides is not None:
+            catalog = copy.deepcopy(self.object_catalog)
+            for name, values in overrides.items():
+                catalog[name].update(values)
+            return SceneBuilder(catalog, self.lab_scene_path).build(active_name, passive_name, T_mujoco_active,
+                T_mujoco_passive, T_mujoco_active_goal, obstacles, output_path)
         output_path = Path(output_path)
         root = ET.parse(self.lab_scene_path).getroot()
         compiler = root.find("compiler")
@@ -157,9 +164,18 @@ class SceneBuilder:
             mjcf = self.object_catalog[name]["mjcf"]
             if mjcf["type"] == "mesh":
                 path = self._resolve(mjcf["asset_xml"])
-                ET.SubElement(asset, "include", {
-                    "file": Path(os.path.relpath(path, output_path.parent)).as_posix()
-                })
+                scale = float(self.object_catalog[name].get("mesh_scale", 1.0))
+                if scale == 1.0:
+                    ET.SubElement(asset, "include", {"file": Path(os.path.relpath(path, output_path.parent)).as_posix()})
+                else:
+                    if not np.isfinite(scale) or scale <= 0: raise ValueError("Invalid mesh scale")
+                    for elem in ET.parse(path).getroot():
+                        elem = copy.deepcopy(elem)
+                        if elem.tag == "mesh":
+                            elem.set("file", str((path.parent / elem.get("file")).resolve()))
+                            base = np.fromstring(elem.get("scale", "1 1 1"), sep=" ")
+                            elem.set("scale", " ".join(map(str, base * scale)))
+                        asset.append(elem)
 
         active_body = self.make_body(active_name, T_mujoco_active, "active")
         worldbody.append(active_body)
@@ -274,6 +290,22 @@ class DigitalTwin:
         self.viewer_data = None
         self.viewer = None
 
+
+    def rank_ensemble(self, worlds, n_samples=1000, max_candidates=5, sim_steps=500, output_path=None):
+        poses, masks = [], []
+        for i in range(n_samples):
+            pose = self.T_goal.copy() if i == 0 else self.S.sample(self.T_goal, self.T_passive)
+            poses.append(pose.copy())
+            masks.append([world.validate(pose.copy(), sim_steps)[0] for world in worlds])
+            if (i + 1) % 10 == 0: print(f"[ensemble]: scored {i+1}/{n_samples} proposals")
+        poses = np.asarray(poses).reshape(-1, 4, 4)
+        masks = np.asarray(masks, dtype=bool).reshape(n_samples, len(worlds))
+        scores = masks.sum(axis=1)
+        best = np.argsort(-scores, kind="stable")[:max_candidates]
+        if output_path is not None:
+            np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores, selected_indices=best)
+        print(f"[ensemble]: highest score {scores.max() if len(scores) else 0}/{len(worlds)}")
+        return [poses[i] for i in best]
 
     def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=500,
                         output_path=None, video_path=None):

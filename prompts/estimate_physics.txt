@@ -10,7 +10,7 @@ The provided images are:
 1. Source RGB
 2. Edited goal RGB
 
-Jointly estimate each object's:
+Propose exactly four distinct, plausible joint physical hypotheses for both objects. Put your best estimate first, then three alternatives covering uncertainty in material/construction and friction. Each hypothesis contains each object's:
 - mass: total mass in kg
 - friction: effective sliding friction coefficient
 
@@ -19,8 +19,9 @@ Reason about both objects together so their estimates are physically consistent.
 Do not treat bounding-box dimensions as solid volume.
 The edited image changes object pose, not physical properties.
 
-Return JSON only:
+Keep active/passive parameters paired within each hypothesis. Values must be finite, mass positive and friction nonnegative. Return JSON only, with exactly four entries:
 {
-  "active": {"mass": 0.0, "friction": 0.0},
-  "passive": {"mass": 0.0, "friction": 0.0}
+  "hypotheses": [
+    {"active": {"mass": 0.3, "friction": 0.4}, "passive": {"mass": 0.5, "friction": 0.5}}
+  ]
 }

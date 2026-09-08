@@ -181,16 +181,13 @@ def select_best_candidate(instruction, active_object, passive_object, input_imag
 def estimate_physics(instruction, active_name, passive_name, active_dimensions, passive_dimensions, source_path, edited_path):
     prompt = load_prompt(
         "prompts/estimate_physics.txt",
-        active_object=active_name, passive_object=passive_name,
+        instruction=instruction, active_object=active_name, passive_object=passive_name,
         active_dimensions=np.round(active_dimensions, 4).tolist(),
         passive_dimensions=np.round(passive_dimensions, 4).tolist())
 
     out = query(prompt, [source_path, edited_path], provider="openai", output="json")
-    physics = {
-        "active": {"mass": float(out["active"]["mass"]), "friction": float(out["active"]["friction"])},
-        "passive": {"mass": float(out["passive"]["mass"]), "friction": float(out["passive"]["friction"])}
-    }
-
-    if physics["active"]["mass"] <= 0 or physics["passive"]["mass"] <= 0 or physics["active"]["friction"] < 0 or physics["passive"]["friction"] < 0:
-        raise ValueError(f"Invalid physics estimate: {out}")
+    physics = [{role: {key: float(h[role][key]) for key in ("mass", "friction")} for role in ("active", "passive")} for h in out["hypotheses"]]
+    if len(physics) != 4 or any(not np.isfinite(v) or (v <= 0 if key == "mass" else v < 0)
+                              for h in physics for p in h.values() for key, v in p.items()):
+        raise ValueError(f"Invalid physics hypotheses: {out}")
     return physics
