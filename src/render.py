@@ -8,7 +8,14 @@ from typing import Literal
 def load_mesh(path):
     loaded = trimesh.load(path, force="scene", process=True)
     loaded = trimesh.util.concatenate(tuple(loaded.geometry.values()))
-    colors = np.asarray(loaded.visual.vertex_colors)
+
+    visual = loaded.visual
+    if isinstance(visual, trimesh.visual.texture.TextureVisuals):
+        colors = np.asarray(visual.to_color().vertex_colors)
+    elif isinstance(visual, trimesh.visual.color.ColorVisuals):
+        colors = np.asarray(visual.vertex_colors)
+    else:
+        raise TypeError(f"Unsupported visual type: {type(visual)}")
 
     mesh = TriangleMesh()
     mesh.vertices = o3d.utility.Vector3dVector(np.asarray(loaded.vertices))
