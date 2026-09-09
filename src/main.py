@@ -40,6 +40,8 @@ INSTRUCTION = CONFIG["instruction"][args.stage]
 RUNTIME_CATALOG = copy.deepcopy(OBJECT_CATALOG)
 ACTIVE_CATALOG = RUNTIME_CATALOG[ACTIVE_NAME]
 PASSIVE_CATALOG = RUNTIME_CATALOG[PASSIVE_NAME]
+TRUE_ACTIVE_MESH = ACTIVE_CATALOG["mesh"]
+TRUE_PASSIVE_MESH = PASSIVE_CATALOG["mesh"]
 
 # Define directories
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -314,7 +316,7 @@ T_reasoning_active = Q_passive_reasoning @ T_passive_active_edited
 # 6. Render poses
 # Output: axis-labeled pictures of objects in RENDER_DIR
 if not args.reuse_perception:
-    # First pair of renderings: world-axis-labeled renders for translational reasoning
+    # First pair of renderings: passive-axis-labeled renders for translational reasoning
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
                 T_passive_active=T_reasoning_active, passive_transform=Q_passive_reasoning, rendered_frame="passive",
                 lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
@@ -415,6 +417,10 @@ for i, T_mujoco_active_goal_valid in enumerate(candidates):
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}.png",
                    T_passive_active=T_passive_active_valid, rendered_frame="active",
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
+    if args.estimate_objects:
+        render_for_vlm(active_path=TRUE_ACTIVE_MESH, passive_path=TRUE_PASSIVE_MESH, output_path=RENDER_DIR/f"valid_candidate_{i}_true.png",
+                       T_passive_active=T_passive_active_valid, rendered_frame="active",
+                       lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
     array_path = DTWIN_DIR / f"valid_candidate_{i}.npy"
     image_path = RENDER_DIR / f"valid_candidate_{i}.png"
