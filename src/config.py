@@ -273,9 +273,9 @@ BENCHMARK_CONFIGS = {
         ),
     },
     'stack_cup': {
-        'active': ('red_cup',),
-        'passive': ('blue_cup',),
-        'instruction': ('Place the red cup inside the blue cup.',),
+        'active': ('blue_cup',),
+        'passive': ('red_cup',),
+        'instruction': ('Place the blue cup inside the red cup.',),
         'default_validation_program': {
             'validation_mode': 'settling', 'initial_max_pen': 0.08, 'final_max_pen': 0.001,
             'required_contacts': ['active_passive'], 'forbidden_contacts': ['active_table'],

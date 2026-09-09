@@ -13,7 +13,7 @@ from src.camera import Camera
 from src.vlm import edit_image, estimate_physics, get_sampling_constraints, get_validation_program, load_sampling_constraints, load_validation_program, select_best_candidate
 from src.perception import DepthEstimator, BBoxer, Segmenter, PoseEstimator
 from src.render import render_for_vlm
-from src.digital_twin import DigitalTwin, SceneBuilder
+from src.digital_twin import DigitalTwin, SceneBuilder, EnsembleTwin
 from src.trajectory import GraspPlanner, TrajectoryPlanner
 
 
@@ -304,6 +304,10 @@ T_passive_active_edited = np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edi
 T_mujoco_active = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_active_source
 T_mujoco_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
 T_mujoco_active_goal = T_mujoco_passive @ T_passive_active_edited
+Q_passive_reasoning = np.eye(4)
+if args.estimate_objects:
+    Q_passive_reasoning[:3, :3] = T_mujoco_passive[:3, :3]
+T_reasoning_active = Q_passive_reasoning @ T_passive_active_edited
 
 
 
@@ -312,18 +316,18 @@ T_mujoco_active_goal = T_mujoco_passive @ T_passive_active_edited
 if not args.reuse_perception:
     # First pair of renderings: world-axis-labeled renders for translational reasoning
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_0.png",
-                T_passive_active=T_passive_active_edited, rendered_frame="passive",
+                T_passive_active=T_reasoning_active, passive_transform=Q_passive_reasoning, rendered_frame="passive",
                 lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"translation_1.png",
-                T_passive_active=T_passive_active_edited, rendered_frame="passive",
+                T_passive_active=T_reasoning_active, passive_transform=Q_passive_reasoning, rendered_frame="passive",
                 lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 
     # Second pair of renderings: active-object-axis-labeled renders for rotational reasoning
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_0.png",
-                T_passive_active=T_passive_active_edited, rendered_frame="active",
+                T_passive_active=T_reasoning_active, passive_transform=Q_passive_reasoning, rendered_frame="active",
                 lookat=CONFIG["render_config"][0]["lookat"], front=CONFIG["render_config"][0]["front"], up=CONFIG["render_config"][0]["up"], zoom=CONFIG["render_config"][0]["zoom"])
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/"rotation_1.png",
-                T_passive_active=T_passive_active_edited, rendered_frame="active",
+                T_passive_active=T_reasoning_active, passive_transform=Q_passive_reasoning, rendered_frame="active",
                 lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
 i = input("steps 5-6 done. press enter to proceed: ")
 
@@ -359,7 +363,8 @@ if args.estimate_objects:
     physics_key = digest.hexdigest()
     cached = json.loads(physics_path.read_text()) if physics_path.exists() else {}
     hypotheses = cached.get("hypotheses", []) if cached.get("key") == physics_key else []
-    if len(hypotheses) != 4:
+    if len(hypotheses) == 4: hypotheses = hypotheses[:3]  # Reuse older caches.
+    if len(hypotheses) != 3:
         hypotheses = estimate_physics(INSTRUCTION, ACTIVE_CATALOG["prompt"], PASSIVE_CATALOG["prompt"],
             ACTIVE_CATALOG["dimensions"], PASSIVE_CATALOG["dimensions"], CAMERA_DIR/"source_rgb.png", VLM_DIR/"edited_rgb.png")
         physics_path.write_text(json.dumps({"key": physics_key, "hypotheses": hypotheses}, indent=2))
@@ -392,19 +397,15 @@ scene = scene_builder.build(active_name=ACTIVE_NAME, passive_name=PASSIVE_NAME,
                     output_path=XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}{'_estimated' if args.estimate_objects else ''}.xml")
 digital_twin = DigitalTwin(scene, V, S)
 if args.estimate_objects:
-    worlds, world_specs = [], []
-    scales = (0.9, 0.95, 1.0, 1.05, 1.1)
-    for i, (sa, sp, h) in enumerate(product(scales, scales, range(4))):
-        overrides = {ACTIVE_NAME: {"mesh_scale": sa, "physics": hypotheses[h]["active"]},
-                     PASSIVE_NAME: {"mesh_scale": sp, "physics": hypotheses[h]["passive"]}}
-        variant = scene_builder.build(ACTIVE_NAME, PASSIVE_NAME, T_mujoco_active, T_mujoco_passive,
-            T_mujoco_active_goal, obstacles, XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}_estimated_world_{i}.xml", overrides)
-        worlds.append(DigitalTwin(variant, V, S))
-        world_specs.append({"active_scale": sa, "passive_scale": sp, "hypothesis": h})
-    (DTWIN_DIR/"worlds.json").write_text(json.dumps({"hypotheses": hypotheses, "worlds": world_specs}, indent=2))
-    candidates = digital_twin.rank_ensemble(worlds, n_samples=200, max_candidates=5, sim_steps=500, output_path=DTWIN_DIR/"ensemble_scores.npz")
+    ensemble = EnsembleTwin(scene_builder, ACTIVE_NAME, PASSIVE_NAME, T_mujoco_passive,
+                            T_mujoco_active_goal, obstacles, hypotheses, V, S,
+                            XML_DIR/f"{BENCHMARK_NAME}_stage{args.stage}_estimated_ensemble.xml")
+    (DTWIN_DIR/"worlds.json").write_text(json.dumps({"hypotheses": hypotheses, "worlds": ensemble.specs}, indent=2))
+    candidates = ensemble.rank(n_samples=200, max_candidates=5, sim_steps=250,
+                               output_path=DTWIN_DIR/"ensemble_scores.npz")
+    del ensemble
 else:
-    candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=500, visualize=True, video_path=DTWIN_DIR/f"sampling.mp4")
+    candidates = digital_twin.sample_and_validate(n_samples=1000, max_valid=5, sim_steps=250, visualize=True, video_path=DTWIN_DIR/f"sampling.mp4")
 if not candidates:
     raise RuntimeError("No physically valid goal candidates found.")
 

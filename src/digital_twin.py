@@ -80,7 +80,7 @@ class SamplingConstraints:
             return np.random.uniform(-r, 0)
         return np.random.uniform(-r, r)
     
-    def sample(self, T_goal, T_passive): # assumes T_goal and T_passive are in the same frame
+    def sample(self, T_goal, T_passive, world_aligned=False): # assumes poses share one world frame
         dx = self.sample_dt(self.x, self.x_bias)
         dy = self.sample_dt(self.y, self.y_bias)
         dz = self.sample_dt(self.z, self.z_bias)
@@ -88,7 +88,8 @@ class SamplingConstraints:
         dp = np.random.uniform(-self.pitch, self.pitch)
         dyaw = np.random.uniform(-self.yaw, self.yaw)
 
-        p_delta = T_passive[:3, :3] @ np.array([dx, dy, dz]) # apply translation in passive object's frame
+        delta = np.array([dx, dy, dz])
+        p_delta = delta if world_aligned else T_passive[:3, :3] @ delta
         R_delta = Rotation.from_euler("xyz", [dr, dp, dyaw], degrees=True).as_matrix() # R_delta applied in object's own frame
 
         T_goal_new = T_goal.copy()
@@ -291,7 +292,7 @@ class DigitalTwin:
         self.viewer = None
 
 
-    def rank_ensemble(self, worlds, n_samples=1000, max_candidates=5, sim_steps=500, output_path=None):
+    def rank_ensemble(self, worlds, n_samples=1000, max_candidates=5, sim_steps=250, output_path=None):
         poses, masks = [], []
         for i in range(n_samples):
             pose = self.T_goal.copy() if i == 0 else self.S.sample(self.T_goal, self.T_passive)
@@ -307,7 +308,7 @@ class DigitalTwin:
         print(f"[ensemble]: highest score {scores.max() if len(scores) else 0}/{len(worlds)}")
         return [poses[i] for i in best]
 
-    def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=500,
+    def sample_and_validate(self, visualize=False, n_samples=1000, max_valid=10, sim_steps=250,
                         output_path=None, video_path=None):
         if visualize:
             import mujoco.viewer
@@ -551,3 +552,180 @@ class DigitalTwin:
         data.mocap_pos[mocap_id] = T[:3,3]
         data.mocap_quat[mocap_id] = [q[3], q[0], q[1], q[2]]
         mujoco.mj_forward(self.model, data)
+
+
+class EnsembleTwin:
+    """One reusable model: 30 cm tables, fixed passives, and free active bodies."""
+    def __init__(self, builder, active_name, passive_name, T_passive, T_goal, obstacles,
+                 hypotheses, V, S, output_path, scales=(1.1, 1.0, 0.9)):
+        from itertools import product
+        self.V, self.S = V, S
+        self.T_goal, self.T_passive = T_goal.copy(), T_passive.copy()
+        self.specs = [dict(active_scale=a, passive_scale=p, hypothesis=h)
+                      for a, p, h in product(scales, scales, range(len(hypotheses)))]
+        self.n = len(self.specs)
+        if not 1 <= self.n <= 31: raise ValueError("Ensemble needs 1–31 cells for collision isolation")
+        lab = ET.parse(builder.lab_scene_path).getroot()
+        table = lab.find(".//geom[@name='table']")
+        if table is None: raise ValueError("Missing tabletop geom 'table'")
+        table_pos = np.fromstring(table.get("pos", "0 0 0"), sep=" ")
+        table_size = np.fromstring(table.get("size"), sep=" ")
+        self.table_z = table_pos[2] + table_size[2]
+        root = ET.Element("mujoco", model="validation_ensemble")
+        ET.SubElement(root, "compiler", inertiafromgeom="true", fusestatic="false")
+        option = copy.deepcopy(lab.find("option")) if lab.find("option") is not None else ET.Element("option")
+        option.set("jacobian", "sparse")
+        root.append(option)
+        asset, world = ET.SubElement(root, "asset"), ET.SubElement(root, "worldbody")
+        loaded, active_bodies, self.offsets, centers = {}, [], [], []
+
+        def asset_elements(path):
+            for elem in ET.parse(path).getroot():
+                if elem.tag == "include":
+                    yield from asset_elements((path.parent / elem.get("file")).resolve())
+                else:
+                    elem = copy.deepcopy(elem)
+                    if elem.get("file"):
+                        elem.set("file", str((path.parent / elem.get("file")).resolve()))
+                    yield elem
+
+        def add_body(name, T, role, cell, scale, physics):
+            catalog = dict(builder.object_catalog)
+            catalog[name] = dict(catalog[name], physics=physics)
+            body = SceneBuilder(catalog, builder.lab_scene_path).make_body(name, T, role)
+            key = (name, scale)
+            if key not in loaded:
+                mjcf = catalog[name]["mjcf"]
+                elems = list(asset_elements(builder._resolve(mjcf["asset_xml"]))) if mjcf["type"] == "mesh" else []
+                prefix = f"asset{len(loaded)}_"
+                mapping = {e.get("name"): prefix + e.get("name") for e in elems if e.get("name")}
+                for elem in elems:
+                    for attr in ("name", "mesh", "material", "texture", "hfield"):
+                        if elem.get(attr) in mapping: elem.set(attr, mapping[elem.get(attr)])
+                    if elem.tag == "mesh":
+                        base = np.fromstring(elem.get("scale", "1 1 1"), sep=" ")
+                        elem.set("scale", " ".join(map(str, base * scale)))
+                    asset.append(elem)
+                loaded[key] = mapping
+            for elem in body.iter():
+                if elem.get("name"): elem.set("name", f"cell{cell}_" + elem.get("name"))
+                for attr in ("mesh", "material", "texture", "hfield"):
+                    if elem.get(attr) in loaded[key]: elem.set(attr, loaded[key][elem.get(attr)])
+            for geom in body.iter("geom"):
+                geom.set("contype", str(1 << cell)); geom.set("conaffinity", str(1 << cell))
+            world.append(body)
+            return body
+
+        cols = int(np.ceil(np.sqrt(self.n)))
+        for i, spec in enumerate(self.specs):
+            center = np.array([0.55 * (i % cols), 0.55 * (i // cols)])
+            offset = np.r_[center - T_passive[:2, 3], 0.0]
+            centers.append(center); self.offsets.append(offset)
+            attrs = {k: v for k, v in table.attrib.items() if k in (
+                "friction", "condim", "solref", "solimp", "margin", "gap", "priority", "solmix")}
+            ET.SubElement(world, "geom", name=f"cell{i}_table", type="box",
+                          pos=f"{center[0]} {center[1]} {table_pos[2]}",
+                          size=f"0.25 0.25 {table_size[2]}", contype=str(1 << i), conaffinity=str(1 << i), **attrs)
+            for name, T, role, scale in ((active_name, T_goal, "active", spec["active_scale"]),
+                                         (passive_name, T_passive, "passive", spec["passive_scale"])):
+                pose = T.copy(); pose[:3, 3] += offset
+                body = add_body(name, pose, role, i, scale, hypotheses[spec["hypothesis"]][role])
+                if role == "active": active_bodies.append(body)
+            for name, T in obstacles:
+                pose = T.copy(); pose[:3, 3] += offset
+                add_body(name, pose, "obstacle", i, 1.0, builder.object_catalog[name]["physics"])
+
+        path = Path(output_path); path.parent.mkdir(parents=True, exist_ok=True)
+        ET.indent(root, space="  "); ET.ElementTree(root).write(path)
+        probe = mujoco.MjModel.from_xml_path(str(path))
+        for body, spec in zip(active_bodies, self.specs):
+            volume = float(probe.body_mass[probe.body(body.get("name")).id])
+            mass = float(hypotheses[spec["hypothesis"]]["active"]["mass"])
+            if volume <= 0 or mass <= 0: raise ValueError("Invalid ensemble volume/mass")
+            for geom in body.iter("geom"): geom.set("density", str(mass / volume))
+        del probe
+        ET.ElementTree(root).write(path)
+        self.model = mujoco.MjModel.from_xml_path(str(path))
+        self.data = mujoco.MjData(self.model)
+        self.offsets, self.centers = np.asarray(self.offsets), np.asarray(centers)
+        self.active = np.array([self.model.body(f"cell{i}_active_{active_name}").id for i in range(self.n)])
+        self.passive = np.array([self.model.body(f"cell{i}_passive_{passive_name}").id for i in range(self.n)])
+        self.qadr = self.model.jnt_qposadr[self.model.body_jntadr[self.active]]
+        self.geom_cell = np.full(self.model.ngeom, -1, dtype=int)
+        self.geom_role = np.full(self.model.ngeom, -1, dtype=int)
+        for i in range(self.n):
+            self.geom_cell[self.model.geom(f"cell{i}_table").id] = i
+            self.geom_role[self.model.geom(f"cell{i}_table").id] = 2
+            for role, names, code in (("active", [active_name], 0), ("passive", [passive_name], 1),
+                                       ("obstacle", [n for n, _ in obstacles], 3)):
+                for name in names:
+                    bid = self.model.body(f"cell{i}_{role}_{name}").id
+                    descendants = {bid}
+                    for b in range(bid + 1, self.model.nbody):
+                        if self.model.body_parentid[b] in descendants: descendants.add(b)
+                    selected = np.isin(self.model.geom_bodyid, list(descendants))
+                    self.geom_cell[selected], self.geom_role[selected] = i, code
+
+    def contacts(self):
+        penetration = np.zeros(self.n)
+        touching = np.zeros((self.n, 4), dtype=bool)
+        for c in self.data.contact:
+            g1, g2 = int(c.geom1), int(c.geom2)
+            for a, b in ((g1, g2), (g2, g1)):
+                if self.geom_role[a] != 0: continue
+                cell = self.geom_cell[a]
+                penetration[cell] = max(penetration[cell], -float(c.dist))
+                other = self.geom_role[b] if self.geom_cell[b] == cell else 3
+                if other >= 0: touching[cell, other] = True
+        return penetration, touching
+
+    def validate(self, pose, sim_steps=250):
+        m, d, V = self.model, self.data, self.V
+        mujoco.mj_resetData(m, d)
+        q = Rotation.from_matrix(pose[:3, :3]).as_quat()[[3, 0, 1, 2]]
+        d.qpos[self.qadr[:, None] + np.arange(7)] = np.c_[pose[:3, 3] + self.offsets, np.tile(q, (self.n, 1))]
+        mujoco.mj_forward(m, d)
+        geometric = V.validation_mode == "geometric_only"
+        valid = self.contacts()[0] <= (V.max_final_penetration if geometric else V.max_initial_penetration)
+        if not geometric:
+            try:
+                mujoco.mj_step(m, d, nstep=sim_steps)
+                mujoco.mj_forward(m, d)
+            except mujoco.FatalError:
+                return np.zeros(self.n, dtype=bool)
+            if not np.isfinite(d.qpos).all() or not np.isfinite(d.qvel).all() or any(w.number for w in d.warning):
+                return np.zeros(self.n, dtype=bool)
+        penetration, touching = self.contacts()
+        valid &= (penetration <= V.max_final_penetration) & ~touching[:, 3]
+        for contact, column in (("active_passive", 1), ("active_table", 2)):
+            if contact in V.required_contacts: valid &= touching[:, column]
+            if contact in V.forbidden_contacts: valid &= ~touching[:, column]
+        positions = d.xpos[self.active] - self.offsets
+        # Falling off a small table must not evade forbidden tabletop contact.
+        valid &= np.all(np.abs(d.xpos[self.active, :2] - self.centers) <= 0.25, axis=1)
+        if not geometric:
+            valid &= np.all(np.abs(positions - pose[:3, 3]) <= [V.x_drift_tolerance, V.y_drift_tolerance, V.z_drift_tolerance], axis=1)
+            delta = pose[:3, :3].T @ d.xmat[self.active].reshape(-1, 3, 3)
+            drift = np.abs(Rotation.from_matrix(delta).as_euler("xyz", degrees=True))
+            valid &= np.all(drift <= [V.roll_drift_tolerance, V.pitch_drift_tolerance, V.yaw_drift_tolerance], axis=1)
+        relative = d.xpos[self.active] - d.xpos[self.passive]  # world-aligned reasoning frame
+        for relation in V.xyz_relations:
+            value = relative[:, DigitalTwin.AXIS[relation.axis]]
+            valid &= value > 0 if relation.relation == "greater_than" else value < 0
+        return valid
+
+    def rank(self, n_samples=200, max_candidates=5, sim_steps=250, output_path=None):
+        if n_samples < 1 or max_candidates < 1: raise ValueError("Invalid sample/candidate count")
+        poses, masks = [], []
+        for i in range(n_samples):
+            pose = self.T_goal.copy() if i == 0 else self.S.sample(self.T_goal, self.T_passive, world_aligned=True)
+            poses.append(pose); masks.append(self.validate(pose, sim_steps))
+            if (i + 1) % 10 == 0: print(f"[ensemble]: scored {i+1}/{n_samples} proposals")
+        poses, masks = np.asarray(poses), np.asarray(masks)
+        scores = masks.sum(axis=1)
+        best = np.argsort(-scores, kind="stable")
+        best = best[scores[best] > 0][:max_candidates]
+        if output_path is not None:
+            np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores, selected_indices=best)
+        print(f"[ensemble]: highest score {scores.max()}/{self.n}")
+        return [poses[i].copy() for i in best]

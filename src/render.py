@@ -39,9 +39,12 @@ def render_mesh(mesh: TriangleMesh, show_axes=True, axis_size=0.15):
     vis.destroy_window()
 
 def render_for_vlm(active_path, passive_path, output_path, T_passive_active=None,  
-                   rendered_frame: Literal["active", "passive"]="active", lookat=[0,0,0], front=[0,1,0], up=[0,0,1], zoom=1, axis_size=0.15):
+                   rendered_frame: Literal["active", "passive"]="active", passive_transform=None, lookat=[0,0,0], front=[0,1,0], up=[0,0,1], zoom=1, axis_size=0.15):
     active_mesh = load_mesh(active_path)
     passive_mesh = load_mesh(passive_path)
+
+    if passive_transform is not None:
+        passive_mesh.transform(passive_transform)
 
     vis = o3d.visualization.Visualizer()
     vis.create_window(width=1280, height=720, visible=False)

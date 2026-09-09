@@ -187,7 +187,7 @@ def estimate_physics(instruction, active_name, passive_name, active_dimensions, 
 
     out = query(prompt, [source_path, edited_path], provider="openai", output="json")
     physics = [{role: {key: float(h[role][key]) for key in ("mass", "friction")} for role in ("active", "passive")} for h in out["hypotheses"]]
-    if len(physics) != 4 or any(not np.isfinite(v) or (v <= 0 if key == "mass" else v < 0)
+    if len(physics) != 3 or any(not np.isfinite(v) or (v <= 0 if key == "mass" else v < 0)
                               for h in physics for p in h.values() for key, v in p.items()):
         raise ValueError(f"Invalid physics hypotheses: {out}")
     return physics
