@@ -21,7 +21,7 @@ ASSESSMENTS
 Hints: 
 - For placing plates vertically on a wooden rack, the dish needs to be placed with its z-axis parallel to the length/rail of the rack. If that's not the case, then probably roll and pitch both need to be adjusted.
 - For pouring tea into the mug, all that is required is for the spout to be above the cup's opening at an angle. If that's already the case then probably no adjustment is needed.
-- For hanging the mug on the rack, think hard about how the mug needs to be rotated so that the handle crosses the rack branch. If the mug's handle is not perpendicular to the branch, a significant rotation might be needed.
+- For hanging the mug on the rack, if the mug's body is parallel rather than perpendicular to the branch, a significant rotation about X or Y might be needed.
 - For placing the mug inverted on the stand, if the mug's bottom surface is visible and facing the camera, the rotation is probably correct.
 
 Return only JSON:

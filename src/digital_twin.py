@@ -11,9 +11,9 @@ from typing import Literal
 from scipy.spatial.transform import Rotation
 
 POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.75, "permissive": 1.5} # multiply by the active object's longest dimension
-ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
+ORIENTATION_TOLERANCE_MAP = {"strict": 20.0, "moderate": 40.0,"permissive": 60.0} 
 POSITION_CONSTRAINT_MAP = {"correct": 0.25, "normal_search": 0.75, "major_revision": 1.5} # multiply by the active object's longest dimension
-ORIENTATION_CONSTRAINT_MAP = {"correct": 15.0, "normal_search": 60.0, "major_revision": 120.0} 
+ORIENTATION_CONSTRAINT_MAP = {"correct": 20.0, "normal_search": 60.0, "major_revision": 180.0} 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to produce fully accurate meshes 
     "small_dish": {
@@ -110,7 +110,7 @@ class ValidationProgram:
     roll_drift_tolerance: float
     pitch_drift_tolerance: float
     yaw_drift_tolerance: float
-    max_initial_penetration: float = 0.05
+    max_initial_penetration: float = 0.015
     max_final_penetration: float = 0.0008
 
 @dataclass

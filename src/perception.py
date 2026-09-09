@@ -6,6 +6,7 @@ import subprocess
 import numpy as np
 import json
 import cv2
+import trimesh
 from pathlib import Path
 
 from vggt.models.vggt import VGGT
@@ -214,8 +215,34 @@ class PoseEstimator:
             time.sleep(0.5)
         print("[perception]: FP cleaned up successfully")
 
+    @staticmethod
+    def _debug_projection(rgb_path, depth_path, mask_path, mesh_path, K, T, output_path):
+        rgb, depth = cv2.imread(str(rgb_path)), np.load(depth_path)
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE) > 0
+        ys, xs = np.where(mask)
+        valid = mask & np.isfinite(depth) & (depth > 0)
+        mesh = trimesh.load(mesh_path, force="scene", process=False)
+        if isinstance(mesh, trimesh.Scene): mesh = trimesh.util.concatenate(tuple(mesh.geometry.values()))
+        points = np.asarray(mesh.vertices) @ T[:3, :3].T + T[:3, 3]
+        points = points[points[:, 2] > 1e-6]
+        uv = points[:, :2] / points[:, 2, None] @ K[:2, :2].T + K[:2, 2]
+        px, py = uv[:, 0], uv[:, 1]
+        mb = np.array([xs.min(), ys.min(), xs.max(), ys.max()])
+        pb = np.array([px.min(), py.min(), px.max(), py.max()]).round().astype(int)
+        inter = max(0, min(mb[2], pb[2]) - max(mb[0], pb[0])) * max(0, min(mb[3], pb[3]) - max(mb[1], pb[1]))
+        iou = inter / (np.prod(mb[2:] - mb[:2]) + np.prod(pb[2:] - pb[:2]) - inter + 1e-9)
+        d = depth[valid]
+        print(f"[perception]: mask center=({xs.mean():.1f},{ys.mean():.1f}) bbox={mb.tolist()} | "
+              f"FP origin=({K[0,0]*T[0,3]/T[2,3]+K[0,2]:.1f},{K[1,1]*T[1,3]/T[2,3]+K[1,2]:.1f}) "
+              f"mesh bbox={pb.tolist()} bbox-IoU={iou:.3f} | depth p1/50/99={np.percentile(d, [1,50,99]).round(3)}")
+        cv2.drawContours(rgb, [cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0][0]], -1, (0, 255, 0), 2)
+        cv2.rectangle(rgb, tuple(pb[:2]), tuple(pb[2:]), (0, 0, 255), 2)
+        cv2.imwrite(str(output_path), rgb)
+
     def predict(self, rgb_path, depth_path, mask_path, mesh_path, K, output_dir, output_name):
         output_dir = Path(output_dir).resolve()
+        debug_dir = output_dir / Path(output_name).stem
+        debug_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = [
             "docker", "exec", self.container,
@@ -229,7 +256,7 @@ class PoseEstimator:
             "--cx", str(float(K[0, 2])),
             "--cy", str(float(K[1, 2])),
             "--debug", "1",
-            "--debug_dir", str(output_dir),
+            "--debug_dir", str(debug_dir),
         ]
 
         try:
@@ -242,11 +269,13 @@ class PoseEstimator:
             error = "\n".join(result.stdout.decode(errors="replace").splitlines()[-8:])
             raise RuntimeError(f"[perception]: FP failed with error: \n{error}")
         
-        pose_path = output_dir / "ob_in_cam" / "000000.txt"
+        pose_path = debug_dir / "ob_in_cam" / "000000.txt"
         if not pose_path.exists():
             raise RuntimeError(f"[perception]: FP produced no pose")
 
         T_cam_object = np.loadtxt(pose_path)
+        self._debug_projection(rgb_path, depth_path, mask_path, mesh_path, K, T_cam_object,
+                               debug_dir / "projection_check.png")
         np.save(output_dir/output_name, T_cam_object)
 
         return T_cam_object

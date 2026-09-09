@@ -193,6 +193,18 @@ class ObjectEstimator:
                 aggression=5,
             )
             print(f"[object-estimation]: simplified mesh {raw_faces:,} -> {len(mesh.faces):,} faces")
+        observed = self._observed_extents(depth, mask, K)
+        raw_extents = mesh.bounding_box.extents.copy()
+        scale = observed.max() / raw_extents.max()
+
+        print(
+            f"[object-estimation]: {name} "
+            f"depth=[{depth[mask].min():.3f}, {depth[mask].max():.3f}] m, "
+            f"observed_extents={np.round(observed, 4)} m, "
+            f"hunyuan_extents={np.round(raw_extents, 4)}, scale={scale:.4f}"
+        )
+
+        mesh.apply_scale(scale)
         mesh.apply_scale(self._observed_extents(depth, mask, K).max() / mesh.bounding_box.extents.max()) # new_mesh = old_mesh * (longest point cloud extent / bounding box extent)
 
         T = np.eye(4)
