@@ -11,9 +11,9 @@ from typing import Literal
 from scipy.spatial.transform import Rotation
 
 POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.75, "permissive": 1.5} # multiply by the active object's longest dimension
-ORIENTATION_TOLERANCE_MAP = {"strict": 20.0, "moderate": 40.0,"permissive": 60.0} 
+ORIENTATION_TOLERANCE_MAP = {"strict": 7.5, "moderate": 30.0,"permissive": 60.0} 
 POSITION_CONSTRAINT_MAP = {"correct": 0.25, "normal_search": 0.75, "major_revision": 1.5} # multiply by the active object's longest dimension
-ORIENTATION_CONSTRAINT_MAP = {"correct": 20.0, "normal_search": 60.0, "major_revision": 180.0} 
+ORIENTATION_CONSTRAINT_MAP = {"correct": 15.0, "normal_search": 60.0, "major_revision": 120.0} 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to produce fully accurate meshes 
     "small_dish": {
@@ -56,7 +56,6 @@ PRIMITIVES = { # Approximated object meshes due to 3D-scanner being unable to pr
         ],
     },
 }
-
 @dataclass(frozen=True)
 class XYZRelation: # passive is the reference, and active is the subject (e.g. "x greater_than" means "active object x greater than passive object x")
     axis: Literal["x", "y", "z"]
@@ -110,7 +109,7 @@ class ValidationProgram:
     roll_drift_tolerance: float
     pitch_drift_tolerance: float
     yaw_drift_tolerance: float
-    max_initial_penetration: float = 0.015
+    max_initial_penetration: float = 0.05
     max_final_penetration: float = 0.0008
 
 @dataclass
@@ -185,7 +184,6 @@ class SceneBuilder:
         worldbody.append(self.make_body(active_name, np.eye(4), "refined_goal"))
         for name, T_mujoco in obstacles:
             worldbody.append(self.make_body(name, T_mujoco, "obstacle"))
-
         # Probe with density=1, then use one uniform density that gives the target mass.
         ET.indent(root, space="  ")
         ET.ElementTree(root).write(output_path)
@@ -692,9 +690,9 @@ class EnsembleTwin:
                 mujoco.mj_step(m, d, nstep=sim_steps)
                 mujoco.mj_forward(m, d)
             except mujoco.FatalError:
-                return np.zeros(self.n, dtype=bool)
+                return np.zeros(self.n, bool), np.tile(np.eye(4), (self.n, 1, 1))
             if not np.isfinite(d.qpos).all() or not np.isfinite(d.qvel).all() or any(w.number for w in d.warning):
-                return np.zeros(self.n, dtype=bool)
+                return np.zeros(self.n, bool), np.tile(np.eye(4), (self.n, 1, 1))
         penetration, touching = self.contacts()
         valid &= (penetration <= V.max_final_penetration) & ~touching[:, 3]
         for contact, column in (("active_passive", 1), ("active_table", 2)):
@@ -712,20 +710,29 @@ class EnsembleTwin:
         for relation in V.xyz_relations:
             value = relative[:, DigitalTwin.AXIS[relation.axis]]
             valid &= value > 0 if relation.relation == "greater_than" else value < 0
-        return valid
+        settled = np.tile(np.eye(4), (self.n, 1, 1))
+        settled[:, :3, :3] = d.xmat[self.active].reshape(-1, 3, 3)
+        settled[:, :3, 3] = positions
+        return valid, settled
 
-    def rank(self, n_samples=200, max_candidates=5, sim_steps=250, output_path=None):
+    def rank(self, n_samples=200, max_candidates=5, sim_steps=250, output_path=None, seed=0):
         if n_samples < 1 or max_candidates < 1: raise ValueError("Invalid sample/candidate count")
-        poses, masks = [], []
+        poses, masks, settled = [], [], []
         for i in range(n_samples):
             pose = self.T_goal.copy() if i == 0 else self.S.sample(self.T_goal, self.T_passive, world_aligned=True)
-            poses.append(pose); masks.append(self.validate(pose, sim_steps))
+            valid, final = self.validate(pose, sim_steps)
+            poses.append(pose); masks.append(valid); settled.append(final)
             if (i + 1) % 10 == 0: print(f"[ensemble]: scored {i+1}/{n_samples} proposals")
-        poses, masks = np.asarray(poses), np.asarray(masks)
+        poses, masks, settled = np.asarray(poses), np.asarray(masks), np.asarray(settled)
         scores = masks.sum(axis=1)
         best = np.argsort(-scores, kind="stable")
         best = best[scores[best] > 0][:max_candidates]
+        rng = np.random.default_rng(seed)
+        worlds = np.array([rng.choice(np.flatnonzero(masks[i])) for i in best], dtype=int)
+        candidates = np.array([settled[i, w] for i, w in zip(best, worlds)]) if len(best) else np.empty((0, 4, 4))
         if output_path is not None:
-            np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores, selected_indices=best)
+            np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores,
+                               settled_poses=settled, selected_indices=best,
+                               selected_world_indices=worlds, candidates=candidates)
         print(f"[ensemble]: highest score {scores.max()}/{self.n}")
-        return [poses[i].copy() for i in best]
+        return [pose.copy() for pose in candidates]
