@@ -21,6 +21,9 @@ Choose exactly one:
 * `settling`: simulate the active object under gravity and validate its final settled state. Use when the task requires a stable, supported final placement.
 * `geometric_only`: validate the proposed pose directly without simulation. Use when the intended goal is intentionally unsupported, such as a held pouring pose.
 
+Hint:
+- Sometimes it's possible for an object to settle into a stable position, like releasing the teapot lid right above the teapot top center (considering keeping x and y strict and a slightly higher z tolerance), or hanging a mug on the branch while allowing it to wiggle a bit (consider giving slightly higher rotational tolerance along certain directions). 
+
 ## Output
 
 Return JSON only:
@@ -76,4 +79,4 @@ Return JSON only:
 7. Do not specify penetration thresholds, simulation duration, perturbations, or numeric tolerances. These are system-controlled.
 
 Hints: 
-- Think about whether the object needs to wobble around while settling (like hangling a mug on a branch), and if so allow a higher drift tolerance.
+- Think about whether the object needs to wobble around while settling (like hangling a mug on a branch or dropping one cup inside another cup), and if so allow a higher rotational or translational drift tolerance based on your understanding of how the object might settle.

@@ -37,6 +37,7 @@ CONFIG = BENCHMARK_CONFIGS[BENCHMARK_NAME]
 ACTIVE_NAME = CONFIG["active"][args.stage]
 PASSIVE_NAME = CONFIG["passive"][args.stage]
 INSTRUCTION = CONFIG["instruction"][args.stage]
+PREINSERTION = CONFIG["preinsertion"][args.stage] if "preinsertion" in CONFIG else None
 RUNTIME_CATALOG = copy.deepcopy(OBJECT_CATALOG)
 ACTIVE_CATALOG = RUNTIME_CATALOG[ACTIVE_NAME]
 PASSIVE_CATALOG = RUNTIME_CATALOG[PASSIVE_NAME]
@@ -64,7 +65,6 @@ FP_DIR = ROOT_DIR.parent / "FoundationPose"
 ANYGRASP_DIR = ROOT_DIR.parent / "anygrasp_sdk" / "grasp_detection"
 ANYGRASP_CHECKPOINT = ANYGRASP_DIR / "checkpoints" / "checkpoint_detection.tar"
 EXTRINSICS_PATH = ROOT_DIR / "artifacts" / "calibration" / "extrinsics.npy"
-
 
 def object_estimate_path(name):
     return OBJECT_ESTIMATION_DIR / name / "estimate.json"
@@ -412,8 +412,13 @@ if not candidates:
 candidate_image_paths = []
 for i, T_mujoco_active_goal_valid in enumerate(candidates):
     T_passive_active_valid = np.linalg.inv(T_mujoco_passive) @ T_mujoco_active_goal_valid
+    # Render candidates in exactly the same world-aligned passive frame used for
+    # the VLM constraint renders.  T_passive_active_valid is passive-local, so
+    # both meshes must be mapped through Q_passive_reasoning before rendering.
+    T_reasoning_active_valid = Q_passive_reasoning @ T_passive_active_valid
     render_for_vlm(active_path=ACTIVE_CATALOG["mesh"], passive_path=PASSIVE_CATALOG["mesh"], output_path=RENDER_DIR/f"valid_candidate_{i}.png",
-                   T_passive_active=T_passive_active_valid, rendered_frame="active",
+                   T_passive_active=T_reasoning_active_valid,
+                   passive_transform=Q_passive_reasoning, rendered_frame="active",
                    lookat=CONFIG["render_config"][1]["lookat"], front=CONFIG["render_config"][1]["front"], up=CONFIG["render_config"][1]["up"], zoom=CONFIG["render_config"][1]["zoom"])
     array_path = DTWIN_DIR / f"valid_candidate_{i}.npy"
     image_path = RENDER_DIR / f"valid_candidate_{i}.png"
@@ -453,6 +458,7 @@ trajectory = trajectory_planner.plan(
     T_mujoco_object_goal=T_mujoco_active_goal_selected,
     grasps=candidate_grasps,
     output_path=TRAJECTORY_DIR/"trajectory.json",
+    preinsertion_offset=PREINSERTION
 )
 
 if not trajectory:

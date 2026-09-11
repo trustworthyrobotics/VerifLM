@@ -15,7 +15,7 @@ The displayed frame is the passive object frame.
 
 * correct: the translation is correct; sample within a very narrow range (choose this when the axis of translation is correct or very close to correct). Note that a directional bias can be applied even if the axis is correct. But do so only when it is clear that the object should not be sampled in the opposite direction.
 * normal_search: ordinary local adjustment or uncertainty.
-* major_revision: the translation is substantially wrong and needs broad exploration.
+* major_revision: the translation is substantially wrong and needs broad exploration. do not choose this when the object is already close to the correct position, even if it is imperfect.
 
 TRANSLATION DIRECTIONS
 * positive: move along the displayed positive axis. only choose it when it is clear that the object needs to be moved in that direction.

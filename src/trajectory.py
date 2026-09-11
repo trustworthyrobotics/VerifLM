@@ -30,7 +30,7 @@ FINGER_JOINT_NAMES = (ARM_PREFIX+"finger_1_slide", ARM_PREFIX+"finger_2_slide")
 EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
 TABLE_GEOM_NAMES = ("table", "table_base")
 ACTIVE_TABLE_TOLERANCE = 0.01
-ACTIVE_PASSIVE_TOLERANCE = 0.002
+ACTIVE_PASSIVE_TOLERANCE = 0.004
 
 @dataclass(frozen=True)
 class Grasp:
@@ -519,6 +519,18 @@ class TrajectoryPlanner:
         data = mujoco.MjData(self.model)
         active_qadr = self.collision_checker.active_qadr
         T_eef_object = np.linalg.inv(self.chosen_grasp.T_object_eef)
+
+        # Distinguish the original VLM/image-edit goal from the selected,
+        # physically validated goal during the final trajectory replay.
+        goal_body_id = int(np.flatnonzero(
+            self.model.body_mocapid == self.scene.goal_mocap_id
+        )[0])
+        for geom_id in range(self.model.ngeom):
+            body_id = int(self.model.geom_bodyid[geom_id])
+            while body_id and body_id != goal_body_id:
+                body_id = int(self.model.body_parentid[body_id])
+            if body_id == goal_body_id:
+                self.model.geom_rgba[geom_id] = (0.15, 0.65, 1.0, 0.30)
 
         stop = {"requested": False}
         old_handler = signal.getsignal(signal.SIGINT)

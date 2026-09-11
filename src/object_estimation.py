@@ -133,16 +133,41 @@ class ObjectEstimator:
 
     @staticmethod
     def _observed_extents(depth, mask, K):
+        # Separate the nearer object from background visible inside its mask:
+        # find a large gap in sorted depths and discard everything beyond it.
+        # Without discarding background depth, the PCA extents will be signficantly enlarged by the background.
         valid = mask & np.isfinite(depth) & (depth > 0)
         if not np.any(valid):
             raise ValueError("No valid depth inside mask")
+
+        z_sorted = np.sort(depth[valid])
+        n = len(z_sorted)
+        min_cluster = max(10, int(0.01 * n))
+        gaps = np.diff(z_sorted)
+        start, stop = min_cluster - 1, n - min_cluster
+
+        if stop > start:
+            split = start + np.argmax(gaps[start:stop])
+            gap = gaps[split]
+            if gap > 0.03:
+                cutoff = (z_sorted[split] + z_sorted[split + 1]) / 2
+                valid &= depth <= cutoff
+                print(
+                    f"[object-estimation]: depth cutoff={cutoff:.3f} m, "
+                    f"gap={gap:.3f} m, kept={valid.sum()}/{n}"
+                )
+
         v, u = np.where(valid)
         z = depth[valid]
-        pts = np.c_[(u-K[0,2])*z/K[0,0], (v-K[1,2])*z/K[1,1], z]
-        pts -= np.median(pts, axis=0)
-        _, _, vt = np.linalg.svd(pts, full_matrices=False)
-        pts = pts @ vt.T
-        return np.percentile(pts, 99, axis=0) - np.percentile(pts, 1, axis=0)
+        points = np.c_[
+            (u - K[0, 2]) * z / K[0, 0],
+            (v - K[1, 2]) * z / K[1, 1],
+            z,
+        ]
+        points -= np.median(points, axis=0)
+        _, _, vt = np.linalg.svd(points, full_matrices=False)
+        points = points @ vt.T
+        return np.percentile(points, 99, axis=0) - np.percentile(points, 1, axis=0)
 
     @staticmethod
     def _to_trimesh(mesh):
@@ -197,15 +222,16 @@ class ObjectEstimator:
         raw_extents = mesh.bounding_box.extents.copy()
         scale = observed.max() / raw_extents.max()
 
-        print(
-            f"[object-estimation]: {name} "
-            f"depth=[{depth[mask].min():.3f}, {depth[mask].max():.3f}] m, "
-            f"observed_extents={np.round(observed, 4)} m, "
-            f"hunyuan_extents={np.round(raw_extents, 4)}, scale={scale:.4f}"
-        )
+        valid = mask & np.isfinite(depth) & (depth > 0)
+        v, u = np.where(valid)
+        z = depth[valid]
 
         mesh.apply_scale(scale)
-        mesh.apply_scale(self._observed_extents(depth, mask, K).max() / mesh.bounding_box.extents.max()) # new_mesh = old_mesh * (longest point cloud extent / bounding box extent)
+
+        second_scale = (self._observed_extents(depth, mask, K).max()/ mesh.bounding_box.extents.max())
+
+        mesh.apply_scale(second_scale)
+        print("[object-estimation]: adjusted scale", mesh.bounding_box.extents)
 
         T = np.eye(4)
         T[:3, :3] = Rotation.from_euler("xyz", [90, 0, 0], degrees=True).as_matrix()
