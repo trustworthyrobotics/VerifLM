@@ -1,4 +1,4 @@
-"""Run from the repository root: python scripts/view_ensemble.py lid_on_teapot.
+"""Run from the repository root: python scripts/view_ensemble.py lid_on_teapot --stage 0 [--video].
 Enter: settle/next; C: select a passing settled world; T: translate/rotate;
 arrows/PageUp/PageDown: teleoperate; [ / ]: select cell; R: replay;
 F: focus; G: grid; mouse drag: orbit; wheel: zoom; Esc: quit.
@@ -283,21 +283,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('benchmark')
     parser.add_argument('--stage', type=int, default=0)
-    parser.add_argument('--root', type=Path, default=Path.cwd(), help='Repository root (default: current directory)')
-    parser.add_argument('--xml', type=Path, help='Override ensemble XML path')
-    parser.add_argument('--steps', type=int, default=500)
-    parser.add_argument('--speed', type=float, default=1., help='Playback speed, e.g. 0.25 for slow motion')
-    parser.add_argument('--video', type=Path, help='Record the complete parallel-world session to MP4')
-    parser.add_argument('--fps', type=int, default=30)
-    parser.add_argument('--translation-step', type=float, default=.005, help='Teleoperation step in meters')
-    parser.add_argument('--rotation-step', type=float, default=5., help='Teleoperation step in degrees')
-    parser.add_argument('--seed', type=int, default=0, help='Seed for choosing a passing world')
-    parser.add_argument('--headless', action='store_true', help='Evaluate original proposal once without a viewer')
+    parser.add_argument('--video', action='store_true', help='Record the session to dtwin/sampling.mp4')
     args = parser.parse_args()
-    if min(args.steps, args.speed, args.fps, args.translation_step, args.rotation_step) <= 0:
-        parser.error('steps, speed, fps, and teleoperation steps must be positive')
-    root = args.root.resolve()
-    xml = args.xml or root/'models'/'generated_xmls'/f'{args.benchmark}_stage{args.stage}_estimated_ensemble.xml'
+    if args.stage < 0:
+        parser.error('stage must be nonnegative')
+    root = Path(__file__).resolve().parents[1]
+    xml = root/'models'/'generated_xmls'/f'{args.benchmark}_stage{args.stage}_estimated_ensemble.xml'
     artifact = root/'artifacts'/f'{args.benchmark}_stage{args.stage}'/'estimated'
     vlm = artifact/'vlm'
     # Cell 0's body names identify the shared estimated-object cache.
@@ -310,13 +301,10 @@ def main():
     if str(root) not in sys.path: sys.path.insert(0, str(root))
     from src.config import BENCHMARK_CONFIGS
     p = Preview(xml, vlm, estimates[0]['dimensions'], artifact/'dtwin'/'interactive_candidates',
-                [e['mesh'] for e in estimates], BENCHMARK_CONFIGS[args.benchmark]['render_config'][1], args.seed)
-    if args.headless:
-        p.begin(); p.start()
-        if not p.geometric: mujoco.mj_step(p.m, p.d, nstep=args.steps)
-        p.finish()
-    else: show(p, args.steps, args.speed, args.video, args.fps,
-               args.translation_step, args.rotation_step)
+                [e['mesh'] for e in estimates], BENCHMARK_CONFIGS[args.benchmark]['render_config'][1])
+    video_path = artifact/'dtwin'/'sampling.mp4' if args.video else None
+    show(p, steps=500, speed=1., video_path=video_path)
+
 
 
 if __name__ == '__main__': main()
