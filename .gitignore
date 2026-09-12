@@ -3,6 +3,8 @@ artifacts/
 extrinsics/
 tests/
 .vscode/
+models/generated_xmls/
+models/meshes/
 
 # Runtime logs
 Log/

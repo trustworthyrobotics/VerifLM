@@ -30,7 +30,7 @@ FINGER_JOINT_NAMES = (ARM_PREFIX+"finger_1_slide", ARM_PREFIX+"finger_2_slide")
 EEF_BODY_NAME = ARM_PREFIX + "box_gripper"
 TABLE_GEOM_NAMES = ("table", "table_base")
 ACTIVE_TABLE_TOLERANCE = 0.01
-ACTIVE_PASSIVE_TOLERANCE = 0.004
+ACTIVE_PASSIVE_TOLERANCE = 0.006
 
 @dataclass(frozen=True)
 class Grasp:

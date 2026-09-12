@@ -4,7 +4,7 @@ OBJECT_CATALOG = {
         "dimensions": (0.2000, 0.1003, 0.0551),
         "mjcf": {"type": "mesh", "asset_xml": "models/meshes/wooden_rack_remeshed/wooden_rack_asset.xml",
                  "body_xml": "models/meshes/wooden_rack_remeshed/wooden_rack_body.xml"},
-        "physics": {"mass": 0.4, "friction": 0.05},
+        "physics": {"mass": 0.4, "friction": 0.3},
     },
     "wooden_stick_toy": {
         "prompt": "wooden stick toy", "mesh": "models/meshes/wooden_stick_toy/wooden_stick_toy.obj",
@@ -29,7 +29,7 @@ OBJECT_CATALOG = {
         "dimensions": (0.0879, 0.1108, 0.0876),
         "mjcf": {"type": "mesh", "asset_xml": "models/meshes/red_mug_big_remeshed/red_mug_big_asset.xml",
                  "body_xml": "models/meshes/red_mug_big_remeshed/red_mug_big_body.xml"},
-        "physics": {"mass": 0.2, "friction": 0.3},
+        "physics": {"mass": 0.2, "friction": 0.1},
         "grasps": [
             {"offset_xyz": (-0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
             {"offset_xyz": (0.041, 0, 0.1262), "offset_rpy_deg": (180, 0, 0), "hover_offset_xyz": (0, 0, 0.08)},
@@ -62,9 +62,9 @@ OBJECT_CATALOG = {
         "prompt": "green plate", "mesh": "models/meshes/green_plate_small/green_plate_small.obj",
         "dimensions": (0.1071, 0.1059, 0.0176),
         "mjcf": {"type": "primitive", "primitive": "small_dish", "z_offset": -0.0088},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
-            {"offset_xyz": (0, 0.155, 0.0015), "offset_rpy_deg": (90, -90, 0),
+            {"offset_xyz": (0, 0.145, 0.0), "offset_rpy_deg": (90, -90, 0),
              "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
         ],
     },
@@ -72,7 +72,7 @@ OBJECT_CATALOG = {
         "prompt": "pink plate", "mesh": "models/meshes/pink_plate_small/pink_plate_small.obj",
         "dimensions": (0.1076, 0.1078, 0.0180),
         "mjcf": {"type": "primitive", "primitive": "small_dish", "z_offset": -0.009},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.155, 0.0015), "offset_rpy_deg": (90, -90, 0),
              "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
@@ -82,7 +82,7 @@ OBJECT_CATALOG = {
         "prompt": "yellow plate", "mesh": "models/meshes/yellow_plate_small/yellow_plate_small.obj",
         "dimensions": (0.1069, 0.1071, 0.0145),
         "mjcf": {"type": "primitive", "primitive": "small_dish", "z_offset": -0.00725},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.155, 0.0015), "offset_rpy_deg": (90, -90, 0),
              "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
@@ -92,7 +92,7 @@ OBJECT_CATALOG = {
         "prompt": "red plate", "mesh": "models/meshes/red_plate_big/red_plate_big.obj",
         "dimensions": (0.1208, 0.1248, 0.0145),
         "mjcf": {"type": "primitive", "primitive": "big_dish", "z_offset": -0.00725},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.14, -0.00725), "offset_rpy_deg": (90, 90, 0),
              "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
@@ -102,7 +102,7 @@ OBJECT_CATALOG = {
         "prompt": "blue plate", "mesh": "models/meshes/blue_plate_big/blue_plate_big.obj",
         "dimensions": (0.1245, 0.1226, 0.0156),
         "mjcf": {"type": "primitive", "primitive": "big_dish", "z_offset": -0.0078},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.14, -0.0078), "offset_rpy_deg": (90, 90, 0),
              "hover_offset_xyz": (0, 0.1, 0), "z_rotation_samples": 12},
@@ -124,7 +124,7 @@ OBJECT_CATALOG = {
         "dimensions": (0.0743, 0.0757, 0.0278),
         "mjcf": {"type": "mesh", "asset_xml": "models/meshes/yellow_cap_remeshed/yellow_cap_asset.xml",
                  "body_xml": "models/meshes/yellow_cap_remeshed/yellow_cap_body.xml"},
-        "physics": {"mass": 0.03, "friction": 0.03},
+        "physics": {"mass": 0.03, "friction": 0.08},
         "grasps": [
             {"offset_xyz": (0, 0, 0.1191), "offset_rpy_deg": (180, 0, 0),
              "hover_offset_xyz": (0, 0, 0.08), "z_rotation_samples": 4},
@@ -134,7 +134,7 @@ OBJECT_CATALOG = {
         "prompt": "red cup", "mesh": "models/meshes/red_cup/red_cup.obj",
         "dimensions": (0.0714, 0.0728, 0.1085),
         "mjcf": {"type": "primitive", "primitive": "cup", "z_offset": -0.05425},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.03, 0.14575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
             {"offset_xyz": (0, 0.03, 0.14575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
@@ -146,7 +146,7 @@ OBJECT_CATALOG = {
         "prompt": "green cup", "mesh": "models/meshes/green_cup/green_cup.obj",
         "dimensions": (0.0729, 0.0736, 0.1115),
         "mjcf": {"type": "primitive", "primitive": "small_cup", "z_offset": -0.05575},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.03, 0.14575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
             {"offset_xyz": (0, 0.03, 0.14575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
@@ -158,7 +158,7 @@ OBJECT_CATALOG = {
         "prompt": "blue cup", "mesh": "models/meshes/blue_cup/blue_cup.obj",
         "dimensions": (0.0728, 0.0723, 0.1104),
         "mjcf": {"type": "primitive", "primitive": "large_cup", "z_offset": -0.0552},
-        "physics": {"mass": 0.25, "friction": 0.05},
+        "physics": {"mass": 0.25, "friction": 0.3},
         "grasps": [
             {"offset_xyz": (0, 0.03, 0.14575), "offset_rpy_deg": (180, 0, 90), "hover_offset_xyz": (0, 0, 0.05)},
             {"offset_xyz": (0, 0.03, 0.14575), "offset_rpy_deg": (180, 0, -90), "hover_offset_xyz": (0, 0, 0.05)},
@@ -188,7 +188,7 @@ BENCHMARK_CONFIGS = {
     'mug_on_rack': {
         'active': ('red_mug_big',),
         'passive': ('wooden_stick_toy',),
-        'instruction': ('Hang the red mug on the top branch of the wooden rack by its handle.',),
+        'instruction': ('Hang the red mug on the top branch of the wooden rack by its handle. The handle should be facing the camera.',),
         'default_validation_program': {
             'validation_mode': 'settling', 'initial_max_pen': 0.015, 'final_max_pen': 0.0001,
             'required_contacts': ['active_passive'], 'forbidden_contacts': ['active_table'],
@@ -197,8 +197,9 @@ BENCHMARK_CONFIGS = {
         },
         'render_config': (
             {'lookat': (0.0, 0.0, 0.0), 'front': (4.0, -6.0, 6.0), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
-            {'lookat': (0.0, 0.0, 0.0), 'front': (4.0, 6.0, 6.0), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
+            {'lookat': (0.0, 0.0, 0.0), 'front': (4.0, 6.0, 4.0), 'up': (0.0, 0, 1.0), 'zoom': 1.2},
         ),
+        'preinsertion': ((0, -0.05, 0),),
     },
     'plate_on_stand': {
         'active': ('green_plate_small',),
