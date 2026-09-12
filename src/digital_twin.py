@@ -716,20 +716,33 @@ class EnsembleTwin:
 
     def rank(self, n_samples=200, max_candidates=5, sim_steps=250, output_path=None):
         if n_samples < 1 or max_candidates < 1: raise ValueError("Invalid sample/candidate count")
-        poses, masks = [], []
+        geometric = self.V.validation_mode == "geometric_only"
+        poses, masks, settled = [], [], []
         for i in range(n_samples):
-            pose = self.T_goal.copy() if i == 0 else self.S.sample(self.T_goal, self.T_passive, world_aligned=True)
+            pose = self.T_goal.copy() if i == 0 else self.S.sample(self.T_goal, self.T_passive)
             poses.append(pose); masks.append(self.validate(pose, sim_steps))
+            if not geometric:
+                final = np.tile(np.eye(4), (self.n, 1, 1))
+                final[:, :3, :3] = self.data.xmat[self.active].reshape(-1, 3, 3)
+                final[:, :3, 3] = self.data.xpos[self.active] - self.offsets
+                settled.append(final)
             if (i + 1) % 10 == 0: print(f"[ensemble]: scored {i+1}/{n_samples} proposals")
         poses, masks = np.asarray(poses), np.asarray(masks)
         scores = masks.sum(axis=1)
         ranked = np.argsort(-scores, kind="stable")
-        if self.V.validation_mode == "geometric_only":
+        if geometric:
             others = ranked[(ranked != 0) & (scores[ranked] > 0)][:max_candidates - 1]
             best = np.r_[0, others]
         else:
             best = ranked[scores[ranked] > 0][:max_candidates]
+        candidates, worlds = [], []
+        for i in best:
+            world = -1 if geometric else int(np.random.choice(np.flatnonzero(masks[i])))
+            candidates.append(poses[i].copy() if geometric else settled[i][world].copy())
+            worlds.append(world)
         if output_path is not None:
-            np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores, selected_indices=best)
+            np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores, selected_indices=best,
+                                selected_world_indices=np.asarray(worlds, dtype=int),
+                                candidate_poses=np.asarray(candidates).reshape(-1, 4, 4))
         print(f"[ensemble]: highest score {scores.max()}/{self.n}")
-        return [poses[i].copy() for i in best]
+        return candidates

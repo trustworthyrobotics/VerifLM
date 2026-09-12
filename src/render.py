@@ -61,9 +61,8 @@ def render_for_vlm(active_path, passive_path, output_path, T_passive_active=None
         vis.add_geometry(active_axes)
     elif rendered_frame == "passive":
         passive_axes = TriangleMesh.create_coordinate_frame(size=axis_size)
-        # T_passive_passive = np.eye(4)
-        # T_passive_passive[0:3, 3] = np.array([-0.05, 0.05, 0.01])
-        # passive_axes.transform(T_passive_passive)
+        if passive_transform is not None:
+            passive_axes.transform(passive_transform)
         vis.add_geometry(passive_axes)
         
     opt = vis.get_render_option()
