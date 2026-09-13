@@ -1,26 +1,29 @@
-numpy==1.26.4
+# Numerical and geometry
+numpy
 scipy
 trimesh
 open3d==0.18.0
-coacd==1.0.14
-opencv-contrib-python==4.10.0.84
 Pillow
+
+# Computer vision and RGB-D capture
+# Includes cv2.aruco; do not install opencv-python in the same environment.
+opencv-contrib-python
+pyrealsense2
+
+# Simulation and planning
 mujoco
 ompl
-pyrealsense2
+
+# Machine learning and model clients
+# Install a CUDA-compatible PyTorch build for the host system.
 torch
-transformers==4.37.2
-openai>=2.36,<3
+openai
 google-genai
-pydantic>=2,<3
 python-dotenv
-reportlab
+
+# Mesh-free object reconstruction and processing
+coacd
 fast-simplification
 
-# External repos / vendor SDKs; install separately:
-#   VGGT          -> provides vggt
-#   GroundingDINO -> provides groundingdino
-#   SAM2          -> provides sam2
-#   Hunyuan3D-2.1 -> provides hy3dshape
-#   AnyGrasp      -> provides gsnet
-# FoundationPose runs separately in its Docker container.
+# Optional ArUco-board PDF generation
+reportlab
