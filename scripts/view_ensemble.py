@@ -2,12 +2,15 @@
 Enter: settle/next; C: select a passing settled world; T: translate/rotate;
 arrows/PageUp/PageDown: teleoperate; [ / ]: select cell; R: replay;
 F: focus; G: grid; mouse drag: orbit; wheel: zoom; Esc: quit.
-Only loads existing XML/JSON. Does not rebuild meshes or query a VLM.
+Rebuilds an artifact-local ensemble XML from cached artifacts. Does not rebuild
+meshes or query a VLM.
 """
 import argparse
+import copy
 import cv2
 import json
 import re
+import sys
 import time
 from pathlib import Path
 
@@ -279,6 +282,110 @@ def show(p, steps, speed, video_path=None, fps=30, translation_step=.005, rotati
         context.free(); scene.free(); glfw.destroy_window(window); glfw.terminate()
 
 
+def require(path):
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f'Required artifact is missing: {path}')
+    return path
+
+
+def rebuild_ensemble(root, benchmark, stage):
+    """Recreate the viewer XML entirely from current cached artifacts."""
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from src.config import BENCHMARK_CONFIGS, OBJECT_CATALOG, T_mujoco_board
+    from src.digital_twin import EnsembleTwin, SceneBuilder
+    from src.vlm import load_sampling_constraints, load_validation_program
+
+    config = BENCHMARK_CONFIGS[benchmark]
+    try:
+        active = config['active'][stage]
+        passive = config['passive'][stage]
+    except IndexError as exc:
+        raise ValueError(f'{benchmark} has no stage {stage}') from exc
+
+    stage_dir = root/'artifacts'/f'{benchmark}_stage{stage}'
+    artifact = stage_dir/'estimated'
+    perception = artifact/'perception'
+    vlm = artifact/'vlm'
+    dtwin = artifact/'dtwin'
+    estimate_root = root/'artifacts'/'object_estimation'
+
+    catalog = copy.deepcopy(OBJECT_CATALOG)
+    estimates = {}
+
+    def load_estimate(name):
+        if name not in estimates:
+            path = require(estimate_root/name/'estimate.json')
+            estimate = json.loads(path.read_text())
+
+            # estimate.json may have been produced on another computer and its
+            # paths may therefore contain an obsolete absolute repository root.
+            # Reconstruct them from the portable cache layout instead of using
+            # the stored parent directories.
+            estimate['mesh'] = str(require(
+                estimate_root/name/Path(estimate['mesh']).name))
+            mjcf = estimate['mjcf']
+            if mjcf['type'] == 'mesh':
+                remeshed = estimate_root/f'{name}_remeshed'
+                mjcf['asset_xml'] = str(require(
+                    remeshed/Path(mjcf['asset_xml']).name))
+                mjcf['body_xml'] = str(require(
+                    remeshed/Path(mjcf['body_xml']).name))
+
+            estimates[name] = estimate
+            catalog[name].update(estimates[name])
+        return estimates[name]
+
+    active_estimate = load_estimate(active)
+    passive_estimate = load_estimate(passive)
+
+    # Reproduce the transforms used by main.py from saved perception outputs.
+    T_cam_board = np.load(require(root/'artifacts'/'calibration'/'extrinsics.npy'))
+    T_cam_passive_source = np.load(require(perception/'source_passive_pose_cam.npy'))
+    T_cam_active_edited = np.load(require(perception/'edited_active_pose_cam.npy'))
+    T_cam_passive_edited = np.load(require(perception/'edited_passive_pose_cam.npy'))
+    T_passive = T_mujoco_board @ np.linalg.inv(T_cam_board) @ T_cam_passive_source
+    T_goal = T_passive @ np.linalg.inv(T_cam_passive_edited) @ T_cam_active_edited
+
+    payload = json.loads(require(dtwin/'worlds.json').read_text())
+    hypotheses = payload['hypotheses']
+    saved_worlds = payload['worlds']
+    if not hypotheses or not saved_worlds:
+        raise ValueError(f'No ensemble definitions in {dtwin/"worlds.json"}')
+
+    # EnsembleTwin uses one ordered scale set for both objects. Preserve the
+    # exact order recorded when the artifact was created and verify the result.
+    scales = tuple(dict.fromkeys(world['active_scale'] for world in saved_worlds))
+    if set(scales) != {world['passive_scale'] for world in saved_worlds}:
+        raise ValueError('Saved active/passive scale sets differ; cannot rebuild this ensemble')
+
+    obstacles = []
+    for previous_stage in range(stage):
+        name = config['active'][previous_stage]
+        if name in (active, passive) or any(name == old for old, _ in obstacles):
+            continue
+        load_estimate(name)
+        previous = root/'artifacts'/f'{benchmark}_stage{previous_stage}'/'estimated'/'dtwin'
+        pose = np.load(require(previous/'T_mujoco_active_goal_selected.npy'))
+        obstacles.append((name, pose))
+
+    dimensions = active_estimate['dimensions']
+    S = load_sampling_constraints(
+        require(vlm/'translation_constraints.json'),
+        require(vlm/'rotation_constraints.json'), dimensions)
+    V = load_validation_program(require(vlm/'validation_program.json'), dimensions)
+
+    xml = dtwin/'view_ensemble.xml'
+    xml.parent.mkdir(parents=True, exist_ok=True)
+    ensemble = EnsembleTwin(SceneBuilder(catalog), active, passive, T_passive,
+                            T_goal, obstacles, hypotheses, V, S, xml, scales=scales)
+    if ensemble.specs != saved_worlds:
+        raise ValueError('Rebuilt world ordering differs from saved worlds.json')
+    del ensemble
+    return xml, artifact, active_estimate, passive_estimate, config
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('benchmark')
@@ -288,20 +395,13 @@ def main():
     if args.stage < 0:
         parser.error('stage must be nonnegative')
     root = Path(__file__).resolve().parents[1]
-    xml = root/'models'/'generated_xmls'/f'{args.benchmark}_stage{args.stage}_estimated_ensemble.xml'
-    artifact = root/'artifacts'/f'{args.benchmark}_stage{args.stage}'/'estimated'
+    xml, artifact, active_estimate, passive_estimate, config = rebuild_ensemble(
+        root, args.benchmark, args.stage)
     vlm = artifact/'vlm'
-    # Cell 0's body names identify the shared estimated-object cache.
-    import xml.etree.ElementTree as ET
-    bodies = list(ET.parse(xml).getroot().iter('body'))
-    active = next(b.get('name').removeprefix('cell0_active_') for b in bodies if b.get('name','').startswith('cell0_active_'))
-    passive = next(b.get('name').removeprefix('cell0_passive_') for b in bodies if b.get('name','').startswith('cell0_passive_'))
-    estimates = [json.loads((root/'artifacts'/'object_estimation'/name/'estimate.json').read_text()) for name in (active, passive)]
-    import sys
-    if str(root) not in sys.path: sys.path.insert(0, str(root))
-    from src.config import BENCHMARK_CONFIGS
-    p = Preview(xml, vlm, estimates[0]['dimensions'], artifact/'dtwin'/'interactive_candidates',
-                [e['mesh'] for e in estimates], BENCHMARK_CONFIGS[args.benchmark]['render_config'][1])
+    p = Preview(xml, vlm, active_estimate['dimensions'],
+                artifact/'dtwin'/'interactive_candidates',
+                [active_estimate['mesh'], passive_estimate['mesh']],
+                config['render_config'][1])
     video_path = artifact/'dtwin'/'sampling.mp4' if args.video else None
     show(p, steps=500, speed=1., video_path=video_path)
 
