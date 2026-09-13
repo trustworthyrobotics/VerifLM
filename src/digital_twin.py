@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Literal
 from scipy.spatial.transform import Rotation
 
+ACTIVE_PENETRATION_TOLERANCE = 0.006
 POSITION_TOLERANCE_MAP = {"strict": 0.25,"moderate": 0.75, "permissive": 1.5} # multiply by the active object's longest dimension
 ORIENTATION_TOLERANCE_MAP = {"strict": 20.0, "moderate": 40.0,"permissive": 60.0} 
 POSITION_CONSTRAINT_MAP = {"correct": 0.25, "normal_search": 0.75, "major_revision": 1.5} # multiply by the active object's longest dimension
@@ -666,6 +667,14 @@ class EnsembleTwin:
                     selected = np.isin(self.model.geom_bodyid, list(descendants))
                     self.geom_cell[selected], self.geom_role[selected] = i, code
 
+        nominal = [i for i, spec in enumerate(self.specs)
+                   if np.isclose(spec["active_scale"], 1.0)
+                   and np.isclose(spec["passive_scale"], 1.0)]
+        if not nominal:
+            raise ValueError("Ensemble needs a nominal world with active_scale=passive_scale=1.0")
+        self.nominal_world = next((i for i in nominal if self.specs[i]["hypothesis"] == 0), nominal[0])
+        self.nominal_data = mujoco.MjData(self.model)
+
     def contacts(self):
         penetration = np.zeros(self.n)
         touching = np.zeros((self.n, 4), dtype=bool)
@@ -678,6 +687,24 @@ class EnsembleTwin:
                 other = self.geom_role[b] if self.geom_cell[b] == cell else 3
                 if other >= 0: touching[cell, other] = True
         return penetration, touching
+
+    def nominal_penetration(self, pose):
+        """Return final penetration after transferring a settled pose to nominal geometry."""
+        m, d, cell = self.model, self.nominal_data, self.nominal_world
+        mujoco.mj_resetData(m, d)
+        q = Rotation.from_matrix(pose[:3, :3]).as_quat()[[3, 0, 1, 2]]
+        qadr = int(self.qadr[cell])
+        d.qpos[qadr:qadr + 7] = np.r_[pose[:3, 3] + self.offsets[cell], q]
+        mujoco.mj_forward(m, d)
+
+        penetration = 0.0
+        for c in d.contact:
+            g1, g2 = int(c.geom1), int(c.geom2)
+            active_in_nominal = ((self.geom_cell[g1] == cell and self.geom_role[g1] == 0) or
+                                 (self.geom_cell[g2] == cell and self.geom_role[g2] == 0))
+            if active_in_nominal:
+                penetration = max(penetration, max(0.0, -float(c.dist)))
+        return penetration
 
     def validate(self, pose, sim_steps=250):
         m, d, V = self.model, self.data, self.V
@@ -733,16 +760,33 @@ class EnsembleTwin:
         if geometric:
             others = ranked[(ranked != 0) & (scores[ranked] > 0)][:max_candidates - 1]
             best = np.r_[0, others]
+            candidates = [poses[i].copy() for i in best]
+            worlds = np.full(len(best), -1, dtype=int).tolist()
+            nominal_penetrations = np.full(len(best), np.nan).tolist()
         else:
-            best = ranked[scores[ranked] > 0][:max_candidates]
-        candidates, worlds = [], []
-        for i in best:
-            world = -1 if geometric else int(np.random.choice(np.flatnonzero(masks[i])))
-            candidates.append(poses[i].copy() if geometric else settled[i][world].copy())
-            worlds.append(world)
+            candidates, selected, worlds, nominal_penetrations = [], [], [], []
+            for i in ranked[scores[ranked] > 0]:
+                chosen = None
+                for world in np.random.permutation(np.flatnonzero(masks[i])):
+                    candidate = settled[i][world].copy()
+                    penetration = self.nominal_penetration(candidate)
+                    if penetration <= ACTIVE_PENETRATION_TOLERANCE:
+                        chosen = (candidate, int(world), penetration)
+                        break
+                if chosen is None:
+                    continue
+                candidate, world, penetration = chosen
+                candidates.append(candidate); selected.append(int(i)); worlds.append(world)
+                nominal_penetrations.append(penetration)
+                if len(candidates) >= max_candidates:
+                    break
+            best = np.asarray(selected, dtype=int)
         if output_path is not None:
             np.savez_compressed(output_path, poses=poses, pass_mask=masks, scores=scores, selected_indices=best,
                                 selected_world_indices=np.asarray(worlds, dtype=int),
+                                selected_nominal_penetrations=np.asarray(nominal_penetrations, dtype=float),
                                 candidate_poses=np.asarray(candidates).reshape(-1, 4, 4))
         print(f"[ensemble]: highest score {scores.max()}/{self.n}")
+        if not geometric:
+            print(f"[ensemble]: retained {len(candidates)}/{max_candidates} candidates after nominal penetration checks")
         return candidates
