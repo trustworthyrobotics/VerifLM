@@ -1,5 +1,6 @@
 """Run from the repository root: python scripts/view_ensemble.py lid_on_teapot --stage 0 [--video].
-Enter: settle/next; C: select a passing settled world; T: translate/rotate;
+Enter: settle/next; C: select a passing settled world; P: photograph all settled worlds;
+T: translate/rotate;
 arrows/PageUp/PageDown: teleoperate; [ / ]: select cell; R: replay;
 F: focus; G: grid; mouse drag: orbit; wheel: zoom; Esc: quit.
 Rebuilds an artifact-local ensemble XML from cached artifacts. Does not rebuild
@@ -25,6 +26,11 @@ class Preview:
         print(f"Loading {xml} ...", flush=True)
         start = time.perf_counter()
         self.m = m = mujoco.MjModel.from_xml_path(str(xml))
+        # The generated ensemble XML has no explicit lights, so brighten the
+        # camera headlight used by the viewer, recordings, and close-up renders.
+        m.vis.headlight.ambient[:] = (.45, .45, .45)
+        m.vis.headlight.diffuse[:] = (.85, .85, .85)
+        m.vis.headlight.specular[:] = (.35, .35, .35)
         self.d = d = mujoco.MjData(m)
         mujoco.mj_forward(m, d)
         ids = sorted({int(match[1]) for b in range(m.nbody)
@@ -201,14 +207,16 @@ class VideoRecorder:
 def show(p, steps, speed, video_path=None, fps=30, translation_step=.005, rotation_step=5.):
     import glfw
     if not glfw.init(): raise RuntimeError('GLFW could not open a display.')
-    window = glfw.create_window(1400, 900, 'Ensemble: Enter settle/next | C candidate | T translate/rotate', None, None)
+    window = glfw.create_window(1400, 900, 'Ensemble: Enter settle/next | C candidate | P close-ups | T translate/rotate', None, None)
     if not window:
         glfw.terminate(); raise RuntimeError('Could not create viewer window.')
     glfw.make_context_current(window); glfw.swap_interval(1)
     scene = mujoco.MjvScene(p.m, maxgeom=p.m.ngeom + 1000)
     context = mujoco.MjrContext(p.m, mujoco.mjtFontScale.mjFONTSCALE_150)
-    camera, record_camera, option = mujoco.MjvCamera(), mujoco.MjvCamera(), mujoco.MjvOption()
+    camera, record_camera, closeup_camera, option = (mujoco.MjvCamera(), mujoco.MjvCamera(),
+                                                      mujoco.MjvCamera(), mujoco.MjvOption())
     mujoco.mjv_defaultCamera(camera); mujoco.mjv_defaultCamera(record_camera)
+    mujoco.mjv_defaultCamera(closeup_camera)
     recorder = VideoRecorder(video_path, fps) if video_path else None
     command, selected, remaining, phase, rotate = [], 0, 0, 'ready', False
     def grid(target=camera, aspect=1400/900):
@@ -219,6 +227,49 @@ def show(p, steps, speed, video_path=None, fps=30, translation_step=.005, rotati
     def focus():
         camera.lookat[:] = p.d.xpos[p.passive[selected]]
         camera.distance, camera.elevation = .65, -30
+    def save_closeups():
+        if p.valid is None:
+            print('Settle and evaluate the sample before taking close-ups.', flush=True); return
+        if p.candidate_dir is None:
+            print('No candidate output directory is configured.', flush=True); return
+        output = p.candidate_dir/'settled_closeups'/f'sample_{p.count:03d}'
+        output.mkdir(parents=True, exist_ok=True)
+        width, height = glfw.get_framebuffer_size(window)
+        viewport = mujoco.MjrRect(0, 0, width, height)
+        rgba = p.m.geom_rgba.copy()
+        try:
+            for i in range(p.n):
+                # Keep the global scene and this cell, but remove the other cells
+                # from both the image and the depth buffer.
+                visible = (p.owner < 0) | (p.owner == i)
+                p.m.geom_rgba[~visible, 3] = 0
+                p.m.geom_rgba[visible] = rgba[visible]
+
+                # Frame the active/passive pair rather than the whole table.
+                geoms = np.flatnonzero((p.owner == i) & ((p.role == 0) | (p.role == 1)))
+                xyz = p.d.geom_xpos[geoms]
+                radii = p.m.geom_rbound[geoms, None]
+                low, high = np.min(xyz-radii, axis=0), np.max(xyz+radii, axis=0)
+                # Center every close-up on the passive object. Keep the
+                # active/passive pair bounds below for a distance that still
+                # accommodates the active object after settling.
+                closeup_camera.lookat[:] = p.d.xpos[p.passive[i]]
+                closeup_camera.distance = max(.15, 2.9*np.linalg.norm(high-low)/2)
+                closeup_camera.azimuth, closeup_camera.elevation = 135, -25
+
+                mujoco.mjv_updateScene(p.m, p.d, option, None, closeup_camera,
+                                       mujoco.mjtCatBit.mjCAT_ALL, scene)
+                mujoco.mjr_render(viewport, scene, context)
+                rgb = np.empty((height, width, 3), np.uint8)
+                mujoco.mjr_readPixels(rgb, None, viewport, context)
+                status = 'pass' if p.valid[i] else 'fail'
+                path = output/f'world_{i:02d}_{status}.png'
+                if not cv2.imwrite(str(path), cv2.cvtColor(np.flipud(rgb), cv2.COLOR_RGB2BGR)):
+                    raise RuntimeError(f'Could not save close-up: {path}')
+        finally:
+            p.m.geom_rgba[:] = rgba
+            mujoco.mj_forward(p.m, p.d)
+        print(f'Saved {p.n} settled close-ups to {output}', flush=True)
     def key(w, k, sc, action, mods):
         nonlocal selected, rotate
         if action not in (glfw.PRESS, glfw.REPEAT): return
@@ -227,6 +278,7 @@ def show(p, steps, speed, video_path=None, fps=30, translation_step=.005, rotati
             command.append('evaluate' if phase == 'ready' else 'next')
         elif action == glfw.PRESS and k == glfw.KEY_R and not remaining: command.append('replay')
         elif action == glfw.PRESS and k == glfw.KEY_C and phase == 'evaluated': command.append('candidate')
+        elif action == glfw.PRESS and k == glfw.KEY_P and phase == 'evaluated': command.append('closeups')
         elif action == glfw.PRESS and k == glfw.KEY_T and phase == 'ready':
             rotate = not rotate; print(f"Teleoperation mode: {'rotation' if rotate else 'translation'}", flush=True)
         elif k == glfw.KEY_G: grid()
@@ -252,7 +304,8 @@ def show(p, steps, speed, video_path=None, fps=30, translation_step=.005, rotati
     glfw.set_cursor_pos_callback(window, mouse)
     glfw.set_scroll_callback(window, lambda w,x,y: setattr(camera, 'distance', max(.05, camera.distance*np.exp(-.1*y))))
     grid(); grid(record_camera, 1280/720); p.begin()
-    print('Ready. Arrows/PageUp/PageDown: move; T: translate/rotate; Enter: settle.', flush=True)
+    print('Ready. Arrows/PageUp/PageDown: move; T: translate/rotate; Enter: settle; '
+          'P after settling: save all close-ups.', flush=True)
     try:
         while not glfw.window_should_close(window):
             frame = time.perf_counter()
@@ -262,6 +315,8 @@ def show(p, steps, speed, video_path=None, fps=30, translation_step=.005, rotati
                     p.begin(action == 'replay'); phase = 'ready'
                 elif action == 'candidate':
                     p.select_candidate(); glfw.make_context_current(window)
+                elif action == 'closeups':
+                    save_closeups(); glfw.make_context_current(window)
                 elif action == 'evaluate':
                     p.start(); remaining = 0 if p.geometric else steps
                     if p.geometric: p.finish(); phase = 'evaluated'
